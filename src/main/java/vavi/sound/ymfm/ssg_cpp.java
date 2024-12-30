@@ -41,9 +41,9 @@ namespace ymfm
 //  reset - reset the register state
 //-------------------------------------------------
 
-void ssg_registers::reset()
+void ssg_registers.reset()
 {
-	std::fill_n(&m_regdata[0], REGISTERS, 0);
+	std.fill_n(&m_regdata[0], REGISTERS, 0);
 }
 
 
@@ -51,7 +51,7 @@ void ssg_registers::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void ssg_registers::save_restore(ymfm_saved_state &state)
+void ssg_registers.save_restore(ymfm_saved_state &state)
 {
 	state.save_restore(m_regdata);
 }
@@ -66,7 +66,7 @@ void ssg_registers::save_restore(ymfm_saved_state &state)
 //  ssg_engine - constructor
 //-------------------------------------------------
 
-ssg_engine::ssg_engine(ymfm_interface &intf) :
+ssg_engine.ssg_engine(ymfm_interface &intf) :
 	m_intf(intf),
 	m_tone_count{ 0,0,0 },
 	m_tone_state{ 0,0,0 },
@@ -83,11 +83,11 @@ ssg_engine::ssg_engine(ymfm_interface &intf) :
 //  reset - reset the engine state
 //-------------------------------------------------
 
-void ssg_engine::reset()
+void ssg_engine.reset()
 {
 	// defer to the override if present
 	if (m_override != nullptr)
-		return m_override->ssg_reset();
+		return m_override.ssg_reset();
 
 	// reset register state
 	m_regs.reset();
@@ -109,7 +109,7 @@ void ssg_engine::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void ssg_engine::save_restore(ymfm_saved_state &state)
+void ssg_engine.save_restore(ymfm_saved_state &state)
 {
 	// save register state
 	m_regs.save_restore(state);
@@ -128,7 +128,7 @@ void ssg_engine::save_restore(ymfm_saved_state &state)
 //  clock - master clocking function
 //-------------------------------------------------
 
-void ssg_engine::clock()
+void ssg_engine.clock()
 {
 	// clock tones; tone period units are clock/16 but since we run at clock/8
 	// that works out for us to toggle the state (50% duty cycle) at twice the
@@ -170,11 +170,11 @@ void ssg_engine::clock()
 //  output - output the current state
 //-------------------------------------------------
 
-void ssg_engine::output(output_data &output)
+void ssg_engine.output(output_data &output)
 {
 	// volume to amplitude table, taken from MAME's implementation but biased
 	// so that 0 == 0
-	static int16_t const s_amplitudes[32] =
+	static int final s_amplitudes[32] =
 	{
 		     0,   32,   78,  141,  178,  222,  262,  306,
 		   369,  441,  509,  585,  701,  836,  965, 1112,
@@ -183,7 +183,7 @@ void ssg_engine::output(output_data &output)
 	};
 
 	// compute the envelope volume
-	uint32_t envelope_volume;
+	int envelope_volume;
 	if ((m_regs.envelope_hold() | (m_regs.envelope_continue() ^ 1)) && m_envelope_state >= 32)
 	{
 		m_envelope_state = 32;
@@ -191,7 +191,7 @@ void ssg_engine::output(output_data &output)
 	}
 	else
 	{
-		uint32_t attack = m_regs.envelope_attack();
+		int attack = m_regs.envelope_attack();
 		if (m_regs.envelope_alternate())
 			attack ^= bitfield(m_envelope_state, 5);
 		envelope_volume = (m_envelope_state & 31) ^ (attack ? 0 : 31);
@@ -201,13 +201,13 @@ void ssg_engine::output(output_data &output)
 	for (int chan = 0; chan < 3; chan++)
 	{
 		// noise depends on the noise state, which is the LSB of m_noise_state
-		uint32_t noise_on = m_regs.ch_noise_enable_n(chan) | m_noise_state;
+		int noise_on = m_regs.ch_noise_enable_n(chan) | m_noise_state;
 
 		// tone depends on the current tone state
-		uint32_t tone_on = m_regs.ch_tone_enable_n(chan) | m_tone_state[chan];
+		int tone_on = m_regs.ch_tone_enable_n(chan) | m_tone_state[chan];
 
 		// if neither tone nor noise enabled, return 0
-		uint32_t volume;
+		int volume;
 		if ((noise_on & tone_on) == 0)
 			volume = 0;
 
@@ -234,11 +234,11 @@ void ssg_engine::output(output_data &output)
 //  read - handle reads from the SSG registers
 //-------------------------------------------------
 
-uint8_t ssg_engine::read(uint32_t regnum)
+byte ssg_engine.read(int regnum)
 {
 	// defer to the override if present
 	if (m_override != nullptr)
-		return m_override->ssg_read(regnum);
+		return m_override.ssg_read(regnum);
 
 	// read from the I/O ports call the handlers if they are configured for input
 	if (regnum == 0x0e && !m_regs.io_a_out())
@@ -255,11 +255,11 @@ uint8_t ssg_engine::read(uint32_t regnum)
 //  write - handle writes to the SSG registers
 //-------------------------------------------------
 
-void ssg_engine::write(uint32_t regnum, uint8_t data)
+void ssg_engine.write(int regnum, byte data)
 {
 	// defer to the override if present
 	if (m_override != nullptr)
-		return m_override->ssg_write(regnum, data);
+		return m_override.ssg_write(regnum, data);
 
 	// store the raw value to the register array;
 	// most writes are passive, consumed only when needed

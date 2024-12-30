@@ -28,17 +28,8 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef YMFM_MISC_H
-#define YMFM_MISC_H
+package vavi.sound.ymfm;
 
-#pragma once
-
-#include "ymfm.h"
-#include "ymfm_adpcm.h"
-#include "ymfm_ssg.h"
-
-namespace ymfm
-{
 
 //*********************************************************
 //  SSG IMPLEMENTATION CLASSES
@@ -46,48 +37,48 @@ namespace ymfm
 
 // ======================> ym2149
 
+import vavi.sound.ymfm.debug.ymfm_interface;
+import vavi.sound.ymfm.debug.ymfm_saved_state;
+
+
 // ym2149 is just an SSG with no FM part, but we expose FM-like parts so that it
 // integrates smoothly with everything else; they just don't do anything
 class ym2149
 {
-public:
-	static constexpr uint32_t OUTPUTS = ssg_engine::OUTPUTS;
-	static constexpr uint32_t SSG_OUTPUTS = ssg_engine::OUTPUTS;
+
+	public static final int OUTPUTS = ssg_engine.OUTPUTS;
+	public static final int SSG_OUTPUTS = ssg_engine.OUTPUTS;
 	using output_data = ymfm_output<OUTPUTS>;
 
 	// constructor
-	ym2149(ymfm_interface &intf);
+	public ym2149(ymfm_interface intf);
 
 	// configuration
-	void ssg_override(ssg_override &intf) { m_ssg.override(intf); }
+	public void ssg_override(ssg_override intf) { m_ssg.override(intf); }
 
 	// reset
-	void reset();
+	public void reset();
 
 	// save/restore
-	void save_restore(ymfm_saved_state &state);
+	public void save_restore(ymfm_saved_state state);
 
 	// pass-through helpers
-	uint32_t sample_rate(uint32_t input_clock) const { return input_clock / ssg_engine::CLOCK_DIVIDER / 8; }
+	public final int sample_rate(int input_clock)  { return input_clock / ssg_engine.CLOCK_DIVIDER / 8; }
 
 	// read access
-	uint8_t read_data();
-	uint8_t read(uint32_t offset);
+	public byte read_data();
+	public byte read(int offset);
 
 	// write access
-	void write_address(uint8_t data);
-	void write_data(uint8_t data);
-	void write(uint32_t offset, uint8_t data);
+	public void write_address(byte data);
+	public void write_data(byte data);
+	public void write(int offset, byte data);
 
 	// generate one sample of sound
-	void generate(output_data *output, uint32_t numsamples = 1);
+	public void generate(output_data output, int numsamples /* = 1 */);
 
-protected:
+
 	// internal state
-	uint8_t m_address;               // address register
-	ssg_engine m_ssg;                // SSG engine
-};
-
+	protected byte m_address;               // address register
+	protected ssg_engine m_ssg;                // SSG engine
 }
-
-#endif // YMFM_MISC_H

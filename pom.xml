@@ -1,0 +1,100 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>vavi</groupId>
+  <artifactId>vavi-sound-ymfm</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.12.1</version>
+        <configuration>
+          <release>17</release>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+        <configuration>
+          <argLine>
+            -Djava.util.logging.config.file=${project.build.testOutputDirectory}/logging.properties
+            -Dswing.defaultlaf=com.formdev.flatlaf.FlatLightLaf
+          </argLine>
+          <trimStackTrace>false</trimStackTrace>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <repositories>
+    <repository>
+      <id>jitpack.io</id>
+      <url>https://jitpack.io</url>
+    </repository>
+  </repositories>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.junit</groupId>
+        <artifactId>junit-bom</artifactId>
+        <version>5.10.3</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.github.umjammer</groupId> <!-- com.github.umjammer / vavi -->
+      <artifactId>vavi-sound</artifactId>
+      <version>1.0.20</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.github.umjammer</groupId> <!-- moe.yo3explorer / com.github.umjammer -->
+      <artifactId>dotnet4j</artifactId>
+      <version>1.2.5</version>
+    </dependency>
+
+    <dependency>
+      <groupId>vavi</groupId> <!-- com.github.umjammer / vavi -->
+      <artifactId>vavi-apps-jwinzip</artifactId>
+      <version>1.0.4-SNAPSHOT</version>
+    </dependency>
+
+    <dependency>
+      <groupId>vavi</groupId> <!-- vavi / com.github.umjammer -->
+      <artifactId>vavi-util-screenscraping</artifactId>
+      <version>1.0.15-SNAPSHOT</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.formdev</groupId>
+      <artifactId>flatlaf</artifactId>
+      <version>3.5</version>
+      <scope>runtime</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-commons</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

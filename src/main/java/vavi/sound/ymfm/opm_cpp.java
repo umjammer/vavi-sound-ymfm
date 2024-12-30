@@ -42,7 +42,7 @@ namespace ymfm
 //  opm_registers - constructor
 //-------------------------------------------------
 
-opm_registers::opm_registers() :
+opm_registers.opm_registers() :
 	m_lfo_counter(0),
 	m_noise_lfsr(1),
 	m_noise_counter(0),
@@ -51,16 +51,16 @@ opm_registers::opm_registers() :
 	m_lfo_am(0)
 {
 	// create the waveforms
-	for (uint32_t index = 0; index < WAVEFORM_LENGTH; index++)
+	for (int index = 0; index < WAVEFORM_LENGTH; index++)
 		m_waveform[0][index] = abs_sin_attenuation(index) | (bitfield(index, 9) << 15);
 
 	// create the LFO waveforms; AM in the low 8 bits, PM in the upper 8
 	// waveforms are adjusted to match the pictures in the application manual
-	for (uint32_t index = 0; index < LFO_WAVEFORM_LENGTH; index++)
+	for (int index = 0; index < LFO_WAVEFORM_LENGTH; index++)
 	{
 		// waveform 0 is a sawtooth
-		uint8_t am = index ^ 0xff;
-		uint8_t pm = index;
+		byte am = index ^ 0xff;
+		byte pm = index;
 		m_lfo_waveform[0][index] = am | (pm << 8);
 
 		// waveform 1 is a square wave
@@ -83,9 +83,9 @@ opm_registers::opm_registers() :
 //  reset - reset to initial state
 //-------------------------------------------------
 
-void opm_registers::reset()
+void opm_registers.reset()
 {
-	std::fill_n(&m_regdata[0], REGISTERS, 0);
+	std.fill_n(&m_regdata[0], REGISTERS, 0);
 
 	// enable output on both channels by default
 	m_regdata[0x20] = m_regdata[0x21] = m_regdata[0x22] = m_regdata[0x23] = 0xc0;
@@ -97,7 +97,7 @@ void opm_registers::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void opm_registers::save_restore(ymfm_saved_state &state)
+void opm_registers.save_restore(ymfm_saved_state &state)
 {
 	state.save_restore(m_lfo_counter);
 	state.save_restore(m_lfo_am);
@@ -114,7 +114,7 @@ void opm_registers::save_restore(ymfm_saved_state &state)
 //  indices for each channel; for OPM this is fixed
 //-------------------------------------------------
 
-void opm_registers::operator_map(operator_mapping &dest) const
+void opm_registers.operator_map(operator_mapping &dest) final
 {
 	// Note that the channel index order is 0,2,1,3, so we bitswap the index.
 	//
@@ -123,7 +123,7 @@ void opm_registers::operator_map(operator_mapping &dest) const
 	//
 	// But when wiring up the connections, the more natural order is:
 	//    carrier 1, modulator 1, carrier 2, modulator 2
-	static const operator_mapping s_fixed_map =
+	static final operator_mapping s_fixed_map =
 	{ {
 		operator_list(  0, 16,  8, 24 ),  // Channel 0 operators
 		operator_list(  1, 17,  9, 25 ),  // Channel 1 operators
@@ -142,7 +142,7 @@ void opm_registers::operator_map(operator_mapping &dest) const
 //  write - handle writes to the register array
 //-------------------------------------------------
 
-bool opm_registers::write(uint16_t index, uint8_t data, uint32_t &channel, uint32_t &opmask)
+boolean opm_registers.write(int index, byte data, int &channel, int &opmask)
 {
 	assert(index < REGISTERS);
 
@@ -170,11 +170,11 @@ bool opm_registers::write(uint16_t index, uint8_t data, uint32_t &channel, uint3
 //  computations
 //-------------------------------------------------
 
-int32_t opm_registers::clock_noise_and_lfo()
+int opm_registers.clock_noise_and_lfo()
 {
 	// base noise frequency is measured at 2x 1/2 FM frequency; this
 	// means each tick counts as two steps against the noise counter
-	uint32_t freq = noise_frequency();
+	int freq = noise_frequency();
 	for (int rep = 0; rep < 2; rep++)
 	{
 		// evidence seems to suggest the LFSR is clocked continually and just
@@ -195,7 +195,7 @@ int32_t opm_registers::clock_noise_and_lfo()
 	// treat the rate as a 4.4 floating-point step value with implied
 	// leading 1; this matches exactly the frequencies in the application
 	// manual, though it might not be implemented exactly this way on chip
-	uint32_t rate = lfo_rate();
+	int rate = lfo_rate();
 	m_lfo_counter += (0x10 | bitfield(rate, 0, 4)) << bitfield(rate, 4, 4);
 
 	// bit 1 of the test register is officially undocumented but has been
@@ -204,24 +204,24 @@ int32_t opm_registers::clock_noise_and_lfo()
 		m_lfo_counter = 0;
 
 	// now pull out the non-fractional LFO value
-	uint32_t lfo = bitfield(m_lfo_counter, 22, 8);
+	int lfo = bitfield(m_lfo_counter, 22, 8);
 
 	// fill in the noise entry 1 ahead of our current position; this
 	// ensures the current value remains stable for a full LFO clock
 	// and effectively latches the running value when the LFO advances
-	uint32_t lfo_noise = bitfield(m_noise_lfsr, 17, 8);
+	int lfo_noise = bitfield(m_noise_lfsr, 17, 8);
 	m_lfo_waveform[3][(lfo + 1) & 0xff] = lfo_noise | (lfo_noise << 8);
 
 	// fetch the AM/PM values based on the waveform; AM is unsigned and
 	// encoded in the low 8 bits, while PM signed and encoded in the upper
 	// 8 bits
-	int32_t ampm = m_lfo_waveform[lfo_waveform()][lfo];
+	int ampm = m_lfo_waveform[lfo_waveform()][lfo];
 
 	// apply depth to the AM value and store for later
 	m_lfo_am = ((ampm & 0xff) * lfo_am_depth()) >> 7;
 
 	// apply depth to the PM value and return it
-	return ((ampm >> 8) * int32_t(lfo_pm_depth())) >> 7;
+	return ((ampm >> 8) * int(lfo_pm_depth())) >> 7;
 }
 
 
@@ -230,13 +230,13 @@ int32_t opm_registers::clock_noise_and_lfo()
 //  for the given channel
 //-------------------------------------------------
 
-uint32_t opm_registers::lfo_am_offset(uint32_t choffs) const
+int opm_registers.lfo_am_offset(int choffs) final
 {
 	// OPM maps AM quite differently from OPN
 
 	// shift value for AM sensitivity is [*, 0, 1, 2],
 	// mapping to values of [0, 23.9, 47.8, and 95.6dB]
-	uint32_t am_sensitivity = ch_lfo_am_sens(choffs);
+	int am_sensitivity = ch_lfo_am_sens(choffs);
 	if (am_sensitivity == 0)
 		return 0;
 
@@ -255,13 +255,13 @@ uint32_t opm_registers::lfo_am_offset(uint32_t choffs) const
 //  with prefetched data
 //-------------------------------------------------
 
-void opm_registers::cache_operator_data(uint32_t choffs, uint32_t opoffs, opdata_cache &cache)
+void opm_registers.cache_operator_data(int choffs, int opoffs, opdata_cache &cache)
 {
 	// set up the easy stuff
 	cache.waveform = &m_waveform[0][0];
 
 	// get frequency from the channel
-	uint32_t block_freq = cache.block_freq = ch_block_freq(choffs);
+	int block_freq = cache.block_freq = ch_block_freq(choffs);
 
 	// compute the keycode: block_freq is:
 	//
@@ -270,7 +270,7 @@ void opm_registers::cache_operator_data(uint32_t choffs, uint32_t opoffs, opdata
 	//
 	// the 5-bit keycode is just the top 5 bits (block + top 2 bits
 	// of the key code)
-	uint32_t keycode = bitfield(block_freq, 8, 5);
+	int keycode = bitfield(block_freq, 8, 5);
 
 	// detune adjustment
 	cache.detune = detune_adjustment(op_detune(opoffs), keycode);
@@ -285,7 +285,7 @@ void opm_registers::cache_operator_data(uint32_t choffs, uint32_t opoffs, opdata
 	if (lfo_pm_depth() == 0 || ch_lfo_pm_sens(choffs) == 0)
 		cache.phase_step = compute_phase_step(choffs, opoffs, cache, 0);
 	else
-		cache.phase_step = opdata_cache::PHASE_STEP_DYNAMIC;
+		cache.phase_step = opdata_cache.PHASE_STEP_DYNAMIC;
 
 	// total level, scaled by 8
 	cache.total_level = op_total_level(opoffs) << 3;
@@ -296,7 +296,7 @@ void opm_registers::cache_operator_data(uint32_t choffs, uint32_t opoffs, opdata
 	cache.eg_sustain <<= 5;
 
 	// determine KSR adjustment for enevlope rates
-	uint32_t ksrval = keycode >> (op_ksr(opoffs) ^ 3);
+	int ksrval = keycode >> (op_ksr(opoffs) ^ 3);
 	cache.eg_rate[EG_ATTACK] = effective_rate(op_attack_rate(opoffs) * 2, ksrval);
 	cache.eg_rate[EG_DECAY] = effective_rate(op_decay_rate(opoffs) * 2, ksrval);
 	cache.eg_rate[EG_SUSTAIN] = effective_rate(op_sustain_rate(opoffs) * 2, ksrval);
@@ -308,18 +308,18 @@ void opm_registers::cache_operator_data(uint32_t choffs, uint32_t opoffs, opdata
 //  compute_phase_step - compute the phase step
 //-------------------------------------------------
 
-uint32_t opm_registers::compute_phase_step(uint32_t choffs, uint32_t opoffs, opdata_cache const &cache, int32_t lfo_raw_pm)
+int opm_registers.compute_phase_step(int choffs, int opoffs, opdata_cache final &cache, int lfo_raw_pm)
 {
 	// OPM logic is rather unique here, due to extra detune
 	// and the use of key codes (not to be confused with keycode)
 
 	// start with coarse detune delta; table uses cents value from
 	// manual, converted into 1/64ths
-	static const int16_t s_detune2_delta[4] = { 0, (600*64+50)/100, (781*64+50)/100, (950*64+50)/100 };
-	int32_t delta = s_detune2_delta[op_detune2(opoffs)];
+	static final int s_detune2_delta[4] = { 0, (600*64+50)/100, (781*64+50)/100, (950*64+50)/100 };
+	int delta = s_detune2_delta[op_detune2(opoffs)];
 
 	// add in the PM delta
-	uint32_t pm_sensitivity = ch_lfo_pm_sens(choffs);
+	int pm_sensitivity = ch_lfo_pm_sens(choffs);
 	if (pm_sensitivity != 0)
 	{
 		// raw PM value is -127..128 which is +/- 200 cents
@@ -330,11 +330,11 @@ uint32_t opm_registers::compute_phase_step(uint32_t choffs, uint32_t opoffs, opd
 		if (pm_sensitivity < 6)
 			delta += lfo_raw_pm >> (6 - pm_sensitivity);
 		else
-			delta += uint32_t(lfo_raw_pm) << (pm_sensitivity - 5);
+			delta += int(lfo_raw_pm) << (pm_sensitivity - 5);
 	}
 
 	// apply delta and convert to a frequency number
-	uint32_t phase_step = opm_key_code_to_phase_step(cache.block_freq, delta);
+	int phase_step = opm_key_code_to_phase_step(cache.block_freq, delta);
 
 	// apply detune based on the keycode
 	phase_step += cache.detune;
@@ -348,10 +348,10 @@ uint32_t opm_registers::compute_phase_step(uint32_t choffs, uint32_t opoffs, opd
 //  log_keyon - log a key-on event
 //-------------------------------------------------
 
-std::string opm_registers::log_keyon(uint32_t choffs, uint32_t opoffs)
+std.string opm_registers.log_keyon(int choffs, int opoffs)
 {
-	uint32_t chnum = choffs;
-	uint32_t opnum = opoffs;
+	int chnum = choffs;
+	int opnum = opoffs;
 
 	char buffer[256];
 	int end = 0;
@@ -374,10 +374,10 @@ std::string opm_registers::log_keyon(uint32_t choffs, uint32_t opoffs)
 		ch_output_0(choffs) ? 'L' : '-',
 		ch_output_1(choffs) ? 'R' : '-');
 
-	bool am = (lfo_am_depth() != 0 && ch_lfo_am_sens(choffs) != 0 && op_lfo_am_enable(opoffs) != 0);
+	boolean am = (lfo_am_depth() != 0 && ch_lfo_am_sens(choffs) != 0 && op_lfo_am_enable(opoffs) != 0);
 	if (am)
 		end += snprintf(&buffer[end], sizeof(buffer) - end, " am=%u/%02X", ch_lfo_am_sens(choffs), lfo_am_depth());
-	bool pm = (lfo_pm_depth() != 0 && ch_lfo_pm_sens(choffs) != 0);
+	boolean pm = (lfo_pm_depth() != 0 && ch_lfo_pm_sens(choffs) != 0);
 	if (pm)
 		end += snprintf(&buffer[end], sizeof(buffer) - end, " pm=%u/%02X", ch_lfo_pm_sens(choffs), lfo_pm_depth());
 	if (am || pm)
@@ -398,7 +398,7 @@ std::string opm_registers::log_keyon(uint32_t choffs, uint32_t opoffs)
 //  ym2151 - constructor
 //-------------------------------------------------
 
-ym2151::ym2151(ymfm_interface &intf, opm_variant variant) :
+ym2151.ym2151(ymfm_interface &intf, opm_variant variant) :
 	m_variant(variant),
 	m_address(0),
 	m_fm(intf)
@@ -410,7 +410,7 @@ ym2151::ym2151(ymfm_interface &intf, opm_variant variant) :
 //  reset - reset the system
 //-------------------------------------------------
 
-void ym2151::reset()
+void ym2151.reset()
 {
 	// reset the engines
 	m_fm.reset();
@@ -421,7 +421,7 @@ void ym2151::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void ym2151::save_restore(ymfm_saved_state &state)
+void ym2151.save_restore(ymfm_saved_state &state)
 {
 	m_fm.save_restore(state);
 	state.save_restore(m_address);
@@ -432,11 +432,11 @@ void ym2151::save_restore(ymfm_saved_state &state)
 //  read_status - read the status register
 //-------------------------------------------------
 
-uint8_t ym2151::read_status()
+byte ym2151.read_status()
 {
-	uint8_t result = m_fm.status();
+	byte result = m_fm.status();
 	if (m_fm.intf().ymfm_is_busy())
-		result |= fm_engine::STATUS_BUSY;
+		result |= fm_engine.STATUS_BUSY;
 	return result;
 }
 
@@ -445,13 +445,13 @@ uint8_t ym2151::read_status()
 //  read - handle a read from the device
 //-------------------------------------------------
 
-uint8_t ym2151::read(uint32_t offset)
+byte ym2151.read(int offset)
 {
-	uint8_t result = 0xff;
+	byte result = 0xff;
 	switch (offset & 1)
 	{
 		case 0: // data port (unused)
-			debug::log_unexpected_read_write("Unexpected read from YM2151 offset %d\n", offset & 3);
+			debug.log_unexpected_read_write("Unexpected read from YM2151 offset %d\n", offset & 3);
 			break;
 
 		case 1: // status port, YM2203 compatible
@@ -467,7 +467,7 @@ uint8_t ym2151::read(uint32_t offset)
 //  register
 //-------------------------------------------------
 
-void ym2151::write_address(uint8_t data)
+void ym2151.write_address(byte data)
 {
 	// just set the address
 	m_address = data;
@@ -479,7 +479,7 @@ void ym2151::write_address(uint8_t data)
 //  interface
 //-------------------------------------------------
 
-void ym2151::write_data(uint8_t data)
+void ym2151.write_data(byte data)
 {
 	// write the FM register
 	m_fm.write(m_address, data);
@@ -501,7 +501,7 @@ void ym2151::write_data(uint8_t data)
 //  interface
 //-------------------------------------------------
 
-void ym2151::write(uint32_t offset, uint8_t data)
+void ym2151.write(int offset, byte data)
 {
 	switch (offset & 1)
 	{
@@ -520,19 +520,19 @@ void ym2151::write(uint32_t offset, uint8_t data)
 //  generate - generate one sample of sound
 //-------------------------------------------------
 
-void ym2151::generate(output_data *output, uint32_t numsamples)
+void ym2151.generate(output_data *output, int numsamples)
 {
-	for (uint32_t samp = 0; samp < numsamples; samp++, output++)
+	for (int samp = 0; samp < numsamples; samp++, output++)
 	{
 		// clock the system
-		m_fm.clock(fm_engine::ALL_CHANNELS);
+		m_fm.clock(fm_engine.ALL_CHANNELS);
 
 		// update the FM content; OPM is full 14-bit with no intermediate clipping
-		m_fm.output(output->clear(), 0, 32767, fm_engine::ALL_CHANNELS);
+		m_fm.output(output.clear(), 0, 32767, fm_engine.ALL_CHANNELS);
 
 		// YM2151 uses an external DAC (YM3012) with mantissa/exponent format
 		// convert to 10.3 floating point value and back to simulate truncation
-		output->roundtrip_fp();
+		output.roundtrip_fp();
 	}
 }
 

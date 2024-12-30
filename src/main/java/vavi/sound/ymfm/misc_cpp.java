@@ -41,7 +41,7 @@ namespace ymfm
 //  ym2149 - constructor
 //-------------------------------------------------
 
-ym2149::ym2149(ymfm_interface &intf) :
+ym2149.ym2149(ymfm_interface &intf) :
 	m_address(0),
 	m_ssg(intf)
 {
@@ -52,7 +52,7 @@ ym2149::ym2149(ymfm_interface &intf) :
 //  reset - reset the system
 //-------------------------------------------------
 
-void ym2149::reset()
+void ym2149.reset()
 {
 	// reset the engines
 	m_ssg.reset();
@@ -63,7 +63,7 @@ void ym2149::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void ym2149::save_restore(ymfm_saved_state &state)
+void ym2149.save_restore(ymfm_saved_state &state)
 {
 	state.save_restore(m_address);
 	m_ssg.save_restore(state);
@@ -74,7 +74,7 @@ void ym2149::save_restore(ymfm_saved_state &state)
 //  read_data - read the data register
 //-------------------------------------------------
 
-uint8_t ym2149::read_data()
+byte ym2149.read_data()
 {
 	return m_ssg.read(m_address & 0x0f);
 }
@@ -84,9 +84,9 @@ uint8_t ym2149::read_data()
 //  read - handle a read from the device
 //-------------------------------------------------
 
-uint8_t ym2149::read(uint32_t offset)
+byte ym2149.read(int offset)
 {
-	uint8_t result = 0xff;
+	byte result = 0xff;
 	switch (offset & 3)	// BC2,BC1
 	{
 		case 0: // inactive
@@ -111,7 +111,7 @@ uint8_t ym2149::read(uint32_t offset)
 //  register
 //-------------------------------------------------
 
-void ym2149::write_address(uint8_t data)
+void ym2149.write_address(byte data)
 {
 	// just set the address
 	m_address = data;
@@ -123,7 +123,7 @@ void ym2149::write_address(uint8_t data)
 //  interface
 //-------------------------------------------------
 
-void ym2149::write_data(uint8_t data)
+void ym2149.write_data(byte data)
 {
 	m_ssg.write(m_address & 0x0f, data);
 }
@@ -134,7 +134,7 @@ void ym2149::write_data(uint8_t data)
 //  interface
 //-------------------------------------------------
 
-void ym2149::write(uint32_t offset, uint8_t data)
+void ym2149.write(int offset, byte data)
 {
 	switch (offset & 3)	// BC2,BC1
 	{
@@ -160,9 +160,9 @@ void ym2149::write(uint32_t offset, uint8_t data)
 //  generate - generate samples of SSG sound
 //-------------------------------------------------
 
-void ym2149::generate(output_data *output, uint32_t numsamples)
+void ym2149.generate(output_data *output, int numsamples)
 {
-	for (uint32_t samp = 0; samp < numsamples; samp++, output++)
+	for (int samp = 0; samp < numsamples; samp++, output++)
 	{
 		// clock the SSG
 		m_ssg.clock();

@@ -35,8 +35,8 @@
 
 #include "ymfm.h"
 
-namespace ymfm
-{
+package vavi.sound.ymfm;
+
 
 /*
 Note to self: Sega "Multi-PCM" is almost identical to this
@@ -91,15 +91,15 @@ class pcm_engine;
 // and remains static during subsequent sound generation
 struct pcm_cache
 {
-	uint32_t step;                    // sample position step, as a .16 value
-	uint32_t total_level;             // target total level, as a .10 value
-	uint32_t pan_left;                // left panning attenuation
-	uint32_t pan_right;               // right panning attenuation
-	uint32_t eg_sustain;              // sustain level, shifted up to envelope values
-	uint8_t eg_rate[EG_STATES];       // envelope rate, including KSR
-	uint8_t lfo_step;                 // stepping value for LFO
-	uint8_t am_depth;                 // scale value for AM LFO
-	uint8_t pm_depth;                 // scale value for PM LFO
+	int step;                    // sample position step, as a .16 value
+	int total_level;             // target total level, as a .10 value
+	int pan_left;                // left panning attenuation
+	int pan_right;               // right panning attenuation
+	int eg_sustain;              // sustain level, shifted up to envelope values
+	byte eg_rate[EG_STATES];       // envelope rate, including KSR
+	byte lfo_step;                 // stepping value for LFO
+	byte am_depth;                 // scale value for AM LFO
+	byte pm_depth;                 // scale value for PM LFO
 };
 
 
@@ -151,10 +151,10 @@ class pcm_registers
 {
 public:
 	// constants
-	static constexpr uint32_t OUTPUTS = 4;
-	static constexpr uint32_t CHANNELS = 24;
-	static constexpr uint32_t REGISTERS = 0x100;
-	static constexpr uint32_t ALL_CHANNELS = (1 << CHANNELS) - 1;
+	static final int OUTPUTS = 4;
+	static final int CHANNELS = 24;
+	static final int REGISTERS = 0x100;
+	static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
 
 	// constructor
 	pcm_registers() { }
@@ -166,51 +166,51 @@ public:
 	void reset();
 
 	// update cache information
-	void cache_channel_data(uint32_t choffs, pcm_cache &cache);
+	void cache_channel_data(int choffs, pcm_cache &cache);
 
 	// direct read/write access
-	uint8_t read(uint32_t index ) { return m_regdata[index]; }
-	void write(uint32_t index, uint8_t data) { m_regdata[index] = data; }
+	byte read(int index ) { return m_regdata[index]; }
+	void write(int index, byte data) { m_regdata[index] = data; }
 
 	// system-wide registers
-	uint32_t memory_access_mode() const                 { return bitfield(m_regdata[0x02], 0); }
-	uint32_t memory_type() const                        { return bitfield(m_regdata[0x02], 1); }
-	uint32_t wave_table_header() const                  { return bitfield(m_regdata[0x02], 2, 3); }
-	uint32_t device_id() const                          { return bitfield(m_regdata[0x02], 5, 3); }
-	uint32_t memory_address() const                     { return (bitfield(m_regdata[0x03], 0, 6) << 16) | (m_regdata[0x04] << 8) | m_regdata[0x05]; }
-	uint32_t memory_data() const                        { return m_regdata[0x06]; }
-	uint32_t mix_fm_r() const                           { return bitfield(m_regdata[0xf8], 3, 3); }
-	uint32_t mix_fm_l() const                           { return bitfield(m_regdata[0xf8], 0, 3); }
-	uint32_t mix_pcm_r() const                          { return bitfield(m_regdata[0xf9], 3, 3); }
-	uint32_t mix_pcm_l() const                          { return bitfield(m_regdata[0xf9], 0, 3); }
+	int memory_access_mode() final                 { return bitfield(m_regdata[0x02], 0); }
+	int memory_type() final                        { return bitfield(m_regdata[0x02], 1); }
+	int wave_table_header() final                  { return bitfield(m_regdata[0x02], 2, 3); }
+	int device_id() final                          { return bitfield(m_regdata[0x02], 5, 3); }
+	int memory_address() final                     { return (bitfield(m_regdata[0x03], 0, 6) << 16) | (m_regdata[0x04] << 8) | m_regdata[0x05]; }
+	int memory_data() final                        { return m_regdata[0x06]; }
+	int mix_fm_r() final                           { return bitfield(m_regdata[0xf8], 3, 3); }
+	int mix_fm_l() final                           { return bitfield(m_regdata[0xf8], 0, 3); }
+	int mix_pcm_r() final                          { return bitfield(m_regdata[0xf9], 3, 3); }
+	int mix_pcm_l() final                          { return bitfield(m_regdata[0xf9], 0, 3); }
 
 	// per-channel registers
-	uint32_t ch_wave_table_num(uint32_t choffs) const   { return m_regdata[choffs + 0x08] | (bitfield(m_regdata[choffs + 0x20], 0) << 8); }
-	uint32_t ch_fnumber(uint32_t choffs) const          { return bitfield(m_regdata[choffs + 0x20], 1, 7) | (bitfield(m_regdata[choffs + 0x38], 0, 3) << 7); }
-	uint32_t ch_pseudo_reverb(uint32_t choffs) const    { return bitfield(m_regdata[choffs + 0x38], 3); }
-	uint32_t ch_octave(uint32_t choffs) const           { return bitfield(m_regdata[choffs + 0x38], 4, 4); }
-	uint32_t ch_total_level(uint32_t choffs) const      { return bitfield(m_regdata[choffs + 0x50], 1, 7); }
-	uint32_t ch_level_direct(uint32_t choffs) const     { return bitfield(m_regdata[choffs + 0x50], 0); }
-	uint32_t ch_keyon(uint32_t choffs) const            { return bitfield(m_regdata[choffs + 0x68], 7); }
-	uint32_t ch_damp(uint32_t choffs) const             { return bitfield(m_regdata[choffs + 0x68], 6); }
-	uint32_t ch_lfo_reset(uint32_t choffs) const        { return bitfield(m_regdata[choffs + 0x68], 5); }
-	uint32_t ch_output_channel(uint32_t choffs) const   { return bitfield(m_regdata[choffs + 0x68], 4); }
-	uint32_t ch_panpot(uint32_t choffs) const           { return bitfield(m_regdata[choffs + 0x68], 0, 4); }
-	uint32_t ch_lfo_speed(uint32_t choffs) const        { return bitfield(m_regdata[choffs + 0x80], 3, 3); }
-	uint32_t ch_vibrato(uint32_t choffs) const          { return bitfield(m_regdata[choffs + 0x80], 0, 3); }
-	uint32_t ch_attack_rate(uint32_t choffs) const      { return bitfield(m_regdata[choffs + 0x98], 4, 4); }
-	uint32_t ch_decay_rate(uint32_t choffs) const       { return bitfield(m_regdata[choffs + 0x98], 0, 4); }
-	uint32_t ch_sustain_level(uint32_t choffs) const    { return bitfield(m_regdata[choffs + 0xb0], 4, 4); }
-	uint32_t ch_sustain_rate(uint32_t choffs) const     { return bitfield(m_regdata[choffs + 0xb0], 0, 4); }
-	uint32_t ch_rate_correction(uint32_t choffs) const  { return bitfield(m_regdata[choffs + 0xc8], 4, 4); }
-	uint32_t ch_release_rate(uint32_t choffs) const     { return bitfield(m_regdata[choffs + 0xc8], 0, 4); }
-	uint32_t ch_am_depth(uint32_t choffs) const         { return bitfield(m_regdata[choffs + 0xe0], 0, 3); }
+	int ch_wave_table_num(int choffs) final   { return m_regdata[choffs + 0x08] | (bitfield(m_regdata[choffs + 0x20], 0) << 8); }
+	int ch_fnumber(int choffs) final          { return bitfield(m_regdata[choffs + 0x20], 1, 7) | (bitfield(m_regdata[choffs + 0x38], 0, 3) << 7); }
+	int ch_pseudo_reverb(int choffs) final    { return bitfield(m_regdata[choffs + 0x38], 3); }
+	int ch_octave(int choffs) final           { return bitfield(m_regdata[choffs + 0x38], 4, 4); }
+	int ch_total_level(int choffs) final      { return bitfield(m_regdata[choffs + 0x50], 1, 7); }
+	int ch_level_direct(int choffs) final     { return bitfield(m_regdata[choffs + 0x50], 0); }
+	int ch_keyon(int choffs) final            { return bitfield(m_regdata[choffs + 0x68], 7); }
+	int ch_damp(int choffs) final             { return bitfield(m_regdata[choffs + 0x68], 6); }
+	int ch_lfo_reset(int choffs) final        { return bitfield(m_regdata[choffs + 0x68], 5); }
+	int ch_output_channel(int choffs) final   { return bitfield(m_regdata[choffs + 0x68], 4); }
+	int ch_panpot(int choffs) final           { return bitfield(m_regdata[choffs + 0x68], 0, 4); }
+	int ch_lfo_speed(int choffs) final        { return bitfield(m_regdata[choffs + 0x80], 3, 3); }
+	int ch_vibrato(int choffs) final          { return bitfield(m_regdata[choffs + 0x80], 0, 3); }
+	int ch_attack_rate(int choffs) final      { return bitfield(m_regdata[choffs + 0x98], 4, 4); }
+	int ch_decay_rate(int choffs) final       { return bitfield(m_regdata[choffs + 0x98], 0, 4); }
+	int ch_sustain_level(int choffs) final    { return bitfield(m_regdata[choffs + 0xb0], 4, 4); }
+	int ch_sustain_rate(int choffs) final     { return bitfield(m_regdata[choffs + 0xb0], 0, 4); }
+	int ch_rate_correction(int choffs) final  { return bitfield(m_regdata[choffs + 0xc8], 4, 4); }
+	int ch_release_rate(int choffs) final     { return bitfield(m_regdata[choffs + 0xc8], 0, 4); }
+	int ch_am_depth(int choffs) final         { return bitfield(m_regdata[choffs + 0xe0], 0, 3); }
 
 	// return the memory address and increment it
-	uint32_t memory_address_autoinc()
+	int memory_address_autoinc()
 	{
-		uint32_t result = memory_address();
-		uint32_t newval = result + 1;
+		int result = memory_address();
+		int newval = result + 1;
 		m_regdata[0x05] = newval >> 0;
 		m_regdata[0x04] = newval >> 8;
 		m_regdata[0x03] = (newval >> 16) & 0x3f;
@@ -219,10 +219,10 @@ public:
 
 private:
 	// internal helpers
-	uint32_t effective_rate(uint32_t raw, uint32_t correction);
+	int effective_rate(int raw, int correction);
 
 	// internal state
-	uint8_t m_regdata[REGISTERS];         // register data
+	byte m_regdata[REGISTERS];         // register data
 };
 
 
@@ -230,18 +230,18 @@ private:
 
 class pcm_channel
 {
-	static constexpr uint8_t KEY_ON = 0x01;
-	static constexpr uint8_t KEY_PENDING_ON = 0x02;
-	static constexpr uint8_t KEY_PENDING = 0x04;
+	static final byte KEY_ON = 0x01;
+	static final byte KEY_PENDING_ON = 0x02;
+	static final byte KEY_PENDING = 0x04;
 
 	// "quiet" value, used to optimize when we can skip doing working
-	static constexpr uint32_t EG_QUIET = 0x200;
+	static final int EG_QUIET = 0x200;
 
 public:
-	using output_data = ymfm_output<pcm_registers::OUTPUTS>;
+	using output_data = ymfm_output<pcm_registers.OUTPUTS>;
 
 	// constructor
-	pcm_channel(pcm_engine &owner, uint32_t choffs);
+	pcm_channel(pcm_engine &owner, int choffs);
 
 	// save/restore
 	void save_restore(ymfm_saved_state &state);
@@ -250,19 +250,19 @@ public:
 	void reset();
 
 	// return the channel offset
-	uint32_t choffs() const { return m_choffs; }
+	int choffs() final { return m_choffs; }
 
 	// prepare prior to clocking
-	bool prepare();
+	boolean prepare();
 
 	// master clocking function
-	void clock(uint32_t env_counter);
+	void clock(int env_counter);
 
 	// return the computed output value, with panning applied
-	void output(output_data &output) const;
+	void output(output_data &output) final;
 
 	// signal key on/off
-	void keyonoff(bool on);
+	void keyonoff(boolean on);
 
 	// load a new wavetable entry
 	void load_wavetable();
@@ -271,23 +271,23 @@ private:
 	// internal helpers
 	void start_attack();
 	void start_release();
-	void clock_envelope(uint32_t env_counter);
-	int16_t fetch_sample() const;
-	uint8_t read_pcm(uint32_t address) const;
+	void clock_envelope(int env_counter);
+	int fetch_sample() final;
+	byte read_pcm(int address) final;
 
 	// internal state
-	uint32_t const m_choffs;              // channel offset
-	uint32_t m_baseaddr;                  // base address
-	uint32_t m_endpos;                    // ending position
-	uint32_t m_looppos;                   // loop position
-	uint32_t m_curpos;                    // current position
-	uint32_t m_nextpos;                   // next position
-	uint32_t m_lfo_counter;               // LFO counter
+	int final m_choffs;              // channel offset
+	int m_baseaddr;                  // base address
+	int m_endpos;                    // ending position
+	int m_looppos;                   // loop position
+	int m_curpos;                    // current position
+	int m_nextpos;                   // next position
+	int m_lfo_counter;               // LFO counter
 	envelope_state m_eg_state;            // envelope state
-	uint16_t m_env_attenuation;           // computed envelope attenuation
-	uint32_t m_total_level;               // total level with as 7.10 for interp
-	uint8_t m_format;                     // sample format
-	uint8_t m_key_state;                  // current key state
+	int m_env_attenuation;           // computed envelope attenuation
+	int m_total_level;               // total level with as 7.10 for interp
+	byte m_format;                     // sample format
+	byte m_key_state;                  // current key state
 	pcm_cache m_cache;                    // cached data
 	pcm_registers &m_regs;                // reference to registers
 	pcm_engine &m_owner;                  // reference to our owner
@@ -299,10 +299,10 @@ private:
 class pcm_engine
 {
 public:
-	static constexpr int OUTPUTS = pcm_registers::OUTPUTS;
-	static constexpr int CHANNELS = pcm_registers::CHANNELS;
-	static constexpr uint32_t ALL_CHANNELS = pcm_registers::ALL_CHANNELS;
-	using output_data = pcm_channel::output_data;
+	static final int OUTPUTS = pcm_registers.OUTPUTS;
+	static final int CHANNELS = pcm_registers.CHANNELS;
+	static final int ALL_CHANNELS = pcm_registers.ALL_CHANNELS;
+	using output_data = pcm_channel.output_data;
 
 	// constructor
 	pcm_engine(ymfm_interface &intf);
@@ -314,16 +314,16 @@ public:
 	void save_restore(ymfm_saved_state &state);
 
 	// master clocking function
-	void clock(uint32_t chanmask);
+	void clock(int chanmask);
 
 	// compute sum of channel outputs
-	void output(output_data &output, uint32_t chanmask);
+	void output(output_data &output, int chanmask);
 
 	// read from the PCM registers
-	uint8_t read(uint32_t regnum);
+	byte read(int regnum);
 
 	// write to the PCM registers
-	void write(uint32_t regnum, uint8_t data);
+	void write(int regnum, byte data);
 
 	// return a reference to our interface
 	ymfm_interface &intf() { return m_intf; }
@@ -334,11 +334,11 @@ public:
 private:
 	// internal state
 	ymfm_interface &m_intf;                           // reference to the interface
-	uint32_t m_env_counter;                           // envelope counter
-	uint32_t m_modified_channels;                     // bitmask of modified channels
-	uint32_t m_active_channels;                       // bitmask of active channels
-	uint32_t m_prepare_count;                         // counter to do periodic prepare sweeps
-	std::unique_ptr<pcm_channel> m_channel[CHANNELS]; // array of channels
+	int m_env_counter;                           // envelope counter
+	int m_modified_channels;                     // bitmask of modified channels
+	int m_active_channels;                       // bitmask of active channels
+	int m_prepare_count;                         // counter to do periodic prepare sweeps
+	std.unique_ptr<pcm_channel> m_channel[CHANNELS]; // array of channels
 	pcm_registers m_regs;                             // registers
 };
 

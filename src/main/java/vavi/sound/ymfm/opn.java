@@ -38,8 +38,8 @@
 #include "ymfm_fm.h"
 #include "ymfm_ssg.h"
 
-namespace ymfm
-{
+package vavi.sound.ymfm;
+
 
 //*********************************************************
 //  REGISTER CLASSES
@@ -107,27 +107,27 @@ namespace ymfm
 //        BC-BF --xxxxxx Latched frequency number upper bits (from AC-AF)
 //
 
-template<bool IsOpnA>
+template<boolean IsOpnA>
 class opn_registers_base : public fm_registers_base
 {
 public:
 	// constants
-	static constexpr uint32_t OUTPUTS = IsOpnA ? 2 : 1;
-	static constexpr uint32_t CHANNELS = IsOpnA ? 6 : 3;
-	static constexpr uint32_t ALL_CHANNELS = (1 << CHANNELS) - 1;
-	static constexpr uint32_t OPERATORS = CHANNELS * 4;
-	static constexpr uint32_t WAVEFORMS = 1;
-	static constexpr uint32_t REGISTERS = IsOpnA ? 0x200 : 0x100;
-	static constexpr uint32_t REG_MODE = 0x27;
-	static constexpr uint32_t DEFAULT_PRESCALE = 6;
-	static constexpr uint32_t EG_CLOCK_DIVIDER = 3;
-	static constexpr bool EG_HAS_SSG = true;
-	static constexpr bool MODULATOR_DELAY = false;
-	static constexpr uint32_t CSM_TRIGGER_MASK = 1 << 2;
-	static constexpr uint8_t STATUS_TIMERA = 0x01;
-	static constexpr uint8_t STATUS_TIMERB = 0x02;
-	static constexpr uint8_t STATUS_BUSY = 0x80;
-	static constexpr uint8_t STATUS_IRQ = 0;
+	static final int OUTPUTS = IsOpnA ? 2 : 1;
+	static final int CHANNELS = IsOpnA ? 6 : 3;
+	static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
+	static final int OPERATORS = CHANNELS * 4;
+	static final int WAVEFORMS = 1;
+	static final int REGISTERS = IsOpnA ? 0x200 : 0x100;
+	static final int REG_MODE = 0x27;
+	static final int DEFAULT_PRESCALE = 6;
+	static final int EG_CLOCK_DIVIDER = 3;
+	static final boolean EG_HAS_SSG = true;
+	static final boolean MODULATOR_DELAY = false;
+	static final int CSM_TRIGGER_MASK = 1 << 2;
+	static final byte STATUS_TIMERA = 0x01;
+	static final byte STATUS_TIMERB = 0x02;
+	static final byte STATUS_BUSY = 0x80;
+	static final byte STATUS_IRQ = 0;
 
 	// constructor
 	opn_registers_base();
@@ -139,7 +139,7 @@ public:
 	void save_restore(ymfm_saved_state &state);
 
 	// map channel number to register offset
-	static constexpr uint32_t channel_offset(uint32_t chnum)
+	static final int channel_offset(int chnum)
 	{
 		assert(chnum < CHANNELS);
 		if (!IsOpnA)
@@ -149,7 +149,7 @@ public:
 	}
 
 	// map operator number to register offset
-	static constexpr uint32_t operator_offset(uint32_t opnum)
+	static final int operator_offset(int opnum)
 	{
 		assert(opnum < OPERATORS);
 		if (!IsOpnA)
@@ -159,96 +159,96 @@ public:
 	}
 
 	// return an array of operator indices for each channel
-	struct operator_mapping { uint32_t chan[CHANNELS]; };
-	void operator_map(operator_mapping &dest) const;
+	struct operator_mapping { int chan[CHANNELS]; };
+	void operator_map(operator_mapping &dest) final;
 
 	// read a register value
-	uint8_t read(uint16_t index) const { return m_regdata[index]; }
+	byte read(int index) final { return m_regdata[index]; }
 
 	// handle writes to the register array
-	bool write(uint16_t index, uint8_t data, uint32_t &chan, uint32_t &opmask);
+	boolean write(int index, byte data, int &chan, int &opmask);
 
 	// clock the noise and LFO, if present, returning LFO PM value
-	int32_t clock_noise_and_lfo();
+	int clock_noise_and_lfo();
 
 	// reset the LFO
 	void reset_lfo() { m_lfo_counter = 0; }
 
 	// return the AM offset from LFO for the given channel
-	uint32_t lfo_am_offset(uint32_t choffs) const;
+	int lfo_am_offset(int choffs) final;
 
 	// return LFO/noise states
-	uint32_t noise_state() const { return 0; }
+	int noise_state() final { return 0; }
 
 	// caching helpers
-	void cache_operator_data(uint32_t choffs, uint32_t opoffs, opdata_cache &cache);
+	void cache_operator_data(int choffs, int opoffs, opdata_cache &cache);
 
 	// compute the phase step, given a PM value
-	uint32_t compute_phase_step(uint32_t choffs, uint32_t opoffs, opdata_cache const &cache, int32_t lfo_raw_pm);
+	int compute_phase_step(int choffs, int opoffs, opdata_cache final &cache, int lfo_raw_pm);
 
 	// log a key-on event
-	std::string log_keyon(uint32_t choffs, uint32_t opoffs);
+	std.string log_keyon(int choffs, int opoffs);
 
 	// system-wide registers
-	uint32_t test() const                       { return byte(0x21, 0, 8); }
-	uint32_t lfo_enable() const                 { return IsOpnA ? byte(0x22, 3, 1) : 0; }
-	uint32_t lfo_rate() const                   { return IsOpnA ? byte(0x22, 0, 3) : 0; }
-	uint32_t timer_a_value() const              { return word(0x24, 0, 8, 0x25, 0, 2); }
-	uint32_t timer_b_value() const              { return byte(0x26, 0, 8); }
-	uint32_t csm() const                        { return (byte(0x27, 6, 2) == 2); }
-	uint32_t multi_freq() const                 { return (byte(0x27, 6, 2) != 0); }
-	uint32_t reset_timer_b() const              { return byte(0x27, 5, 1); }
-	uint32_t reset_timer_a() const              { return byte(0x27, 4, 1); }
-	uint32_t enable_timer_b() const             { return byte(0x27, 3, 1); }
-	uint32_t enable_timer_a() const             { return byte(0x27, 2, 1); }
-	uint32_t load_timer_b() const               { return byte(0x27, 1, 1); }
-	uint32_t load_timer_a() const               { return byte(0x27, 0, 1); }
-	uint32_t multi_block_freq(uint32_t num) const    { return word(0xac, 0, 6, 0xa8, 0, 8, num); }
+	int test() final                       { return byte(0x21, 0, 8); }
+	int lfo_enable() final                 { return IsOpnA ? byte(0x22, 3, 1) : 0; }
+	int lfo_rate() final                   { return IsOpnA ? byte(0x22, 0, 3) : 0; }
+	int timer_a_value() final              { return word(0x24, 0, 8, 0x25, 0, 2); }
+	int timer_b_value() final              { return byte(0x26, 0, 8); }
+	int csm() final                        { return (byte(0x27, 6, 2) == 2); }
+	int multi_freq() final                 { return (byte(0x27, 6, 2) != 0); }
+	int reset_timer_b() final              { return byte(0x27, 5, 1); }
+	int reset_timer_a() final              { return byte(0x27, 4, 1); }
+	int enable_timer_b() final             { return byte(0x27, 3, 1); }
+	int enable_timer_a() final             { return byte(0x27, 2, 1); }
+	int load_timer_b() final               { return byte(0x27, 1, 1); }
+	int load_timer_a() final               { return byte(0x27, 0, 1); }
+	int multi_block_freq(int num) final    { return word(0xac, 0, 6, 0xa8, 0, 8, num); }
 
 	// per-channel registers
-	uint32_t ch_block_freq(uint32_t choffs) const    { return word(0xa4, 0, 6, 0xa0, 0, 8, choffs); }
-	uint32_t ch_feedback(uint32_t choffs) const      { return byte(0xb0, 3, 3, choffs); }
-	uint32_t ch_algorithm(uint32_t choffs) const     { return byte(0xb0, 0, 3, choffs); }
-	uint32_t ch_output_any(uint32_t choffs) const    { return IsOpnA ? byte(0xb4, 6, 2, choffs) : 1; }
-	uint32_t ch_output_0(uint32_t choffs) const      { return IsOpnA ? byte(0xb4, 7, 1, choffs) : 1; }
-	uint32_t ch_output_1(uint32_t choffs) const      { return IsOpnA ? byte(0xb4, 6, 1, choffs) : 0; }
-	uint32_t ch_output_2(uint32_t choffs) const      { return 0; }
-	uint32_t ch_output_3(uint32_t choffs) const      { return 0; }
-	uint32_t ch_lfo_am_sens(uint32_t choffs) const   { return IsOpnA ? byte(0xb4, 4, 2, choffs) : 0; }
-	uint32_t ch_lfo_pm_sens(uint32_t choffs) const   { return IsOpnA ? byte(0xb4, 0, 3, choffs) : 0; }
+	int ch_block_freq(int choffs) final    { return word(0xa4, 0, 6, 0xa0, 0, 8, choffs); }
+	int ch_feedback(int choffs) final      { return byte(0xb0, 3, 3, choffs); }
+	int ch_algorithm(int choffs) final     { return byte(0xb0, 0, 3, choffs); }
+	int ch_output_any(int choffs) final    { return IsOpnA ? byte(0xb4, 6, 2, choffs) : 1; }
+	int ch_output_0(int choffs) final      { return IsOpnA ? byte(0xb4, 7, 1, choffs) : 1; }
+	int ch_output_1(int choffs) final      { return IsOpnA ? byte(0xb4, 6, 1, choffs) : 0; }
+	int ch_output_2(int choffs) final      { return 0; }
+	int ch_output_3(int choffs) final      { return 0; }
+	int ch_lfo_am_sens(int choffs) final   { return IsOpnA ? byte(0xb4, 4, 2, choffs) : 0; }
+	int ch_lfo_pm_sens(int choffs) final   { return IsOpnA ? byte(0xb4, 0, 3, choffs) : 0; }
 
 	// per-operator registers
-	uint32_t op_detune(uint32_t opoffs) const        { return byte(0x30, 4, 3, opoffs); }
-	uint32_t op_multiple(uint32_t opoffs) const      { return byte(0x30, 0, 4, opoffs); }
-	uint32_t op_total_level(uint32_t opoffs) const   { return byte(0x40, 0, 7, opoffs); }
-	uint32_t op_ksr(uint32_t opoffs) const           { return byte(0x50, 6, 2, opoffs); }
-	uint32_t op_attack_rate(uint32_t opoffs) const   { return byte(0x50, 0, 5, opoffs); }
-	uint32_t op_decay_rate(uint32_t opoffs) const    { return byte(0x60, 0, 5, opoffs); }
-	uint32_t op_lfo_am_enable(uint32_t opoffs) const { return IsOpnA ? byte(0x60, 7, 1, opoffs) : 0; }
-	uint32_t op_sustain_rate(uint32_t opoffs) const  { return byte(0x70, 0, 5, opoffs); }
-	uint32_t op_sustain_level(uint32_t opoffs) const { return byte(0x80, 4, 4, opoffs); }
-	uint32_t op_release_rate(uint32_t opoffs) const  { return byte(0x80, 0, 4, opoffs); }
-	uint32_t op_ssg_eg_enable(uint32_t opoffs) const { return byte(0x90, 3, 1, opoffs); }
-	uint32_t op_ssg_eg_mode(uint32_t opoffs) const   { return byte(0x90, 0, 3, opoffs); }
+	int op_detune(int opoffs) final        { return byte(0x30, 4, 3, opoffs); }
+	int op_multiple(int opoffs) final      { return byte(0x30, 0, 4, opoffs); }
+	int op_total_level(int opoffs) final   { return byte(0x40, 0, 7, opoffs); }
+	int op_ksr(int opoffs) final           { return byte(0x50, 6, 2, opoffs); }
+	int op_attack_rate(int opoffs) final   { return byte(0x50, 0, 5, opoffs); }
+	int op_decay_rate(int opoffs) final    { return byte(0x60, 0, 5, opoffs); }
+	int op_lfo_am_enable(int opoffs) final { return IsOpnA ? byte(0x60, 7, 1, opoffs) : 0; }
+	int op_sustain_rate(int opoffs) final  { return byte(0x70, 0, 5, opoffs); }
+	int op_sustain_level(int opoffs) final { return byte(0x80, 4, 4, opoffs); }
+	int op_release_rate(int opoffs) final  { return byte(0x80, 0, 4, opoffs); }
+	int op_ssg_eg_enable(int opoffs) final { return byte(0x90, 3, 1, opoffs); }
+	int op_ssg_eg_mode(int opoffs) final   { return byte(0x90, 0, 3, opoffs); }
 
 protected:
 	// return a bitfield extracted from a byte
-	uint32_t byte(uint32_t offset, uint32_t start, uint32_t count, uint32_t extra_offset = 0) const
+	int byte(int offset, int start, int count, int extra_offset = 0) final
 	{
 		return bitfield(m_regdata[offset + extra_offset], start, count);
 	}
 
 	// return a bitfield extracted from a pair of bytes, MSBs listed first
-	uint32_t word(uint32_t offset1, uint32_t start1, uint32_t count1, uint32_t offset2, uint32_t start2, uint32_t count2, uint32_t extra_offset = 0) const
+	int word(int offset1, int start1, int count1, int offset2, int start2, int count2, int extra_offset = 0) final
 	{
 		return (byte(offset1, start1, count1, extra_offset) << count2) | byte(offset2, start2, count2, extra_offset);
 	}
 
 	// internal state
-	uint32_t m_lfo_counter;               // LFO counter
-	uint8_t m_lfo_am;                     // current LFO AM value
-	uint8_t m_regdata[REGISTERS];         // register data
-	uint16_t m_waveform[WAVEFORMS][WAVEFORM_LENGTH]; // waveforms
+	int m_lfo_counter;               // LFO counter
+	byte m_lfo_am;                     // current LFO AM value
+	byte m_regdata[REGISTERS];         // register data
+	int m_waveform[WAVEFORMS][WAVEFORM_LENGTH]; // waveforms
 };
 
 using opn_registers = opn_registers_base<false>;
@@ -328,7 +328,7 @@ using opna_registers = opn_registers_base<true>;
 
 // ======================> opn_fidelity
 
-enum opn_fidelity : uint8_t
+enum opn_fidelity : byte
 {
 	OPN_FIDELITY_MAX,
 	OPN_FIDELITY_MIN,
@@ -340,19 +340,19 @@ enum opn_fidelity : uint8_t
 
 // ======================> ssg_resampler
 
-template<typename OutputType, int FirstOutput, bool MixTo1>
+template<typename OutputType, int FirstOutput, boolean MixTo1>
 class ssg_resampler
 {
 private:
 	// helper to add the last computed value to the sums, applying the given scale
-	void add_last(int32_t &sum0, int32_t &sum1, int32_t &sum2, int32_t scale = 1);
+	void add_last(int &sum0, int &sum1, int &sum2, int scale = 1);
 
 	// helper to clock a new value and then add it to the sums, applying the given scale
-	void clock_and_add(int32_t &sum0, int32_t &sum1, int32_t &sum2, int32_t scale = 1);
+	void clock_and_add(int &sum0, int &sum1, int &sum2, int scale = 1);
 
 	// helper to write the sums to the appropriate outputs, applying the given
 	// divisor to the final result
-	void write_to_output(OutputType *output, int32_t sum0, int32_t sum1, int32_t sum2, int32_t divisor = 1);
+	void write_to_output(OutputType *output, int sum0, int sum1, int sum2, int divisor = 1);
 
 public:
 	// constructor
@@ -362,55 +362,55 @@ public:
 	void save_restore(ymfm_saved_state &state);
 
 	// get the current sample index
-	uint32_t sampindex() const { return m_sampindex; }
+	int sampindex() final { return m_sampindex; }
 
 	// configure the ratio
-	void configure(uint8_t outsamples, uint8_t srcsamples);
+	void configure(byte outsamples, byte srcsamples);
 
 	// resample
-	void resample(OutputType *output, uint32_t numsamples)
+	void resample(OutputType *output, int numsamples)
 	{
-		(this->*m_resampler)(output, numsamples);
+		(this.*m_resampler)(output, numsamples);
 	}
 
 private:
 	// resample SSG output to the target at a rate of 1 SSG sample
 	// to every n output samples
 	template<int Multiplier>
-	void resample_n_1(OutputType *output, uint32_t numsamples);
+	void resample_n_1(OutputType *output, int numsamples);
 
 	// resample SSG output to the target at a rate of n SSG samples
 	// to every 1 output sample
 	template<int Divisor>
-	void resample_1_n(OutputType *output, uint32_t numsamples);
+	void resample_1_n(OutputType *output, int numsamples);
 
 	// resample SSG output to the target at a rate of 9 SSG samples
 	// to every 2 output samples
-	void resample_2_9(OutputType *output, uint32_t numsamples);
+	void resample_2_9(OutputType *output, int numsamples);
 
 	// resample SSG output to the target at a rate of 3 SSG samples
 	// to every 1 output sample
-	void resample_1_3(OutputType *output, uint32_t numsamples);
+	void resample_1_3(OutputType *output, int numsamples);
 
 	// resample SSG output to the target at a rate of 3 SSG samples
 	// to every 2 output samples
-	void resample_2_3(OutputType *output, uint32_t numsamples);
+	void resample_2_3(OutputType *output, int numsamples);
 
 	// resample SSG output to the target at a rate of 3 SSG samples
 	// to every 4 output samples
-	void resample_4_3(OutputType *output, uint32_t numsamples);
+	void resample_4_3(OutputType *output, int numsamples);
 
 	// no-op resampler
-	void resample_nop(OutputType *output, uint32_t numsamples);
+	void resample_nop(OutputType *output, int numsamples);
 
 	// define a pointer type
-	using resample_func = void (ssg_resampler::*)(OutputType *output, uint32_t numsamples);
+	using resample_func = void (ssg_resampler.*)(OutputType *output, int numsamples);
 
 	// internal state
 	ssg_engine &m_ssg;
-	uint32_t m_sampindex;
+	int m_sampindex;
 	resample_func m_resampler;
-	ssg_engine::output_data m_last;
+	ssg_engine.output_data m_last;
 };
 
 
@@ -420,9 +420,9 @@ class ym2203
 {
 public:
 	using fm_engine = fm_engine_base<opn_registers>;
-	static constexpr uint32_t FM_OUTPUTS = fm_engine::OUTPUTS;
-	static constexpr uint32_t SSG_OUTPUTS = ssg_engine::OUTPUTS;
-	static constexpr uint32_t OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
+	static final int FM_OUTPUTS = fm_engine.OUTPUTS;
+	static final int SSG_OUTPUTS = ssg_engine.OUTPUTS;
+	static final int OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
 	using output_data = ymfm_output<OUTPUTS>;
 
 	// constructor
@@ -439,7 +439,7 @@ public:
 	void save_restore(ymfm_saved_state &state);
 
 	// pass-through helpers
-	uint32_t sample_rate(uint32_t input_clock) const
+	int sample_rate(int input_clock) final
 	{
 		switch (m_fidelity)
 		{
@@ -449,32 +449,32 @@ public:
 			case OPN_FIDELITY_MAX:	return input_clock / 4;
 		}
 	}
-	uint32_t ssg_effective_clock(uint32_t input_clock) const { uint32_t scale = m_fm.clock_prescale() * 2 / 3; return input_clock * 2 / scale; }
+	int ssg_effective_clock(int input_clock) final { int scale = m_fm.clock_prescale() * 2 / 3; return input_clock * 2 / scale; }
 	void invalidate_caches() { m_fm.invalidate_caches(); }
 
 	// read access
-	uint8_t read_status();
-	uint8_t read_data();
-	uint8_t read(uint32_t offset);
+	byte read_status();
+	byte read_data();
+	byte read(int offset);
 
 	// write access
-	void write_address(uint8_t data);
-	void write_data(uint8_t data);
-	void write(uint32_t offset, uint8_t data);
+	void write_address(byte data);
+	void write_data(byte data);
+	void write(int offset, byte data);
 
 	// generate one sample of sound
-	void generate(output_data *output, uint32_t numsamples = 1);
+	void generate(output_data *output, int numsamples = 1);
 
 protected:
 	// internal helpers
-	void update_prescale(uint8_t prescale);
+	void update_prescale(byte prescale);
 	void clock_fm();
 
 	// internal state
 	opn_fidelity m_fidelity;            // configured fidelity
-	uint8_t m_address;                  // address register
-	uint8_t m_fm_samples_per_output;    // how many samples to repeat
-	fm_engine::output_data m_last_fm;   // last FM output
+	byte m_address;                  // address register
+	byte m_fm_samples_per_output;    // how many samples to repeat
+	fm_engine.output_data m_last_fm;   // last FM output
 	fm_engine m_fm;                     // core FM engine
 	ssg_engine m_ssg;                   // SSG engine
 	ssg_resampler<output_data, 1, false> m_ssg_resampler; // SSG resampler helper
@@ -490,16 +490,16 @@ protected:
 
 class ym2608
 {
-	static constexpr uint8_t STATUS_ADPCM_B_EOS = 0x04;
-	static constexpr uint8_t STATUS_ADPCM_B_BRDY = 0x08;
-	static constexpr uint8_t STATUS_ADPCM_B_ZERO = 0x10;
-	static constexpr uint8_t STATUS_ADPCM_B_PLAYING = 0x20;
+	static final byte STATUS_ADPCM_B_EOS = 0x04;
+	static final byte STATUS_ADPCM_B_BRDY = 0x08;
+	static final byte STATUS_ADPCM_B_ZERO = 0x10;
+	static final byte STATUS_ADPCM_B_PLAYING = 0x20;
 
 public:
 	using fm_engine = fm_engine_base<opna_registers>;
-	static constexpr uint32_t FM_OUTPUTS = fm_engine::OUTPUTS;
-	static constexpr uint32_t SSG_OUTPUTS = 1;
-	static constexpr uint32_t OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
+	static final int FM_OUTPUTS = fm_engine.OUTPUTS;
+	static final int SSG_OUTPUTS = 1;
+	static final int OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
 	using output_data = ymfm_output<OUTPUTS>;
 
 	// constructor
@@ -516,7 +516,7 @@ public:
 	void save_restore(ymfm_saved_state &state);
 
 	// pass-through helpers
-	uint32_t sample_rate(uint32_t input_clock) const
+	int sample_rate(int input_clock) final
 	{
 		switch (m_fidelity)
 		{
@@ -526,38 +526,38 @@ public:
 			case OPN_FIDELITY_MAX:	return input_clock / 8;
 		}
 	}
-	uint32_t ssg_effective_clock(uint32_t input_clock) const { uint32_t scale = m_fm.clock_prescale() * 2 / 3; return input_clock / scale; }
+	int ssg_effective_clock(int input_clock) final { int scale = m_fm.clock_prescale() * 2 / 3; return input_clock / scale; }
 	void invalidate_caches() { m_fm.invalidate_caches(); }
 
 	// read access
-	uint8_t read_status();
-	uint8_t read_data();
-	uint8_t read_status_hi();
-	uint8_t read_data_hi();
-	uint8_t read(uint32_t offset);
+	byte read_status();
+	byte read_data();
+	byte read_status_hi();
+	byte read_data_hi();
+	byte read(int offset);
 
 	// write access
-	void write_address(uint8_t data);
-	void write_data(uint8_t data);
-	void write_address_hi(uint8_t data);
-	void write_data_hi(uint8_t data);
-	void write(uint32_t offset, uint8_t data);
+	void write_address(byte data);
+	void write_data(byte data);
+	void write_address_hi(byte data);
+	void write_data_hi(byte data);
+	void write(int offset, byte data);
 
 	// generate one sample of sound
-	void generate(output_data *output, uint32_t numsamples = 1);
+	void generate(output_data *output, int numsamples = 1);
 
 protected:
 	// internal helpers
-	void update_prescale(uint8_t prescale);
+	void update_prescale(byte prescale);
 	void clock_fm_and_adpcm();
 
 	// internal state
 	opn_fidelity m_fidelity;            // configured fidelity
-	uint16_t m_address;                 // address register
-	uint8_t m_fm_samples_per_output;    // how many samples to repeat
-	uint8_t m_irq_enable;               // IRQ enable register
-	uint8_t m_flag_control;             // flag control register
-	fm_engine::output_data m_last_fm;   // last FM output
+	int m_address;                 // address register
+	byte m_fm_samples_per_output;    // how many samples to repeat
+	byte m_irq_enable;               // IRQ enable register
+	byte m_flag_control;             // flag control register
+	fm_engine.output_data m_last_fm;   // last FM output
 	fm_engine m_fm;                     // core FM engine
 	ssg_engine m_ssg;                   // SSG engine
 	ssg_resampler<output_data, 2, true> m_ssg_resampler; // SSG resampler helper
@@ -572,9 +572,9 @@ class ymf288
 {
 public:
 	using fm_engine = fm_engine_base<opna_registers>;
-	static constexpr uint32_t FM_OUTPUTS = fm_engine::OUTPUTS;
-	static constexpr uint32_t SSG_OUTPUTS = 1;
-	static constexpr uint32_t OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
+	static final int FM_OUTPUTS = fm_engine.OUTPUTS;
+	static final int SSG_OUTPUTS = 1;
+	static final int OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
 	using output_data = ymfm_output<OUTPUTS>;
 
 	// constructor
@@ -591,7 +591,7 @@ public:
 	void save_restore(ymfm_saved_state &state);
 
 	// pass-through helpers
-	uint32_t sample_rate(uint32_t input_clock) const
+	int sample_rate(int input_clock) final
 	{
 		switch (m_fidelity)
 		{
@@ -601,38 +601,38 @@ public:
 			case OPN_FIDELITY_MAX:	return input_clock / 16;
 		}
 	}
-	uint32_t ssg_effective_clock(uint32_t input_clock) const { return input_clock / 4; }
+	int ssg_effective_clock(int input_clock) final { return input_clock / 4; }
 	void invalidate_caches() { m_fm.invalidate_caches(); }
 
 	// read access
-	uint8_t read_status();
-	uint8_t read_data();
-	uint8_t read_status_hi();
-	uint8_t read(uint32_t offset);
+	byte read_status();
+	byte read_data();
+	byte read_status_hi();
+	byte read(int offset);
 
 	// write access
-	void write_address(uint8_t data);
-	void write_data(uint8_t data);
-	void write_address_hi(uint8_t data);
-	void write_data_hi(uint8_t data);
-	void write(uint32_t offset, uint8_t data);
+	void write_address(byte data);
+	void write_data(byte data);
+	void write_address_hi(byte data);
+	void write_data_hi(byte data);
+	void write(int offset, byte data);
 
 	// generate one sample of sound
-	void generate(output_data *output, uint32_t numsamples = 1);
+	void generate(output_data *output, int numsamples = 1);
 
 protected:
 	// internal helpers
-	bool ymf288_mode() { return ((m_fm.regs().read(0x20) & 0x02) != 0); }
+	boolean ymf288_mode() { return ((m_fm.regs().read(0x20) & 0x02) != 0); }
 	void update_prescale();
 	void clock_fm_and_adpcm();
 
 	// internal state
 	opn_fidelity m_fidelity;            // configured fidelity
-	uint16_t m_address;                 // address register
-	uint8_t m_fm_samples_per_output;    // how many samples to repeat
-	uint8_t m_irq_enable;               // IRQ enable register
-	uint8_t m_flag_control;             // flag control register
-	fm_engine::output_data m_last_fm;   // last FM output
+	int m_address;                 // address register
+	byte m_fm_samples_per_output;    // how many samples to repeat
+	byte m_irq_enable;               // IRQ enable register
+	byte m_flag_control;             // flag control register
+	fm_engine.output_data m_last_fm;   // last FM output
 	fm_engine m_fm;                     // core FM engine
 	ssg_engine m_ssg;                   // SSG engine
 	ssg_resampler<output_data, 2, true> m_ssg_resampler; // SSG resampler helper
@@ -644,17 +644,17 @@ protected:
 
 class ym2610
 {
-	static constexpr uint8_t EOS_FLAGS_MASK = 0xbf;
+	static final byte EOS_FLAGS_MASK = 0xbf;
 
 public:
 	using fm_engine = fm_engine_base<opna_registers>;
-	static constexpr uint32_t FM_OUTPUTS = fm_engine::OUTPUTS;
-	static constexpr uint32_t SSG_OUTPUTS = 1;
-	static constexpr uint32_t OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
+	static final int FM_OUTPUTS = fm_engine.OUTPUTS;
+	static final int SSG_OUTPUTS = 1;
+	static final int OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
 	using output_data = ymfm_output<OUTPUTS>;
 
 	// constructor
-	ym2610(ymfm_interface &intf, uint8_t channel_mask = 0x36);
+	ym2610(ymfm_interface &intf, byte channel_mask = 0x36);
 
 	// configuration
 	void ssg_override(ssg_override &intf) { m_ssg.override(intf); }
@@ -667,7 +667,7 @@ public:
 	void save_restore(ymfm_saved_state &state);
 
 	// pass-through helpers
-	uint32_t sample_rate(uint32_t input_clock) const
+	int sample_rate(int input_clock) final
 	{
 		switch (m_fidelity)
 		{
@@ -677,25 +677,25 @@ public:
 			case OPN_FIDELITY_MAX:	return input_clock / 16;
 		}
 	}
-	uint32_t ssg_effective_clock(uint32_t input_clock) const { return input_clock / 4; }
+	int ssg_effective_clock(int input_clock) final { return input_clock / 4; }
 	void invalidate_caches() { m_fm.invalidate_caches(); }
 
 	// read access
-	uint8_t read_status();
-	uint8_t read_data();
-	uint8_t read_status_hi();
-	uint8_t read_data_hi();
-	uint8_t read(uint32_t offset);
+	byte read_status();
+	byte read_data();
+	byte read_status_hi();
+	byte read_data_hi();
+	byte read(int offset);
 
 	// write access
-	void write_address(uint8_t data);
-	void write_data(uint8_t data);
-	void write_address_hi(uint8_t data);
-	void write_data_hi(uint8_t data);
-	void write(uint32_t offset, uint8_t data);
+	void write_address(byte data);
+	void write_data(byte data);
+	void write_address_hi(byte data);
+	void write_data_hi(byte data);
+	void write(int offset, byte data);
 
 	// generate one sample of sound
-	void generate(output_data *output, uint32_t numsamples = 1);
+	void generate(output_data *output, int numsamples = 1);
 
 protected:
 	// internal helpers
@@ -704,12 +704,12 @@ protected:
 
 	// internal state
 	opn_fidelity m_fidelity;            // configured fidelity
-	uint16_t m_address;                 // address register
-	uint8_t const m_fm_mask;            // FM channel mask
-	uint8_t m_fm_samples_per_output;    // how many samples to repeat
-	uint8_t m_eos_status;               // end-of-sample signals
-	uint8_t m_flag_mask;                // flag mask control
-	fm_engine::output_data m_last_fm;   // last FM output
+	int m_address;                 // address register
+	byte final m_fm_mask;            // FM channel mask
+	byte m_fm_samples_per_output;    // how many samples to repeat
+	byte m_eos_status;               // end-of-sample signals
+	byte m_flag_mask;                // flag mask control
+	fm_engine.output_data m_last_fm;   // last FM output
 	fm_engine m_fm;                     // core FM engine
 	ssg_engine m_ssg;                   // core FM engine
 	ssg_resampler<output_data, 2, true> m_ssg_resampler; // SSG resampler helper
@@ -731,8 +731,8 @@ class ym2612
 {
 public:
 	using fm_engine = fm_engine_base<opna_registers>;
-	static constexpr uint32_t OUTPUTS = fm_engine::OUTPUTS;
-	using output_data = fm_engine::output_data;
+	static final int OUTPUTS = fm_engine.OUTPUTS;
+	using output_data = fm_engine.output_data;
 
 	// constructor
 	ym2612(ymfm_interface &intf);
@@ -744,31 +744,31 @@ public:
 	void save_restore(ymfm_saved_state &state);
 
 	// pass-through helpers
-	uint32_t sample_rate(uint32_t input_clock) const { return m_fm.sample_rate(input_clock); }
+	int sample_rate(int input_clock) final { return m_fm.sample_rate(input_clock); }
 	void invalidate_caches() { m_fm.invalidate_caches(); }
 
 	// read access
-	uint8_t read_status();
-	uint8_t read(uint32_t offset);
+	byte read_status();
+	byte read(int offset);
 
 	// write access
-	void write_address(uint8_t data);
-	void write_data(uint8_t data);
-	void write_address_hi(uint8_t data);
-	void write_data_hi(uint8_t data);
-	void write(uint32_t offset, uint8_t data);
+	void write_address(byte data);
+	void write_data(byte data);
+	void write_address_hi(byte data);
+	void write_data_hi(byte data);
+	void write(int offset, byte data);
 
 	// generate one sample of sound
-	void generate(output_data *output, uint32_t numsamples = 1);
+	void generate(output_data *output, int numsamples = 1);
 
 protected:
 	// simulate the DAC discontinuity
-	constexpr int32_t dac_discontinuity(int32_t value) const { return (value < 0) ? (value - 3) : (value + 4); }
+	final int dac_discontinuity(int value) final { return (value < 0) ? (value - 3) : (value + 4); }
 
 	// internal state
-	uint16_t m_address;              // address register
-	uint16_t m_dac_data;             // 9-bit DAC data
-	uint8_t m_dac_enable;            // DAC enabled?
+	int m_address;              // address register
+	int m_dac_data;             // 9-bit DAC data
+	byte m_dac_enable;            // DAC enabled?
 	fm_engine m_fm;                  // core FM engine
 };
 
@@ -781,7 +781,7 @@ public:
 	ym3438(ymfm_interface &intf) : ym2612(intf) { }
 
 	// generate one sample of sound
-	void generate(output_data *output, uint32_t numsamples = 1);
+	void generate(output_data *output, int numsamples = 1);
 };
 
 
@@ -793,7 +793,7 @@ public:
 	ymf276(ymfm_interface &intf) : ym2612(intf) { }
 
 	// generate one sample of sound
-	void generate(output_data *output, uint32_t numsamples);
+	void generate(output_data *output, int numsamples);
 };
 
 }

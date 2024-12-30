@@ -42,14 +42,14 @@ namespace ymfm
 //  (matching total level LSB)
 //-------------------------------------------------
 
-inline uint32_t opl_key_scale_atten(uint32_t block, uint32_t fnum_4msb)
+int opl_key_scale_atten(int block, int fnum_4msb)
 {
 	// this table uses the top 4 bits of FNUM and are the maximal values
 	// (for when block == 7). Values for other blocks can be computed by
 	// subtracting 8 for each block below 7.
-	static uint8_t const fnum_to_atten[16] = { 0,24,32,37,40,43,45,47,48,50,51,52,53,54,55,56 };
-	int32_t result = fnum_to_atten[fnum_4msb] - 8 * (block ^ 7);
-	return std::max<int32_t>(0, result);
+	static byte final fnum_to_atten[16] = { 0,24,32,37,40,43,45,47,48,50,51,52,53,54,55,56 };
+	int result = fnum_to_atten[fnum_4msb] - 8 * (block ^ 7);
+	return Math.max<int>(0, result);
 }
 
 
@@ -62,7 +62,7 @@ inline uint32_t opl_key_scale_atten(uint32_t block, uint32_t fnum_4msb)
 //-------------------------------------------------
 
 template<int Revision>
-opl_registers_base<Revision>::opl_registers_base() :
+opl_registers_base<Revision>.opl_registers_base() :
 	m_lfo_am_counter(0),
 	m_lfo_pm_counter(0),
 	m_noise_lfsr(1),
@@ -70,23 +70,23 @@ opl_registers_base<Revision>::opl_registers_base() :
 {
 	// create these pointers to appease overzealous compilers checking array
 	// bounds in unreachable code (looking at you, clang)
-	uint16_t *wf0 = &m_waveform[0][0];
-	uint16_t *wf1 = &m_waveform[1 % WAVEFORMS][0];
-	uint16_t *wf2 = &m_waveform[2 % WAVEFORMS][0];
-	uint16_t *wf3 = &m_waveform[3 % WAVEFORMS][0];
-	uint16_t *wf4 = &m_waveform[4 % WAVEFORMS][0];
-	uint16_t *wf5 = &m_waveform[5 % WAVEFORMS][0];
-	uint16_t *wf6 = &m_waveform[6 % WAVEFORMS][0];
-	uint16_t *wf7 = &m_waveform[7 % WAVEFORMS][0];
+	int *wf0 = &m_waveform[0][0];
+	int *wf1 = &m_waveform[1 % WAVEFORMS][0];
+	int *wf2 = &m_waveform[2 % WAVEFORMS][0];
+	int *wf3 = &m_waveform[3 % WAVEFORMS][0];
+	int *wf4 = &m_waveform[4 % WAVEFORMS][0];
+	int *wf5 = &m_waveform[5 % WAVEFORMS][0];
+	int *wf6 = &m_waveform[6 % WAVEFORMS][0];
+	int *wf7 = &m_waveform[7 % WAVEFORMS][0];
 
 	// create the waveforms
-	for (uint32_t index = 0; index < WAVEFORM_LENGTH; index++)
+	for (int index = 0; index < WAVEFORM_LENGTH; index++)
 		wf0[index] = abs_sin_attenuation(index) | (bitfield(index, 9) << 15);
 
 	if (WAVEFORMS >= 4)
 	{
-		uint16_t zeroval = wf0[0];
-		for (uint32_t index = 0; index < WAVEFORM_LENGTH; index++)
+		int zeroval = wf0[0];
+		for (int index = 0; index < WAVEFORM_LENGTH; index++)
 		{
 			wf1[index] = bitfield(index, 9) ? zeroval : wf0[index];
 			wf2[index] = wf0[index] & 0x7fff;
@@ -113,9 +113,9 @@ opl_registers_base<Revision>::opl_registers_base() :
 //-------------------------------------------------
 
 template<int Revision>
-void opl_registers_base<Revision>::reset()
+void opl_registers_base<Revision>.reset()
 {
-	std::fill_n(&m_regdata[0], REGISTERS, 0);
+	std.fill_n(&m_regdata[0], REGISTERS, 0);
 }
 
 
@@ -124,7 +124,7 @@ void opl_registers_base<Revision>::reset()
 //-------------------------------------------------
 
 template<int Revision>
-void opl_registers_base<Revision>::save_restore(ymfm_saved_state &state)
+void opl_registers_base<Revision>.save_restore(ymfm_saved_state &state)
 {
 	state.save_restore(m_lfo_am_counter);
 	state.save_restore(m_lfo_pm_counter);
@@ -140,12 +140,12 @@ void opl_registers_base<Revision>::save_restore(ymfm_saved_state &state)
 //-------------------------------------------------
 
 template<int Revision>
-void opl_registers_base<Revision>::operator_map(operator_mapping &dest) const
+void opl_registers_base<Revision>.operator_map(operator_mapping &dest) final
 {
 	if (Revision <= 2)
 	{
 		// OPL/OPL2 has a fixed map, all 2 operators
-		static const operator_mapping s_fixed_map =
+		static final operator_mapping s_fixed_map =
 		{ {
 			operator_list(  0,  3 ),  // Channel 0 operators
 			operator_list(  1,  4 ),  // Channel 1 operators
@@ -162,7 +162,7 @@ void opl_registers_base<Revision>::operator_map(operator_mapping &dest) const
 	else
 	{
 		// OPL3/OPL4 can be configured for 2 or 4 operators
-		uint32_t fourop = fourop_enable();
+		int fourop = fourop_enable();
 
 		dest.chan[ 0] = bitfield(fourop, 0) ? operator_list(  0,  3,  6,  9 ) : operator_list(  0,  3 );
 		dest.chan[ 1] = bitfield(fourop, 1) ? operator_list(  1,  4,  7, 10 ) : operator_list(  1,  4 );
@@ -192,7 +192,7 @@ void opl_registers_base<Revision>::operator_map(operator_mapping &dest) const
 //-------------------------------------------------
 
 template<int Revision>
-bool opl_registers_base<Revision>::write(uint16_t index, uint8_t data, uint32_t &channel, uint32_t &opmask)
+boolean opl_registers_base<Revision>.write(int index, byte data, int &channel, int &opmask)
 {
 	assert(index < REGISTERS);
 
@@ -232,7 +232,7 @@ bool opl_registers_base<Revision>::write(uint16_t index, uint8_t data, uint32_t 
 //  computations
 //-------------------------------------------------
 
-static int32_t opl_clock_noise_and_lfo(uint32_t &noise_lfsr, uint16_t &lfo_am_counter, uint16_t &lfo_pm_counter, uint8_t &lfo_am, uint32_t am_depth, uint32_t pm_depth)
+static int opl_clock_noise_and_lfo(int &noise_lfsr, int &lfo_am_counter, int &lfo_pm_counter, byte &lfo_am, int am_depth, int pm_depth)
 {
 	// OPL has a 23-bit noise generator for the rhythm section, running at
 	// a constant rate, used only for percussion input
@@ -243,7 +243,7 @@ static int32_t opl_clock_noise_and_lfo(uint32_t &noise_lfsr, uint16_t &lfo_am_co
 
 	// the AM LFO has 210*64 steps; at a nominal 50kHz output,
 	// this equates to a period of 50000/(210*64) = 3.72Hz
-	uint32_t am_counter = lfo_am_counter++;
+	int am_counter = lfo_am_counter++;
 	if (am_counter >= 210*64 - 1)
 		lfo_am_counter = 0;
 
@@ -255,17 +255,17 @@ static int32_t opl_clock_noise_and_lfo(uint32_t &noise_lfsr, uint16_t &lfo_am_co
 	lfo_am = ((am_counter < 105*64) ? am_counter : (210*64+63 - am_counter)) >> shift;
 
 	// the PM LFO has 8192 steps, or a nominal period of 6.1Hz
-	uint32_t pm_counter = lfo_pm_counter++;
+	int pm_counter = lfo_pm_counter++;
 
 	// PM LFO is broken into 8 chunks, each lasting 1024 steps; the PM value
 	// depends on the upper bits of FNUM, so this value is a fraction and
 	// sign to apply to that value, as a 1.3 value
-	static int8_t const pm_scale[8] = { 8, 4, 0, -4, -8, -4, 0, 4 };
+	static byte final pm_scale[8] = { 8, 4, 0, -4, -8, -4, 0, 4 };
 	return pm_scale[bitfield(pm_counter, 10, 3)] >> (pm_depth ^ 1);
 }
 
 template<int Revision>
-int32_t opl_registers_base<Revision>::clock_noise_and_lfo()
+int opl_registers_base<Revision>.clock_noise_and_lfo()
 {
 	return opl_clock_noise_and_lfo(m_noise_lfsr, m_lfo_am_counter, m_lfo_pm_counter, m_lfo_am, lfo_am_depth(), lfo_pm_depth());
 }
@@ -279,13 +279,13 @@ int32_t opl_registers_base<Revision>::clock_noise_and_lfo()
 //-------------------------------------------------
 
 template<int Revision>
-void opl_registers_base<Revision>::cache_operator_data(uint32_t choffs, uint32_t opoffs, opdata_cache &cache)
+void opl_registers_base<Revision>.cache_operator_data(int choffs, int opoffs, opdata_cache &cache)
 {
 	// set up the easy stuff
 	cache.waveform = &m_waveform[op_waveform(opoffs) % WAVEFORMS][0];
 
 	// get frequency from the channel
-	uint32_t block_freq = cache.block_freq = ch_block_freq(choffs);
+	int block_freq = cache.block_freq = ch_block_freq(choffs);
 
 	// compute the keycode: block_freq is:
 	//
@@ -295,7 +295,7 @@ void opl_registers_base<Revision>::cache_operator_data(uint32_t choffs, uint32_t
 	//     ^^^??
 	//
 	// the 4-bit keycode uses the top 3 bits plus one of the next two bits
-	uint32_t keycode = bitfield(block_freq, 10, 3) << 1;
+	int keycode = bitfield(block_freq, 10, 3) << 1;
 
 	// lowest bit is determined by note_select(); note that it is
 	// actually reversed from what the manual says, however
@@ -306,7 +306,7 @@ void opl_registers_base<Revision>::cache_operator_data(uint32_t choffs, uint32_t
 
 	// multiple value, as an x.1 value (0 means 0.5)
 	// replace the low bit with a table lookup to give 0,1,2,3,4,5,6,7,8,9,10,10,12,12,15,15
-	uint32_t multiple = op_multiple(opoffs);
+	int multiple = op_multiple(opoffs);
 	cache.multiple = ((multiple & 0xe) | bitfield(0xc2aa, multiple)) * 2;
 	if (cache.multiple == 0)
 		cache.multiple = 1;
@@ -316,13 +316,13 @@ void opl_registers_base<Revision>::cache_operator_data(uint32_t choffs, uint32_t
 	if (op_lfo_pm_enable(opoffs) == 0)
 		cache.phase_step = compute_phase_step(choffs, opoffs, cache, 0);
 	else
-		cache.phase_step = opdata_cache::PHASE_STEP_DYNAMIC;
+		cache.phase_step = opdata_cache.PHASE_STEP_DYNAMIC;
 
 	// total level, scaled by 8
 	cache.total_level = op_total_level(opoffs) << 3;
 
 	// pre-add key scale level
-	uint32_t ksl = op_ksl(opoffs);
+	int ksl = op_ksl(opoffs);
 	if (ksl != 0)
 		cache.total_level += opl_key_scale_atten(bitfield(block_freq, 10, 3), bitfield(block_freq, 6, 4)) << ksl;
 
@@ -332,7 +332,7 @@ void opl_registers_base<Revision>::cache_operator_data(uint32_t choffs, uint32_t
 	cache.eg_sustain <<= 5;
 
 	// determine KSR adjustment for enevlope rates
-	uint32_t ksrval = keycode >> (2 * (op_ksr(opoffs) ^ 1));
+	int ksrval = keycode >> (2 * (op_ksr(opoffs) ^ 1));
 	cache.eg_rate[EG_ATTACK] = effective_rate(op_attack_rate(opoffs) * 4, ksrval);
 	cache.eg_rate[EG_DECAY] = effective_rate(op_decay_rate(opoffs) * 4, ksrval);
 	cache.eg_rate[EG_SUSTAIN] = op_eg_sustain(opoffs) ? 0 : effective_rate(op_release_rate(opoffs) * 4, ksrval);
@@ -345,13 +345,13 @@ void opl_registers_base<Revision>::cache_operator_data(uint32_t choffs, uint32_t
 //  compute_phase_step - compute the phase step
 //-------------------------------------------------
 
-static uint32_t opl_compute_phase_step(uint32_t block_freq, uint32_t multiple, int32_t lfo_raw_pm)
+static int opl_compute_phase_step(int block_freq, int multiple, int lfo_raw_pm)
 {
 	// OPL phase calculation has no detuning, but uses FNUMs like
 	// the OPN version, and computes PM a bit differently
 
 	// extract frequency number as a 12-bit fraction
-	uint32_t fnum = bitfield(block_freq, 0, 10) << 2;
+	int fnum = bitfield(block_freq, 0, 10) << 2;
 
 	// apply the phase adjustment based on the upper 3 bits
 	// of FNUM and the PM depth parameters
@@ -361,15 +361,15 @@ static uint32_t opl_compute_phase_step(uint32_t block_freq, uint32_t multiple, i
 	fnum &= 0xfff;
 
 	// apply block shift to compute phase step
-	uint32_t block = bitfield(block_freq, 10, 3);
-	uint32_t phase_step = (fnum << block) >> 2;
+	int block = bitfield(block_freq, 10, 3);
+	int phase_step = (fnum << block) >> 2;
 
 	// apply frequency multiplier (which is cached as an x.1 value)
 	return (phase_step * multiple) >> 1;
 }
 
 template<int Revision>
-uint32_t opl_registers_base<Revision>::compute_phase_step(uint32_t choffs, uint32_t opoffs, opdata_cache const &cache, int32_t lfo_raw_pm)
+int opl_registers_base<Revision>.compute_phase_step(int choffs, int opoffs, opdata_cache final &cache, int lfo_raw_pm)
 {
 	return opl_compute_phase_step(cache.block_freq, cache.multiple, op_lfo_pm_enable(opoffs) ? lfo_raw_pm : 0);
 }
@@ -380,10 +380,10 @@ uint32_t opl_registers_base<Revision>::compute_phase_step(uint32_t choffs, uint3
 //-------------------------------------------------
 
 template<int Revision>
-std::string opl_registers_base<Revision>::log_keyon(uint32_t choffs, uint32_t opoffs)
+std.string opl_registers_base<Revision>.log_keyon(int choffs, int opoffs)
 {
-	uint32_t chnum = (choffs & 15) + 9 * bitfield(choffs, 8);
-	uint32_t opnum = (opoffs & 31) - 2 * ((opoffs & 31) / 8) + 18 * bitfield(opoffs, 8);
+	int chnum = (choffs & 15) + 9 * bitfield(choffs, 8);
+	int opnum = (opoffs & 31) - 2 * ((opoffs & 31) / 8) + 18 * bitfield(opoffs, 8);
 
 	char buffer[256];
 	int end = 0;
@@ -438,24 +438,24 @@ std::string opl_registers_base<Revision>::log_keyon(uint32_t choffs, uint32_t op
 //  opll_registers - constructor
 //-------------------------------------------------
 
-opll_registers::opll_registers() :
+opll_registers.opll_registers() :
 	m_lfo_am_counter(0),
 	m_lfo_pm_counter(0),
 	m_noise_lfsr(1),
 	m_lfo_am(0)
 {
 	// create the waveforms
-	for (uint32_t index = 0; index < WAVEFORM_LENGTH; index++)
+	for (int index = 0; index < WAVEFORM_LENGTH; index++)
 		m_waveform[0][index] = abs_sin_attenuation(index) | (bitfield(index, 9) << 15);
 
-	uint16_t zeroval = m_waveform[0][0];
-	for (uint32_t index = 0; index < WAVEFORM_LENGTH; index++)
+	int zeroval = m_waveform[0][0];
+	for (int index = 0; index < WAVEFORM_LENGTH; index++)
 		m_waveform[1][index] = bitfield(index, 9) ? zeroval : m_waveform[0][index];
 
 	// initialize the instruments to something sane
-	for (uint32_t choffs = 0; choffs < CHANNELS; choffs++)
+	for (int choffs = 0; choffs < CHANNELS; choffs++)
 		m_chinst[choffs] = &m_regdata[0];
-	for (uint32_t opoffs = 0; opoffs < OPERATORS; opoffs++)
+	for (int opoffs = 0; opoffs < OPERATORS; opoffs++)
 		m_opinst[opoffs] = &m_regdata[bitfield(opoffs, 0)];
 }
 
@@ -464,9 +464,9 @@ opll_registers::opll_registers() :
 //  reset - reset to initial state
 //-------------------------------------------------
 
-void opll_registers::reset()
+void opll_registers.reset()
 {
-	std::fill_n(&m_regdata[0], REGISTERS, 0);
+	std.fill_n(&m_regdata[0], REGISTERS, 0);
 }
 
 
@@ -474,7 +474,7 @@ void opll_registers::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void opll_registers::save_restore(ymfm_saved_state &state)
+void opll_registers.save_restore(ymfm_saved_state &state)
 {
 	state.save_restore(m_lfo_am_counter);
 	state.save_restore(m_lfo_pm_counter);
@@ -489,9 +489,9 @@ void opll_registers::save_restore(ymfm_saved_state &state)
 //  indices for each channel; for OPLL this is fixed
 //-------------------------------------------------
 
-void opll_registers::operator_map(operator_mapping &dest) const
+void opll_registers.operator_map(operator_mapping &dest) final
 {
-	static const operator_mapping s_fixed_map =
+	static final operator_mapping s_fixed_map =
 	{ {
 		operator_list(  0,  1 ),  // Channel 0 operators
 		operator_list(  2,  3 ),  // Channel 1 operators
@@ -514,7 +514,7 @@ void opll_registers::operator_map(operator_mapping &dest) const
 //  channels cleanly
 //-------------------------------------------------
 
-bool opll_registers::write(uint16_t index, uint8_t data, uint32_t &channel, uint32_t &opmask)
+boolean opll_registers.write(int index, byte data, int &channel, int &opmask)
 {
 	// unclear the address is masked down to 6 bits or if writes above
 	// the register top are ignored; assuming the latter for now
@@ -552,7 +552,7 @@ bool opll_registers::write(uint16_t index, uint8_t data, uint32_t &channel, uint
 //  computations
 //-------------------------------------------------
 
-int32_t opll_registers::clock_noise_and_lfo()
+int opll_registers.clock_noise_and_lfo()
 {
 	// implementation is the same as OPL with fixed depths
 	return opl_clock_noise_and_lfo(m_noise_lfsr, m_lfo_am_counter, m_lfo_pm_counter, m_lfo_am, 1, 1);
@@ -566,10 +566,10 @@ int32_t opll_registers::clock_noise_and_lfo()
 //  handle upper channels cleanly
 //-------------------------------------------------
 
-void opll_registers::cache_operator_data(uint32_t choffs, uint32_t opoffs, opdata_cache &cache)
+void opll_registers.cache_operator_data(int choffs, int opoffs, opdata_cache &cache)
 {
 	// first set up the instrument data
-	uint32_t instrument = ch_instrument(choffs);
+	int instrument = ch_instrument(choffs);
 	if (rhythm_enable() && choffs >= 6)
 		m_chinst[choffs] = &m_instdata[8 * (15 + (choffs - 6))];
 	else
@@ -580,7 +580,7 @@ void opll_registers::cache_operator_data(uint32_t choffs, uint32_t opoffs, opdat
 	cache.waveform = &m_waveform[op_waveform(opoffs) % WAVEFORMS][0];
 
 	// get frequency from the channel
-	uint32_t block_freq = cache.block_freq = ch_block_freq(choffs);
+	int block_freq = cache.block_freq = ch_block_freq(choffs);
 
 	// compute the keycode: block_freq is:
 	//
@@ -590,14 +590,14 @@ void opll_registers::cache_operator_data(uint32_t choffs, uint32_t opoffs, opdat
 	//     ^^^^
 	//
 	// the 4-bit keycode uses the top 4 bits
-	uint32_t keycode = bitfield(block_freq, 8, 4);
+	int keycode = bitfield(block_freq, 8, 4);
 
 	// no detune adjustment on OPLL
 	cache.detune = 0;
 
 	// multiple value, as an x.1 value (0 means 0.5)
 	// replace the low bit with a table lookup to give 0,1,2,3,4,5,6,7,8,9,10,10,12,12,15,15
-	uint32_t multiple = op_multiple(opoffs);
+	int multiple = op_multiple(opoffs);
 	cache.multiple = ((multiple & 0xe) | bitfield(0xc2aa, multiple)) * 2;
 	if (cache.multiple == 0)
 		cache.multiple = 1;
@@ -607,7 +607,7 @@ void opll_registers::cache_operator_data(uint32_t choffs, uint32_t opoffs, opdat
 	if (op_lfo_pm_enable(opoffs) == 0)
 		cache.phase_step = compute_phase_step(choffs, opoffs, cache, 0);
 	else
-		cache.phase_step = opdata_cache::PHASE_STEP_DYNAMIC;
+		cache.phase_step = opdata_cache.PHASE_STEP_DYNAMIC;
 
 	// total level, scaled by 8; for non-rhythm operator 0, this is the total
 	// level from the instrument data; for other operators it is 4*volume
@@ -618,7 +618,7 @@ void opll_registers::cache_operator_data(uint32_t choffs, uint32_t opoffs, opdat
 	cache.total_level <<= 3;
 
 	// pre-add key scale level
-	uint32_t ksl = op_ksl(opoffs);
+	int ksl = op_ksl(opoffs);
 	if (ksl != 0)
 		cache.total_level += opl_key_scale_atten(bitfield(block_freq, 9, 3), bitfield(block_freq, 5, 4)) << ksl;
 
@@ -641,12 +641,12 @@ void opll_registers::cache_operator_data(uint32_t choffs, uint32_t opoffs, opdat
 	// the instrument data. In this case, Relief Pitcher's credit sound bears out
 	// that the Release Rate is used during sustain, and that the constant RR
 	// (or RS) is used during the release phase.
-	constexpr uint8_t DP = 12 * 4;
-	constexpr uint8_t RR = 7 * 4;
-	constexpr uint8_t RS = 5 * 4;
+	final byte DP = 12 * 4;
+	final byte RR = 7 * 4;
+	final byte RS = 5 * 4;
 
 	// determine KSR adjustment for envelope rates
-	uint32_t ksrval = keycode >> (2 * (op_ksr(opoffs) ^ 1));
+	int ksrval = keycode >> (2 * (op_ksr(opoffs) ^ 1));
 	cache.eg_rate[EG_DEPRESS] = DP;
 	cache.eg_rate[EG_ATTACK] = effective_rate(op_attack_rate(opoffs) * 4, ksrval);
 	cache.eg_rate[EG_DECAY] = effective_rate(op_decay_rate(opoffs) * 4, ksrval);
@@ -667,7 +667,7 @@ void opll_registers::cache_operator_data(uint32_t choffs, uint32_t opoffs, opdat
 //  compute_phase_step - compute the phase step
 //-------------------------------------------------
 
-uint32_t opll_registers::compute_phase_step(uint32_t choffs, uint32_t opoffs, opdata_cache const &cache, int32_t lfo_raw_pm)
+int opll_registers.compute_phase_step(int choffs, int opoffs, opdata_cache final &cache, int lfo_raw_pm)
 {
 	// phase step computation is the same as OPL but the block_freq has one
 	// more bit, which we shift in
@@ -679,10 +679,10 @@ uint32_t opll_registers::compute_phase_step(uint32_t choffs, uint32_t opoffs, op
 //  log_keyon - log a key-on event
 //-------------------------------------------------
 
-std::string opll_registers::log_keyon(uint32_t choffs, uint32_t opoffs)
+std.string opll_registers.log_keyon(int choffs, int opoffs)
 {
-	uint32_t chnum = choffs;
-	uint32_t opnum = opoffs;
+	int chnum = choffs;
+	int opnum = opoffs;
 
 	char buffer[256];
 	int end = 0;
@@ -731,7 +731,7 @@ std::string opll_registers::log_keyon(uint32_t choffs, uint32_t opoffs)
 //  ym3526 - constructor
 //-------------------------------------------------
 
-ym3526::ym3526(ymfm_interface &intf) :
+ym3526.ym3526(ymfm_interface &intf) :
 	m_address(0),
 	m_fm(intf)
 {
@@ -742,7 +742,7 @@ ym3526::ym3526(ymfm_interface &intf) :
 //  reset - reset the system
 //-------------------------------------------------
 
-void ym3526::reset()
+void ym3526.reset()
 {
 	// reset the engines
 	m_fm.reset();
@@ -753,7 +753,7 @@ void ym3526::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void ym3526::save_restore(ymfm_saved_state &state)
+void ym3526.save_restore(ymfm_saved_state &state)
 {
 	state.save_restore(m_address);
 	m_fm.save_restore(state);
@@ -764,7 +764,7 @@ void ym3526::save_restore(ymfm_saved_state &state)
 //  read_status - read the status register
 //-------------------------------------------------
 
-uint8_t ym3526::read_status()
+byte ym3526.read_status()
 {
 	return m_fm.status() | 0x06;
 }
@@ -774,9 +774,9 @@ uint8_t ym3526::read_status()
 //  read - handle a read from the device
 //-------------------------------------------------
 
-uint8_t ym3526::read(uint32_t offset)
+byte ym3526.read(int offset)
 {
-	uint8_t result = 0xff;
+	byte result = 0xff;
 	switch (offset & 1)
 	{
 		case 0: // status port
@@ -795,7 +795,7 @@ uint8_t ym3526::read(uint32_t offset)
 //  register
 //-------------------------------------------------
 
-void ym3526::write_address(uint8_t data)
+void ym3526.write_address(byte data)
 {
 	// YM3526 doesn't expose a busy signal, and the datasheets don't indicate
 	// delays, but all other OPL chips need 12 cycles for address writes
@@ -811,7 +811,7 @@ void ym3526::write_address(uint8_t data)
 //  interface
 //-------------------------------------------------
 
-void ym3526::write_data(uint8_t data)
+void ym3526.write_data(byte data)
 {
 	// YM3526 doesn't expose a busy signal, and the datasheets don't indicate
 	// delays, but all other OPL chips need 84 cycles for data writes
@@ -827,7 +827,7 @@ void ym3526::write_data(uint8_t data)
 //  interface
 //-------------------------------------------------
 
-void ym3526::write(uint32_t offset, uint8_t data)
+void ym3526.write(int offset, byte data)
 {
 	switch (offset & 1)
 	{
@@ -846,19 +846,19 @@ void ym3526::write(uint32_t offset, uint8_t data)
 //  generate - generate samples of sound
 //-------------------------------------------------
 
-void ym3526::generate(output_data *output, uint32_t numsamples)
+void ym3526.generate(output_data *output, int numsamples)
 {
-	for (uint32_t samp = 0; samp < numsamples; samp++, output++)
+	for (int samp = 0; samp < numsamples; samp++, output++)
 	{
 		// clock the system
-		m_fm.clock(fm_engine::ALL_CHANNELS);
+		m_fm.clock(fm_engine.ALL_CHANNELS);
 
 		// update the FM content; mixing details for YM3526 need verification
-		m_fm.output(output->clear(), 1, 32767, fm_engine::ALL_CHANNELS);
+		m_fm.output(output.clear(), 1, 32767, fm_engine.ALL_CHANNELS);
 
 		// YM3526 uses an external DAC (YM3014) with mantissa/exponent format
 		// convert to 10.3 floating point value and back to simulate truncation
-		output->roundtrip_fp();
+		output.roundtrip_fp();
 	}
 }
 
@@ -872,7 +872,7 @@ void ym3526::generate(output_data *output, uint32_t numsamples)
 //  y8950 - constructor
 //-------------------------------------------------
 
-y8950::y8950(ymfm_interface &intf) :
+y8950.y8950(ymfm_interface &intf) :
 	m_address(0),
 	m_io_ddr(0),
 	m_fm(intf),
@@ -885,7 +885,7 @@ y8950::y8950(ymfm_interface &intf) :
 //  reset - reset the system
 //-------------------------------------------------
 
-void y8950::reset()
+void y8950.reset()
 {
 	// reset the engines
 	m_fm.reset();
@@ -897,7 +897,7 @@ void y8950::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void y8950::save_restore(ymfm_saved_state &state)
+void y8950.save_restore(ymfm_saved_state &state)
 {
 	state.save_restore(m_address);
 	state.save_restore(m_io_ddr);
@@ -909,18 +909,18 @@ void y8950::save_restore(ymfm_saved_state &state)
 //  read_status - read the status register
 //-------------------------------------------------
 
-uint8_t y8950::read_status()
+byte y8950.read_status()
 {
 	// start with current FM status, masking out bits we might set
-	uint8_t status = m_fm.status() & ~(STATUS_ADPCM_B_EOS | STATUS_ADPCM_B_BRDY | STATUS_ADPCM_B_PLAYING);
+	byte status = m_fm.status() & ~(STATUS_ADPCM_B_EOS | STATUS_ADPCM_B_BRDY | STATUS_ADPCM_B_PLAYING);
 
 	// insert the live ADPCM status bits
-	uint8_t adpcm_status = m_adpcm_b.status();
-	if ((adpcm_status & adpcm_b_channel::STATUS_EOS) != 0)
+	byte adpcm_status = m_adpcm_b.status();
+	if ((adpcm_status & adpcm_b_channel.STATUS_EOS) != 0)
 		status |= STATUS_ADPCM_B_EOS;
-	if ((adpcm_status & adpcm_b_channel::STATUS_BRDY) != 0)
+	if ((adpcm_status & adpcm_b_channel.STATUS_BRDY) != 0)
 		status |= STATUS_ADPCM_B_BRDY;
-	if ((adpcm_status & adpcm_b_channel::STATUS_PLAYING) != 0)
+	if ((adpcm_status & adpcm_b_channel.STATUS_PLAYING) != 0)
 		status |= STATUS_ADPCM_B_PLAYING;
 
 	// run it through the FM engine to handle interrupts for us
@@ -932,9 +932,9 @@ uint8_t y8950::read_status()
 //  read_data - read the data port
 //-------------------------------------------------
 
-uint8_t y8950::read_data()
+byte y8950.read_data()
 {
-	uint8_t result = 0xff;
+	byte result = 0xff;
 	switch (m_address)
 	{
 		case 0x05:  // keyboard in
@@ -951,7 +951,7 @@ uint8_t y8950::read_data()
 			break;
 
 		default:
-			debug::log_unexpected_read_write("Unexpected read from Y8950 data port %02X\n", m_address);
+			debug.log_unexpected_read_write("Unexpected read from Y8950 data port %02X\n", m_address);
 			break;
 	}
 	return result;
@@ -962,9 +962,9 @@ uint8_t y8950::read_data()
 //  read - handle a read from the device
 //-------------------------------------------------
 
-uint8_t y8950::read(uint32_t offset)
+byte y8950.read(int offset)
 {
-	uint8_t result = 0xff;
+	byte result = 0xff;
 	switch (offset & 1)
 	{
 		case 0: // status port
@@ -984,7 +984,7 @@ uint8_t y8950::read(uint32_t offset)
 //  register
 //-------------------------------------------------
 
-void y8950::write_address(uint8_t data)
+void y8950.write_address(byte data)
 {
 	// Y8950 doesn't expose a busy signal, but it does indicate that
 	// address writes should be no faster than every 12 clocks
@@ -1000,7 +1000,7 @@ void y8950::write_address(uint8_t data)
 //  interface
 //-------------------------------------------------
 
-void y8950::write_data(uint8_t data)
+void y8950.write_data(byte data)
 {
 	// Y8950 doesn't expose a busy signal, but it does indicate that
 	// data writes should be no faster than every 12 clocks for
@@ -1061,7 +1061,7 @@ void y8950::write_data(uint8_t data)
 //  interface
 //-------------------------------------------------
 
-void y8950::write(uint32_t offset, uint8_t data)
+void y8950.write(int offset, byte data)
 {
 	switch (offset & 1)
 	{
@@ -1080,16 +1080,16 @@ void y8950::write(uint32_t offset, uint8_t data)
 //  generate - generate samples of sound
 //-------------------------------------------------
 
-void y8950::generate(output_data *output, uint32_t numsamples)
+void y8950.generate(output_data *output, int numsamples)
 {
-	for (uint32_t samp = 0; samp < numsamples; samp++, output++)
+	for (int samp = 0; samp < numsamples; samp++, output++)
 	{
 		// clock the system
-		m_fm.clock(fm_engine::ALL_CHANNELS);
+		m_fm.clock(fm_engine.ALL_CHANNELS);
 		m_adpcm_b.clock();
 
 		// update the FM content; clipping need verification
-		m_fm.output(output->clear(), 1, 32767, fm_engine::ALL_CHANNELS);
+		m_fm.output(output.clear(), 1, 32767, fm_engine.ALL_CHANNELS);
 
 		// mix in the ADPCM; ADPCM-B is stereo, but only one channel
 		// not sure how it's wired up internally
@@ -1097,7 +1097,7 @@ void y8950::generate(output_data *output, uint32_t numsamples)
 
 		// Y8950 uses an external DAC (YM3014) with mantissa/exponent format
 		// convert to 10.3 floating point value and back to simulate truncation
-		output->roundtrip_fp();
+		output.roundtrip_fp();
 	}
 }
 
@@ -1111,7 +1111,7 @@ void y8950::generate(output_data *output, uint32_t numsamples)
 //  ym3812 - constructor
 //-------------------------------------------------
 
-ym3812::ym3812(ymfm_interface &intf) :
+ym3812.ym3812(ymfm_interface &intf) :
 	m_address(0),
 	m_fm(intf)
 {
@@ -1122,7 +1122,7 @@ ym3812::ym3812(ymfm_interface &intf) :
 //  reset - reset the system
 //-------------------------------------------------
 
-void ym3812::reset()
+void ym3812.reset()
 {
 	// reset the engines
 	m_fm.reset();
@@ -1133,7 +1133,7 @@ void ym3812::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void ym3812::save_restore(ymfm_saved_state &state)
+void ym3812.save_restore(ymfm_saved_state &state)
 {
 	state.save_restore(m_address);
 	m_fm.save_restore(state);
@@ -1144,7 +1144,7 @@ void ym3812::save_restore(ymfm_saved_state &state)
 //  read_status - read the status register
 //-------------------------------------------------
 
-uint8_t ym3812::read_status()
+byte ym3812.read_status()
 {
 	return m_fm.status() | 0x06;
 }
@@ -1154,9 +1154,9 @@ uint8_t ym3812::read_status()
 //  read - handle a read from the device
 //-------------------------------------------------
 
-uint8_t ym3812::read(uint32_t offset)
+byte ym3812.read(int offset)
 {
-	uint8_t result = 0xff;
+	byte result = 0xff;
 	switch (offset & 1)
 	{
 		case 0: // status port
@@ -1175,7 +1175,7 @@ uint8_t ym3812::read(uint32_t offset)
 //  register
 //-------------------------------------------------
 
-void ym3812::write_address(uint8_t data)
+void ym3812.write_address(byte data)
 {
 	// YM3812 doesn't expose a busy signal, but it does indicate that
 	// address writes should be no faster than every 12 clocks
@@ -1191,7 +1191,7 @@ void ym3812::write_address(uint8_t data)
 //  interface
 //-------------------------------------------------
 
-void ym3812::write_data(uint8_t data)
+void ym3812.write_data(byte data)
 {
 	// YM3812 doesn't expose a busy signal, but it does indicate that
 	// data writes should be no faster than every 84 clocks
@@ -1207,7 +1207,7 @@ void ym3812::write_data(uint8_t data)
 //  interface
 //-------------------------------------------------
 
-void ym3812::write(uint32_t offset, uint8_t data)
+void ym3812.write(int offset, byte data)
 {
 	switch (offset & 1)
 	{
@@ -1226,19 +1226,19 @@ void ym3812::write(uint32_t offset, uint8_t data)
 //  generate - generate samples of sound
 //-------------------------------------------------
 
-void ym3812::generate(output_data *output, uint32_t numsamples)
+void ym3812.generate(output_data *output, int numsamples)
 {
-	for (uint32_t samp = 0; samp < numsamples; samp++, output++)
+	for (int samp = 0; samp < numsamples; samp++, output++)
 	{
 		// clock the system
-		m_fm.clock(fm_engine::ALL_CHANNELS);
+		m_fm.clock(fm_engine.ALL_CHANNELS);
 
 		// update the FM content; mixing details for YM3812 need verification
-		m_fm.output(output->clear(), 1, 32767, fm_engine::ALL_CHANNELS);
+		m_fm.output(output.clear(), 1, 32767, fm_engine.ALL_CHANNELS);
 
 		// YM3812 uses an external DAC (YM3014) with mantissa/exponent format
 		// convert to 10.3 floating point value and back to simulate truncation
-		output->roundtrip_fp();
+		output.roundtrip_fp();
 	}
 }
 
@@ -1252,7 +1252,7 @@ void ym3812::generate(output_data *output, uint32_t numsamples)
 //  ymf262 - constructor
 //-------------------------------------------------
 
-ymf262::ymf262(ymfm_interface &intf) :
+ymf262.ymf262(ymfm_interface &intf) :
 	m_address(0),
 	m_fm(intf)
 {
@@ -1263,7 +1263,7 @@ ymf262::ymf262(ymfm_interface &intf) :
 //  reset - reset the system
 //-------------------------------------------------
 
-void ymf262::reset()
+void ymf262.reset()
 {
 	// reset the engines
 	m_fm.reset();
@@ -1274,7 +1274,7 @@ void ymf262::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void ymf262::save_restore(ymfm_saved_state &state)
+void ymf262.save_restore(ymfm_saved_state &state)
 {
 	state.save_restore(m_address);
 	m_fm.save_restore(state);
@@ -1285,7 +1285,7 @@ void ymf262::save_restore(ymfm_saved_state &state)
 //  read_status - read the status register
 //-------------------------------------------------
 
-uint8_t ymf262::read_status()
+byte ymf262.read_status()
 {
 	return m_fm.status();
 }
@@ -1295,9 +1295,9 @@ uint8_t ymf262::read_status()
 //  read - handle a read from the device
 //-------------------------------------------------
 
-uint8_t ymf262::read(uint32_t offset)
+byte ymf262.read(int offset)
 {
-	uint8_t result = 0xff;
+	byte result = 0xff;
 	switch (offset & 3)
 	{
 		case 0: // status port
@@ -1307,7 +1307,7 @@ uint8_t ymf262::read(uint32_t offset)
 		case 1:
 		case 2:
 		case 3:
-			debug::log_unexpected_read_write("Unexpected read from YMF262 offset %d\n", offset & 3);
+			debug.log_unexpected_read_write("Unexpected read from YMF262 offset %d\n", offset & 3);
 			break;
 	}
 	return result;
@@ -1319,7 +1319,7 @@ uint8_t ymf262::read(uint32_t offset)
 //  register
 //-------------------------------------------------
 
-void ymf262::write_address(uint8_t data)
+void ymf262.write_address(byte data)
 {
 	// YMF262 doesn't expose a busy signal, but it does indicate that
 	// address writes should be no faster than every 32 clocks
@@ -1335,7 +1335,7 @@ void ymf262::write_address(uint8_t data)
 //  register
 //-------------------------------------------------
 
-void ymf262::write_data(uint8_t data)
+void ymf262.write_data(byte data)
 {
 	// YMF262 doesn't expose a busy signal, but it does indicate that
 	// data writes should be no faster than every 32 clocks
@@ -1351,7 +1351,7 @@ void ymf262::write_data(uint8_t data)
 //  address register
 //-------------------------------------------------
 
-void ymf262::write_address_hi(uint8_t data)
+void ymf262.write_address_hi(byte data)
 {
 	// YMF262 doesn't expose a busy signal, but it does indicate that
 	// address writes should be no faster than every 32 clocks
@@ -1372,7 +1372,7 @@ void ymf262::write_address_hi(uint8_t data)
 //  interface
 //-------------------------------------------------
 
-void ymf262::write(uint32_t offset, uint8_t data)
+void ymf262.write(int offset, byte data)
 {
 	switch (offset & 3)
 	{
@@ -1399,18 +1399,18 @@ void ymf262::write(uint32_t offset, uint8_t data)
 //  generate - generate samples of sound
 //-------------------------------------------------
 
-void ymf262::generate(output_data *output, uint32_t numsamples)
+void ymf262.generate(output_data *output, int numsamples)
 {
-	for (uint32_t samp = 0; samp < numsamples; samp++, output++)
+	for (int samp = 0; samp < numsamples; samp++, output++)
 	{
 		// clock the system
-		m_fm.clock(fm_engine::ALL_CHANNELS);
+		m_fm.clock(fm_engine.ALL_CHANNELS);
 
 		// update the FM content; mixing details for YMF262 need verification
-		m_fm.output(output->clear(), 0, 32767, fm_engine::ALL_CHANNELS);
+		m_fm.output(output.clear(), 0, 32767, fm_engine.ALL_CHANNELS);
 
 		// YMF262 output is 16-bit offset serial via YAC512 DAC
-		output->clamp16();
+		output.clamp16();
 	}
 }
 
@@ -1432,7 +1432,7 @@ void ymf262::generate(output_data *output, uint32_t numsamples)
 //  ymf289b - constructor
 //-------------------------------------------------
 
-ymf289b::ymf289b(ymfm_interface &intf) :
+ymf289b.ymf289b(ymfm_interface &intf) :
 	m_address(0),
 	m_fm(intf)
 {
@@ -1443,7 +1443,7 @@ ymf289b::ymf289b(ymfm_interface &intf) :
 //  reset - reset the system
 //-------------------------------------------------
 
-void ymf289b::reset()
+void ymf289b.reset()
 {
 	// reset the engines
 	m_fm.reset();
@@ -1454,7 +1454,7 @@ void ymf289b::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void ymf289b::save_restore(ymfm_saved_state &state)
+void ymf289b.save_restore(ymfm_saved_state &state)
 {
 	state.save_restore(m_address);
 	m_fm.save_restore(state);
@@ -1465,9 +1465,9 @@ void ymf289b::save_restore(ymfm_saved_state &state)
 //  read_status - read the status register
 //-------------------------------------------------
 
-uint8_t ymf289b::read_status()
+byte ymf289b.read_status()
 {
-	uint8_t result = m_fm.status();
+	byte result = m_fm.status();
 
 	// YMF289B adds a busy flag
 	if (ymf289b_mode() && m_fm.intf().ymfm_is_busy())
@@ -1480,9 +1480,9 @@ uint8_t ymf289b::read_status()
 //  read_data - read the data register
 //-------------------------------------------------
 
-uint8_t ymf289b::read_data()
+byte ymf289b.read_data()
 {
-	uint8_t result = 0xff;
+	byte result = 0xff;
 
 	// YMF289B can read register data back
 	if (ymf289b_mode())
@@ -1495,9 +1495,9 @@ uint8_t ymf289b::read_data()
 //  read - handle a read from the device
 //-------------------------------------------------
 
-uint8_t ymf289b::read(uint32_t offset)
+byte ymf289b.read(int offset)
 {
-	uint8_t result = 0xff;
+	byte result = 0xff;
 	switch (offset & 3)
 	{
 		case 0: // status port
@@ -1510,7 +1510,7 @@ uint8_t ymf289b::read(uint32_t offset)
 
 		case 2:
 		case 3:
-			debug::log_unexpected_read_write("Unexpected read from YMF289B offset %d\n", offset & 3);
+			debug.log_unexpected_read_write("Unexpected read from YMF289B offset %d\n", offset & 3);
 			break;
 	}
 	return result;
@@ -1522,7 +1522,7 @@ uint8_t ymf289b::read(uint32_t offset)
 //  register
 //-------------------------------------------------
 
-void ymf289b::write_address(uint8_t data)
+void ymf289b.write_address(byte data)
 {
 	m_address = data;
 
@@ -1536,7 +1536,7 @@ void ymf289b::write_address(uint8_t data)
 //  register
 //-------------------------------------------------
 
-void ymf289b::write_data(uint8_t data)
+void ymf289b.write_data(byte data)
 {
 	// write to FM
 	m_fm.write(m_address, data);
@@ -1555,7 +1555,7 @@ void ymf289b::write_data(uint8_t data)
 //  address register
 //-------------------------------------------------
 
-void ymf289b::write_address_hi(uint8_t data)
+void ymf289b.write_address_hi(byte data)
 {
 	// just set the address
 	m_address = data | 0x100;
@@ -1575,7 +1575,7 @@ void ymf289b::write_address_hi(uint8_t data)
 //  interface
 //-------------------------------------------------
 
-void ymf289b::write(uint32_t offset, uint8_t data)
+void ymf289b.write(int offset, byte data)
 {
 	switch (offset & 3)
 	{
@@ -1602,22 +1602,22 @@ void ymf289b::write(uint32_t offset, uint8_t data)
 //  generate - generate samples of sound
 //-------------------------------------------------
 
-void ymf289b::generate(output_data *output, uint32_t numsamples)
+void ymf289b.generate(output_data *output, int numsamples)
 {
-	for (uint32_t samp = 0; samp < numsamples; samp++, output++)
+	for (int samp = 0; samp < numsamples; samp++, output++)
 	{
 		// clock the system
-		m_fm.clock(fm_engine::ALL_CHANNELS);
+		m_fm.clock(fm_engine.ALL_CHANNELS);
 
 		// update the FM content; mixing details for YMF262 need verification
-		fm_engine::output_data full;
-		m_fm.output(full.clear(), 0, 32767, fm_engine::ALL_CHANNELS);
+		fm_engine.output_data full;
+		m_fm.output(full.clear(), 0, 32767, fm_engine.ALL_CHANNELS);
 
 		// YMF278B output is 16-bit offset serial via YAC512 DAC, but
 		// only 2 of the 4 outputs are exposed
-		output->data[0] = full.data[0];
-		output->data[1] = full.data[1];
-		output->clamp16();
+		output.data[0] = full.data[0];
+		output.data[1] = full.data[1];
+		output.clamp16();
 	}
 }
 
@@ -1631,7 +1631,7 @@ void ymf289b::generate(output_data *output, uint32_t numsamples)
 //  ymf278b - constructor
 //-------------------------------------------------
 
-ymf278b::ymf278b(ymfm_interface &intf) :
+ymf278b.ymf278b(ymfm_interface &intf) :
 	m_address(0),
 	m_fm_pos(0),
 	m_load_remaining(0),
@@ -1646,7 +1646,7 @@ ymf278b::ymf278b(ymfm_interface &intf) :
 //  reset - reset the system
 //-------------------------------------------------
 
-void ymf278b::reset()
+void ymf278b.reset()
 {
 	// reset the engines
 	m_fm.reset();
@@ -1661,7 +1661,7 @@ void ymf278b::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void ymf278b::save_restore(ymfm_saved_state &state)
+void ymf278b.save_restore(ymfm_saved_state &state)
 {
 	state.save_restore(m_address);
 	state.save_restore(m_fm_pos);
@@ -1676,9 +1676,9 @@ void ymf278b::save_restore(ymfm_saved_state &state)
 //  read_status - read the status register
 //-------------------------------------------------
 
-uint8_t ymf278b::read_status()
+byte ymf278b.read_status()
 {
-	uint8_t result;
+	byte result;
 
 	// first status read after initialization returns a chip ID, which
 	// varies based on the "new" flags, indicating the mode
@@ -1713,12 +1713,12 @@ uint8_t ymf278b::read_status()
 //  register
 //-------------------------------------------------
 
-uint8_t ymf278b::read_data_pcm()
+byte ymf278b.read_data_pcm()
 {
 	// read from PCM
 	if (bitfield(m_address, 9) != 0)
 	{
-		uint8_t result = m_pcm.read(m_address & 0xff);
+		byte result = m_pcm.read(m_address & 0xff);
 		if ((m_address & 0xff) == 0x02)
 			result |= 0x20;
 
@@ -1732,9 +1732,9 @@ uint8_t ymf278b::read_data_pcm()
 //  read - handle a read from the device
 //-------------------------------------------------
 
-uint8_t ymf278b::read(uint32_t offset)
+byte ymf278b.read(int offset)
 {
-	uint8_t result = 0xff;
+	byte result = 0xff;
 	switch (offset & 7)
 	{
 		case 0: // status port
@@ -1746,7 +1746,7 @@ uint8_t ymf278b::read(uint32_t offset)
 			break;
 
 		default:
-			debug::log_unexpected_read_write("Unexpected read from ymf278b offset %d\n", offset & 3);
+			debug.log_unexpected_read_write("Unexpected read from ymf278b offset %d\n", offset & 3);
 			break;
 	}
 	return result;
@@ -1758,7 +1758,7 @@ uint8_t ymf278b::read(uint32_t offset)
 //  register
 //-------------------------------------------------
 
-void ymf278b::write_address(uint8_t data)
+void ymf278b.write_address(byte data)
 {
 	// just set the address
 	m_address = data;
@@ -1770,12 +1770,12 @@ void ymf278b::write_address(uint8_t data)
 //  register
 //-------------------------------------------------
 
-void ymf278b::write_data(uint8_t data)
+void ymf278b.write_data(byte data)
 {
 	// write to FM
 	if (bitfield(m_address, 9) == 0)
 	{
-		uint8_t old = m_fm.regs().new2flag();
+		byte old = m_fm.regs().new2flag();
 		m_fm.write(m_address, data);
 
 		// changing NEW2 from 0->1 causes the next status read to
@@ -1794,7 +1794,7 @@ void ymf278b::write_data(uint8_t data)
 //  address register
 //-------------------------------------------------
 
-void ymf278b::write_address_hi(uint8_t data)
+void ymf278b.write_address_hi(byte data)
 {
 	// just set the address
 	m_address = data | 0x100;
@@ -1811,7 +1811,7 @@ void ymf278b::write_address_hi(uint8_t data)
 //  address register
 //-------------------------------------------------
 
-void ymf278b::write_address_pcm(uint8_t data)
+void ymf278b.write_address_pcm(byte data)
 {
 	// just set the address
 	m_address = data | 0x200;
@@ -1823,7 +1823,7 @@ void ymf278b::write_address_pcm(uint8_t data)
 //  register
 //-------------------------------------------------
 
-void ymf278b::write_data_pcm(uint8_t data)
+void ymf278b.write_data_pcm(byte data)
 {
 	// ignore data writes if new2 is not yet set
 	if (m_fm.regs().new2flag() == 0)
@@ -1832,7 +1832,7 @@ void ymf278b::write_data_pcm(uint8_t data)
 	// write to FM
 	if (bitfield(m_address, 9) != 0)
 	{
-		uint8_t addr = m_address & 0xff;
+		byte addr = m_address & 0xff;
 		m_pcm.write(addr, data);
 
 		// writes to the waveform number cause loads to happen for "about 300usec"
@@ -1851,7 +1851,7 @@ void ymf278b::write_data_pcm(uint8_t data)
 //  interface
 //-------------------------------------------------
 
-void ymf278b::write(uint32_t offset, uint8_t data)
+void ymf278b.write(int offset, byte data)
 {
 	switch (offset & 7)
 	{
@@ -1880,7 +1880,7 @@ void ymf278b::write(uint32_t offset, uint8_t data)
 			break;
 
 		default:
-			debug::log_unexpected_read_write("Unexpected write to ymf278b offset %d\n", offset & 7);
+			debug.log_unexpected_read_write("Unexpected write to ymf278b offset %d\n", offset & 7);
 			break;
 	}
 }
@@ -1890,52 +1890,52 @@ void ymf278b::write(uint32_t offset, uint8_t data)
 //  generate - generate one sample of sound
 //-------------------------------------------------
 
-void ymf278b::generate(output_data *output, uint32_t numsamples)
+void ymf278b.generate(output_data *output, int numsamples)
 {
-	static const int16_t s_mix_scale[8] = { 0x7fa, 0x5a4, 0x3fd, 0x2d2, 0x1fe, 0x169, 0xff, 0 };
-	int32_t const pcm_l = s_mix_scale[m_pcm.regs().mix_pcm_l()];
-	int32_t const pcm_r = s_mix_scale[m_pcm.regs().mix_pcm_r()];
-	int32_t const fm_l = s_mix_scale[m_pcm.regs().mix_fm_l()];
-	int32_t const fm_r = s_mix_scale[m_pcm.regs().mix_fm_r()];
-	for (uint32_t samp = 0; samp < numsamples; samp++, output++)
+	static final int s_mix_scale[8] = { 0x7fa, 0x5a4, 0x3fd, 0x2d2, 0x1fe, 0x169, 0xff, 0 };
+	int final pcm_l = s_mix_scale[m_pcm.regs().mix_pcm_l()];
+	int final pcm_r = s_mix_scale[m_pcm.regs().mix_pcm_r()];
+	int final fm_l = s_mix_scale[m_pcm.regs().mix_fm_l()];
+	int final fm_r = s_mix_scale[m_pcm.regs().mix_fm_r()];
+	for (int samp = 0; samp < numsamples; samp++, output++)
 	{
 		// clock the system
 		m_fm_pos += FM_EXTRA_SAMPLE_STEP;
 		if (m_fm_pos >= FM_EXTRA_SAMPLE_THRESH)
 		{
-			m_fm.clock(fm_engine::ALL_CHANNELS);
+			m_fm.clock(fm_engine.ALL_CHANNELS);
 			m_fm_pos -= FM_EXTRA_SAMPLE_THRESH;
 		}
-		m_fm.clock(fm_engine::ALL_CHANNELS);
-		m_pcm.clock(pcm_engine::ALL_CHANNELS);
+		m_fm.clock(fm_engine.ALL_CHANNELS);
+		m_pcm.clock(pcm_engine.ALL_CHANNELS);
 
 		// update the FM content; mixing details for YMF278B need verification
-		fm_engine::output_data fmout;
-		m_fm.output(fmout.clear(), 0, 32767, fm_engine::ALL_CHANNELS);
+		fm_engine.output_data fmout;
+		m_fm.output(fmout.clear(), 0, 32767, fm_engine.ALL_CHANNELS);
 
 		// update the PCM content
-		pcm_engine::output_data pcmout;
-		m_pcm.output(pcmout.clear(), pcm_engine::ALL_CHANNELS);
+		pcm_engine.output_data pcmout;
+		m_pcm.output(pcmout.clear(), pcm_engine.ALL_CHANNELS);
 
 		// DO0 output: FM channels 2+3 only
-		output->data[0] = fmout.data[2];
-		output->data[1] = fmout.data[3];
+		output.data[0] = fmout.data[2];
+		output.data[1] = fmout.data[3];
 
 		// DO1 output: wavetable channels 2+3 only
-		output->data[2] = pcmout.data[2];
-		output->data[3] = pcmout.data[3];
+		output.data[2] = pcmout.data[2];
+		output.data[3] = pcmout.data[3];
 
 		// DO2 output: mixed FM channels 0+1 and wavetable channels 0+1
-		output->data[4] = (fmout.data[0] * fm_l + pcmout.data[0] * pcm_l) >> 11;
-		output->data[5] = (fmout.data[1] * fm_r + pcmout.data[1] * pcm_r) >> 11;
+		output.data[4] = (fmout.data[0] * fm_l + pcmout.data[0] * pcm_l) >> 11;
+		output.data[5] = (fmout.data[1] * fm_r + pcmout.data[1] * pcm_r) >> 11;
 
 		// YMF278B output is 16-bit 2s complement serial
-		output->clamp16();
+		output.clamp16();
 	}
 
 	// decrement the load waiting count
 	if (m_load_remaining > 0)
-		m_load_remaining -= std::min(m_load_remaining, numsamples);
+		m_load_remaining -= std.min(m_load_remaining, numsamples);
 }
 
 
@@ -1948,7 +1948,7 @@ void ymf278b::generate(output_data *output, uint32_t numsamples)
 //  opll_base - constructor
 //-------------------------------------------------
 
-opll_base::opll_base(ymfm_interface &intf, uint8_t const *instrument_data) :
+opll_base.opll_base(ymfm_interface &intf, byte final *instrument_data) :
 	m_address(0),
 	m_fm(intf)
 {
@@ -1960,7 +1960,7 @@ opll_base::opll_base(ymfm_interface &intf, uint8_t const *instrument_data) :
 //  reset - reset the system
 //-------------------------------------------------
 
-void opll_base::reset()
+void opll_base.reset()
 {
 	// reset the engines
 	m_fm.reset();
@@ -1971,7 +1971,7 @@ void opll_base::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void opll_base::save_restore(ymfm_saved_state &state)
+void opll_base.save_restore(ymfm_saved_state &state)
 {
 	state.save_restore(m_address);
 	m_fm.save_restore(state);
@@ -1983,7 +1983,7 @@ void opll_base::save_restore(ymfm_saved_state &state)
 //  register
 //-------------------------------------------------
 
-void opll_base::write_address(uint8_t data)
+void opll_base.write_address(byte data)
 {
 	// OPLL doesn't expose a busy signal, but datasheets are pretty consistent
 	// in indicating that address writes should be no faster than every 12 clocks
@@ -1999,7 +1999,7 @@ void opll_base::write_address(uint8_t data)
 //  interface
 //-------------------------------------------------
 
-void opll_base::write_data(uint8_t data)
+void opll_base.write_data(byte data)
 {
 	// OPLL doesn't expose a busy signal, but datasheets are pretty consistent
 	// in indicating that address writes should be no faster than every 84 clocks
@@ -2015,7 +2015,7 @@ void opll_base::write_data(uint8_t data)
 //  interface
 //-------------------------------------------------
 
-void opll_base::write(uint32_t offset, uint8_t data)
+void opll_base.write(int offset, byte data)
 {
 	switch (offset & 1)
 	{
@@ -2034,20 +2034,20 @@ void opll_base::write(uint32_t offset, uint8_t data)
 //  generate - generate one sample of sound
 //-------------------------------------------------
 
-void opll_base::generate(output_data *output, uint32_t numsamples)
+void opll_base.generate(output_data *output, int numsamples)
 {
-	for (uint32_t samp = 0; samp < numsamples; samp++, output++)
+	for (int samp = 0; samp < numsamples; samp++, output++)
 	{
 		// clock the system
-		m_fm.clock(fm_engine::ALL_CHANNELS);
+		m_fm.clock(fm_engine.ALL_CHANNELS);
 
 		// update the FM content; OPLL has a built-in 9-bit DAC
-		m_fm.output(output->clear(), 5, 256, fm_engine::ALL_CHANNELS);
+		m_fm.output(output.clear(), 5, 256, fm_engine.ALL_CHANNELS);
 
 		// final output is multiplexed; we don't simulate that here except
 		// to average over everything
-		output->data[0] = (output->data[0] * 128) / 9;
-		output->data[1] = (output->data[1] * 128) / 9;
+		output.data[0] = (output.data[0] * 128) / 9;
+		output.data[1] = (output.data[1] * 128) / 9;
 	}
 }
 
@@ -2061,13 +2061,13 @@ void opll_base::generate(output_data *output, uint32_t numsamples)
 //  ym2413 - constructor
 //-------------------------------------------------
 
-ym2413::ym2413(ymfm_interface &intf, uint8_t const *instrument_data) :
+ym2413.ym2413(ymfm_interface &intf, byte final *instrument_data) :
 	opll_base(intf, (instrument_data != nullptr) ? instrument_data : s_default_instruments)
 {
 };
 
 // table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches
-uint8_t const ym2413::s_default_instruments[] =
+byte final ym2413.s_default_instruments[] =
 {
 	//April 2015 David Viens, tweaked May 19-21th 2015 Hubert Lamontagne
 	0x71, 0x61, 0x1E, 0x17, 0xEF, 0x7F, 0x00, 0x17, //Violin
@@ -2100,13 +2100,13 @@ uint8_t const ym2413::s_default_instruments[] =
 //  ym2423 - constructor
 //-------------------------------------------------
 
-ym2423::ym2423(ymfm_interface &intf, uint8_t const *instrument_data) :
+ym2423.ym2423(ymfm_interface &intf, byte final *instrument_data) :
 	opll_base(intf, (instrument_data != nullptr) ? instrument_data : s_default_instruments)
 {
 };
 
 // table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches
-uint8_t const ym2423::s_default_instruments[] =
+byte final ym2423.s_default_instruments[] =
 {
 	// May 4-6 2016 Hubert Lamontagne
 	// Doesn't seem to have any diff between opllx-x and opllx-y
@@ -2141,13 +2141,13 @@ uint8_t const ym2423::s_default_instruments[] =
 //  ymf281 - constructor
 //-------------------------------------------------
 
-ymf281::ymf281(ymfm_interface &intf, uint8_t const *instrument_data) :
+ymf281.ymf281(ymfm_interface &intf, byte final *instrument_data) :
 	opll_base(intf, (instrument_data != nullptr) ? instrument_data : s_default_instruments)
 {
 };
 
 // table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches
-uint8_t const ymf281::s_default_instruments[] =
+byte final ymf281.s_default_instruments[] =
 {
 	// May 14th 2015 Hubert Lamontagne
 	0x72, 0x21, 0x1A, 0x07, 0xF6, 0x64, 0x01, 0x16, // Clarinet ~~ Electric String 	Square wave with vibrato
@@ -2180,13 +2180,13 @@ uint8_t const ymf281::s_default_instruments[] =
 //  ds1001 - constructor
 //-------------------------------------------------
 
-ds1001::ds1001(ymfm_interface &intf, uint8_t const *instrument_data) :
+ds1001.ds1001(ymfm_interface &intf, byte final *instrument_data) :
 	opll_base(intf, (instrument_data != nullptr) ? instrument_data : s_default_instruments)
 {
 };
 
 // table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches
-uint8_t const ds1001::s_default_instruments[] =
+byte final ds1001.s_default_instruments[] =
 {
 	// May 15th 2015 Hubert Lamontagne & David Viens
 	0x03, 0x21, 0x05, 0x06, 0xC8, 0x81, 0x42, 0x27, // Buzzy Bell

@@ -43,9 +43,9 @@ namespace ymfm
 //  reset - reset the register state
 //-------------------------------------------------
 
-void pcm_registers::reset()
+void pcm_registers.reset()
 {
-	std::fill_n(&m_regdata[0], REGISTERS, 0);
+	std.fill_n(&m_regdata[0], REGISTERS, 0);
 	m_regdata[0xf8] = 0x1b;
 }
 
@@ -54,7 +54,7 @@ void pcm_registers::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void pcm_registers::save_restore(ymfm_saved_state &state)
+void pcm_registers.save_restore(ymfm_saved_state &state)
 {
 	state.save_restore(m_regdata);
 }
@@ -65,19 +65,19 @@ void pcm_registers::save_restore(ymfm_saved_state &state)
 //  data from the registers
 //-------------------------------------------------
 
-void pcm_registers::cache_channel_data(uint32_t choffs, pcm_cache &cache)
+void pcm_registers.cache_channel_data(int choffs, pcm_cache &cache)
 {
 	// compute step from octave and fnumber; the math here implies
 	// a .18 fraction but .16 should be perfectly fine
-	int32_t octave = int8_t(ch_octave(choffs) << 4) >> 4;
-	uint32_t fnum = ch_fnumber(choffs);
+	int octave = byte(ch_octave(choffs) << 4) >> 4;
+	int fnum = ch_fnumber(choffs);
 	cache.step = ((0x400 | fnum) << (octave + 7)) >> 2;
 
 	// total level is computed as a .10 value for interpolation
 	cache.total_level = ch_total_level(choffs) << 10;
 
 	// compute panning values in terms of envelope attenuation
-	int32_t panpot = int8_t(ch_panpot(choffs) << 4) >> 4;
+	int panpot = byte(ch_panpot(choffs) << 4) >> 4;
 	if (panpot >= 0)
 	{
 		cache.pan_left = (panpot == 7) ? 0x3ff : 0x20 * panpot;
@@ -94,18 +94,18 @@ void pcm_registers::cache_channel_data(uint32_t choffs, pcm_cache &cache)
 	// determine the LFO stepping value; this how much to add to a running
 	// x.18 value for the LFO; steps were derived from frequencies in the
 	// manual and come out very close with these values
-	static const uint8_t s_lfo_steps[8] = { 1, 12, 19, 25, 31, 35, 37, 42 };
+	static final byte s_lfo_steps[8] = { 1, 12, 19, 25, 31, 35, 37, 42 };
 	cache.lfo_step = s_lfo_steps[ch_lfo_speed(choffs)];
 
 	// AM LFO depth values, derived from the manual; note each has at most
 	// 2 bits to make the "multiply" easy in hardware
-	static const uint8_t s_am_depth[8] = { 0, 0x14, 0x20, 0x28, 0x30, 0x40, 0x50, 0x80 };
+	static final byte s_am_depth[8] = { 0, 0x14, 0x20, 0x28, 0x30, 0x40, 0x50, 0x80 };
 	cache.am_depth = s_am_depth[ch_am_depth(choffs)];
 
 	// PM LFO depth values; these are converted from the manual's cents values
 	// into f-numbers; the computations come out quite cleanly so pretty sure
 	// these are correct
-	static const uint8_t s_pm_depth[8] = { 0, 2, 3, 4, 6, 12, 24, 48 };
+	static final byte s_pm_depth[8] = { 0, 2, 3, 4, 6, 12, 24, 48 };
 	cache.pm_depth = s_pm_depth[ch_vibrato(choffs)];
 
 	// 4-bit sustain level, but 15 means 31 so effectively 5 bits
@@ -114,7 +114,7 @@ void pcm_registers::cache_channel_data(uint32_t choffs, pcm_cache &cache)
 	cache.eg_sustain <<= 5;
 
 	// compute the key scaling correction factor; 15 means don't do any correction
-	int32_t correction = ch_rate_correction(choffs);
+	int correction = ch_rate_correction(choffs);
 	if (correction == 15)
 		correction = 0;
 	else
@@ -144,7 +144,7 @@ void pcm_registers::cache_channel_data(uint32_t choffs, pcm_cache &cache)
 //  clamping and applying corrections as needed
 //-------------------------------------------------
 
-uint32_t pcm_registers::effective_rate(uint32_t raw, uint32_t correction)
+int pcm_registers.effective_rate(int raw, int correction)
 {
 	// raw rates of 0 and 15 just pin to min/max
 	if (raw == 0)
@@ -166,7 +166,7 @@ uint32_t pcm_registers::effective_rate(uint32_t raw, uint32_t correction)
 //  pcm_channel - constructor
 //-------------------------------------------------
 
-pcm_channel::pcm_channel(pcm_engine &owner, uint32_t choffs) :
+pcm_channel.pcm_channel(pcm_engine &owner, int choffs) :
 	m_choffs(choffs),
 	m_baseaddr(0),
 	m_endpos(0),
@@ -189,7 +189,7 @@ pcm_channel::pcm_channel(pcm_engine &owner, uint32_t choffs) :
 //  reset - reset the channel state
 //-------------------------------------------------
 
-void pcm_channel::reset()
+void pcm_channel.reset()
 {
 	m_baseaddr = 0;
 	m_endpos = 0;
@@ -209,7 +209,7 @@ void pcm_channel::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void pcm_channel::save_restore(ymfm_saved_state &state)
+void pcm_channel.save_restore(ymfm_saved_state &state)
 {
 	state.save_restore(m_baseaddr);
 	state.save_restore(m_endpos);
@@ -229,7 +229,7 @@ void pcm_channel::save_restore(ymfm_saved_state &state)
 //  prepare - prepare for clocking
 //-------------------------------------------------
 
-bool pcm_channel::prepare()
+boolean pcm_channel.prepare()
 {
 	// cache the data
 	m_regs.cache_channel_data(m_choffs, m_cache);
@@ -237,7 +237,7 @@ bool pcm_channel::prepare()
 	// clock the key state
 	if ((m_key_state & KEY_PENDING) != 0)
 	{
-		uint8_t oldstate = m_key_state;
+		byte oldstate = m_key_state;
 		m_key_state = (m_key_state >> 1) & KEY_ON;
 		if (((oldstate ^ m_key_state) & KEY_ON) != 0)
 		{
@@ -261,7 +261,7 @@ bool pcm_channel::prepare()
 //  clock - master clocking function
 //-------------------------------------------------
 
-void pcm_channel::clock(uint32_t env_counter)
+void pcm_channel.clock(int env_counter)
 {
 	// clock the LFO, which is an x.18 value incremented based on the
 	// LFO speed value
@@ -271,16 +271,16 @@ void pcm_channel::clock(uint32_t env_counter)
 	clock_envelope(env_counter);
 
 	// determine the step after applying vibrato
-	uint32_t step = m_cache.step;
+	int step = m_cache.step;
 	if (m_cache.pm_depth != 0)
 	{
 		// shift the LFO by 1/4 cycle for PM so that it starts at 0
-		uint32_t lfo_shifted = m_lfo_counter + (1 << 16);
-		int32_t lfo_value = bitfield(lfo_shifted, 10, 7);
+		int lfo_shifted = m_lfo_counter + (1 << 16);
+		int lfo_value = bitfield(lfo_shifted, 10, 7);
 		if (bitfield(lfo_shifted, 17) != 0)
 			lfo_value ^= 0x7f;
 		lfo_value -= 0x40;
-		step += (lfo_value * int32_t(m_cache.pm_depth)) >> 7;
+		step += (lfo_value * int(m_cache.pm_depth)) >> 7;
 	}
 
 	// advance the sample step and loop as needed
@@ -295,9 +295,9 @@ void pcm_channel::clock(uint32_t env_counter)
 		// max->min volume takes 156.4ms, or pretty close to 19/1024 per 44.1kHz sample
 		// min->max volume is half that, so advance by 38/1024 per sample
 		if (m_total_level < m_cache.total_level)
-			m_total_level = std::min<int32_t>(m_total_level + 19, m_cache.total_level);
+			m_total_level = Math.min(m_total_level + 19, m_cache.total_level);
 		else
-			m_total_level = std::max<int32_t>(m_total_level - 38, m_cache.total_level);
+			m_total_level = Math.max<int>(m_total_level - 38, m_cache.total_level);
 	}
 }
 
@@ -307,17 +307,17 @@ void pcm_channel::clock(uint32_t env_counter)
 //  panning applied
 //-------------------------------------------------
 
-void pcm_channel::output(output_data &output) const
+void pcm_channel.output(output_data &output) final
 {
 	// early out if the envelope is effectively off
-	uint32_t envelope = m_env_attenuation;
+	int envelope = m_env_attenuation;
 	if (envelope > EG_QUIET)
 		return;
 
 	// add in LFO AM modulation
 	if (m_cache.am_depth != 0)
 	{
-		uint32_t lfo_value = bitfield(m_lfo_counter, 10, 7);
+		int lfo_value = bitfield(m_lfo_counter, 10, 7);
 		if (bitfield(m_lfo_counter, 17) != 0)
 			lfo_value ^= 0x7f;
 		envelope += (lfo_value * m_cache.am_depth) >> 7;
@@ -328,16 +328,16 @@ void pcm_channel::output(output_data &output) const
 	envelope += m_total_level >> 8;
 
 	// add in panning effect and clamp
-	uint32_t lenv = std::min<uint32_t>(envelope + m_cache.pan_left, 0x3ff);
-	uint32_t renv = std::min<uint32_t>(envelope + m_cache.pan_right, 0x3ff);
+	int lenv = Math.min(envelope + m_cache.pan_left, 0x3ff);
+	int renv = Math.min(envelope + m_cache.pan_right, 0x3ff);
 
 	// convert to volume as a .11 fraction
-	int32_t lvol = attenuation_to_volume(lenv << 2);
-	int32_t rvol = attenuation_to_volume(renv << 2);
+	int lvol = attenuation_to_volume(lenv << 2);
+	int rvol = attenuation_to_volume(renv << 2);
 
 	// fetch current sample and add
-	int16_t sample = fetch_sample();
-	uint32_t outnum = m_regs.ch_output_channel(m_choffs) * 2;
+	int sample = fetch_sample();
+	int outnum = m_regs.ch_output_channel(m_choffs) * 2;
 	output.data[outnum + 0] += (lvol * sample) >> 15;
 	output.data[outnum + 1] += (rvol * sample) >> 15;
 }
@@ -347,18 +347,18 @@ void pcm_channel::output(output_data &output) const
 //  keyonoff - signal key on/off
 //-------------------------------------------------
 
-void pcm_channel::keyonoff(bool on)
+void pcm_channel.keyonoff(boolean on)
 {
 	// mark the key state as pending
 	m_key_state |= KEY_PENDING | (on ? KEY_PENDING_ON : 0);
 
 	// don't log masked channels
-	if ((m_key_state & (KEY_PENDING_ON | KEY_ON)) == KEY_PENDING_ON && ((debug::GLOBAL_PCM_CHANNEL_MASK >> m_choffs) & 1) != 0)
+	if ((m_key_state & (KEY_PENDING_ON | KEY_ON)) == KEY_PENDING_ON && ((debug.GLOBAL_PCM_CHANNEL_MASK >> m_choffs) & 1) != 0)
 	{
-		debug::log_keyon("KeyOn PCM-%02d: num=%3d oct=%2d fnum=%03X level=%02X%c ADSR=%X/%X/%X/%X SL=%X",
+		debug.log_keyon("KeyOn PCM-%02d: num=%3d oct=%2d fnum=%03X level=%02X%c ADSR=%X/%X/%X/%X SL=%X",
 			m_choffs,
 			m_regs.ch_wave_table_num(m_choffs),
-			int8_t(m_regs.ch_octave(m_choffs) << 4) >> 4,
+			byte(m_regs.ch_octave(m_choffs) << 4) >> 4,
 			m_regs.ch_fnumber(m_choffs),
 			m_regs.ch_total_level(m_choffs),
 			m_regs.ch_level_direct(m_choffs) ? '!' : '/',
@@ -369,22 +369,22 @@ void pcm_channel::keyonoff(bool on)
 			m_regs.ch_sustain_level(m_choffs));
 
 		if (m_regs.ch_rate_correction(m_choffs) != 15)
-			debug::log_keyon(" RC=%X", m_regs.ch_rate_correction(m_choffs));
+			debug.log_keyon(" RC=%X", m_regs.ch_rate_correction(m_choffs));
 
 		if (m_regs.ch_pseudo_reverb(m_choffs) != 0)
-			debug::log_keyon(" %s", "REV");
+			debug.log_keyon(" %s", "REV");
 		if (m_regs.ch_damp(m_choffs) != 0)
-			debug::log_keyon(" %s", "DAMP");
+			debug.log_keyon(" %s", "DAMP");
 
 		if (m_regs.ch_vibrato(m_choffs) != 0 || m_regs.ch_am_depth(m_choffs) != 0)
 		{
 			if (m_regs.ch_vibrato(m_choffs) != 0)
-				debug::log_keyon(" VIB=%d", m_regs.ch_vibrato(m_choffs));
+				debug.log_keyon(" VIB=%d", m_regs.ch_vibrato(m_choffs));
 			if (m_regs.ch_am_depth(m_choffs) != 0)
-				debug::log_keyon(" AM=%d", m_regs.ch_am_depth(m_choffs));
-			debug::log_keyon(" LFO=%d", m_regs.ch_lfo_speed(m_choffs));
+				debug.log_keyon(" AM=%d", m_regs.ch_am_depth(m_choffs));
+			debug.log_keyon(" LFO=%d", m_regs.ch_lfo_speed(m_choffs));
 		}
-		debug::log_keyon("%s", "\n");
+		debug.log_keyon("%s", "\n");
 	}
 }
 
@@ -394,22 +394,22 @@ void pcm_channel::keyonoff(bool on)
 //  its data from external memory
 //-------------------------------------------------
 
-void pcm_channel::load_wavetable()
+void pcm_channel.load_wavetable()
 {
 	// determine the address of the wave table header
-	uint32_t wavnum = m_regs.ch_wave_table_num(m_choffs);
-	uint32_t wavheader = 12 * wavnum;
+	int wavnum = m_regs.ch_wave_table_num(m_choffs);
+	int wavheader = 12 * wavnum;
 
 	// above 384 it may be in a different bank
 	if (wavnum >= 384)
 	{
-		uint32_t bank = m_regs.wave_table_header();
+		int bank = m_regs.wave_table_header();
 		if (bank != 0)
 			wavheader = 512*1024 * bank + (wavnum - 384) * 12;
 	}
 
 	// fetch the 22-bit base address and 2-bit format
-	uint8_t byte = read_pcm(wavheader + 0);
+	byte byte = read_pcm(wavheader + 0);
 	m_format = bitfield(byte, 6, 2);
 	m_baseaddr = bitfield(byte, 0, 6) << 16;
 	m_baseaddr |= read_pcm(wavheader + 1) << 8;
@@ -424,7 +424,7 @@ void pcm_channel::load_wavetable()
 	// for some reason that is unclear
 	m_endpos = read_pcm(wavheader + 5) << 8;
 	m_endpos |= read_pcm(wavheader + 6);
-	m_endpos = -int32_t(m_endpos) << 16;
+	m_endpos = -int(m_endpos) << 16;
 
 	// remaining data values set registers
 	m_owner.write(0x80 + m_choffs, read_pcm(wavheader + 7));
@@ -443,7 +443,7 @@ void pcm_channel::load_wavetable()
 //  memory interface
 //-------------------------------------------------
 
-uint8_t pcm_channel::read_pcm(uint32_t address) const
+byte pcm_channel.read_pcm(int address) final
 {
 	return m_owner.intf().ymfm_external_read(ACCESS_PCM, address);
 }
@@ -453,7 +453,7 @@ uint8_t pcm_channel::read_pcm(uint32_t address) const
 //  start_attack - start the attack phase
 //-------------------------------------------------
 
-void pcm_channel::start_attack()
+void pcm_channel.start_attack()
 {
 	// don't change anything if already in attack state
 	if (m_eg_state == EG_ATTACK)
@@ -477,7 +477,7 @@ void pcm_channel::start_attack()
 //  start_release - start the release phase
 //-------------------------------------------------
 
-void pcm_channel::start_release()
+void pcm_channel.start_release()
 {
 	// don't change anything if already in release or reverb state
 	if (m_eg_state >= EG_RELEASE)
@@ -490,7 +490,7 @@ void pcm_channel::start_release()
 //  clock_envelope - clock the envelope generator
 //-------------------------------------------------
 
-void pcm_channel::clock_envelope(uint32_t env_counter)
+void pcm_channel.clock_envelope(int env_counter)
 {
 	// handle attack->decay transitions
 	if (m_eg_state == EG_ATTACK && m_env_attenuation == 0)
@@ -501,12 +501,12 @@ void pcm_channel::clock_envelope(uint32_t env_counter)
 		m_eg_state = EG_SUSTAIN;
 
 	// fetch the appropriate 6-bit rate value from the cache
-	uint32_t rate = m_cache.eg_rate[m_eg_state];
+	int rate = m_cache.eg_rate[m_eg_state];
 
 	// compute the rate shift value; this is the shift needed to
 	// apply to the env_counter such that it becomes a 5.11 fixed
 	// point number
-	uint32_t rate_shift = rate >> 2;
+	int rate_shift = rate >> 2;
 	env_counter <<= rate_shift;
 
 	// see if the fractional part is 0; if not, it's not time to clock
@@ -514,8 +514,8 @@ void pcm_channel::clock_envelope(uint32_t env_counter)
 		return;
 
 	// determine the increment based on the non-fractional part of env_counter
-	uint32_t relevant_bits = bitfield(env_counter, (rate_shift <= 11) ? 11 : rate_shift, 3);
-	uint32_t increment = attenuation_increment(rate, relevant_bits);
+	int relevant_bits = bitfield(env_counter, (rate_shift <= 11) ? 11 : rate_shift, 3);
+	int increment = attenuation_increment(rate, relevant_bits);
 
 	// attack is the only one that increases
 	if (m_eg_state == EG_ATTACK)
@@ -543,10 +543,10 @@ void pcm_channel::clock_envelope(uint32_t env_counter)
 //  position
 //-------------------------------------------------
 
-int16_t pcm_channel::fetch_sample() const
+int pcm_channel.fetch_sample() final
 {
-	uint32_t addr = m_baseaddr;
-	uint32_t pos = m_curpos >> 16;
+	int addr = m_baseaddr;
+	int pos = m_curpos >> 16;
 
 	// 8-bit PCM: shift up by 8
 	if (m_format == 0)
@@ -577,7 +577,7 @@ int16_t pcm_channel::fetch_sample() const
 //  pcm_engine - constructor
 //-------------------------------------------------
 
-pcm_engine::pcm_engine(ymfm_interface &intf) :
+pcm_engine.pcm_engine(ymfm_interface &intf) :
 	m_intf(intf),
 	m_env_counter(0),
 	m_modified_channels(ALL_CHANNELS),
@@ -585,7 +585,7 @@ pcm_engine::pcm_engine(ymfm_interface &intf) :
 {
 	// create the channels
 	for (int chnum = 0; chnum < CHANNELS; chnum++)
-		m_channel[chnum] = std::make_unique<pcm_channel>(*this, chnum);
+		m_channel[chnum] = std.make_unique<pcm_channel>(*this, chnum);
 }
 
 
@@ -593,14 +593,14 @@ pcm_engine::pcm_engine(ymfm_interface &intf) :
 //  reset - reset the engine state
 //-------------------------------------------------
 
-void pcm_engine::reset()
+void pcm_engine.reset()
 {
 	// reset register state
 	m_regs.reset();
 
 	// reset each channel
 	for (auto &chan : m_channel)
-		chan->reset();
+		chan.reset();
 }
 
 
@@ -608,14 +608,14 @@ void pcm_engine::reset()
 //  save_restore - save or restore the data
 //-------------------------------------------------
 
-void pcm_engine::save_restore(ymfm_saved_state &state)
+void pcm_engine.save_restore(ymfm_saved_state &state)
 {
 	// save our data
 	state.save_restore(m_env_counter);
 
 	// save channel state
 	for (int chnum = 0; chnum < CHANNELS; chnum++)
-		m_channel[chnum]->save_restore(state);
+		m_channel[chnum].save_restore(state);
 }
 
 
@@ -623,7 +623,7 @@ void pcm_engine::save_restore(ymfm_saved_state &state)
 //  clock - master clocking function
 //-------------------------------------------------
 
-void pcm_engine::clock(uint32_t chanmask)
+void pcm_engine.clock(int chanmask)
 {
 	// if something was modified, prepare
 	// also prepare every 4k samples to catch ending notes
@@ -633,7 +633,7 @@ void pcm_engine::clock(uint32_t chanmask)
 		m_active_channels = 0;
 		for (int chnum = 0; chnum < CHANNELS; chnum++)
 			if (bitfield(chanmask, chnum))
-				if (m_channel[chnum]->prepare())
+				if (m_channel[chnum].prepare())
 					m_active_channels |= 1 << chnum;
 
 		// reset the modified channels and prepare count
@@ -649,7 +649,7 @@ void pcm_engine::clock(uint32_t chanmask)
 	// now update the state of all the channels and operators
 	for (int chnum = 0; chnum < CHANNELS; chnum++)
 		if (bitfield(chanmask, chnum))
-			m_channel[chnum]->clock(m_env_counter >> 1);
+			m_channel[chnum].clock(m_env_counter >> 1);
 }
 
 
@@ -657,15 +657,15 @@ void pcm_engine::clock(uint32_t chanmask)
 //  update - master update function
 //-------------------------------------------------
 
-void pcm_engine::output(output_data &output, uint32_t chanmask)
+void pcm_engine.output(output_data &output, int chanmask)
 {
 	// mask out some channels for debug purposes
-	chanmask &= debug::GLOBAL_PCM_CHANNEL_MASK;
+	chanmask &= debug.GLOBAL_PCM_CHANNEL_MASK;
 
 	// compute the output of each channel
 	for (int chnum = 0; chnum < CHANNELS; chnum++)
 		if (bitfield(chanmask, chnum))
-			m_channel[chnum]->output(output);
+			m_channel[chnum].output(output);
 }
 
 
@@ -673,7 +673,7 @@ void pcm_engine::output(output_data &output, uint32_t chanmask)
 //  read - handle reads from the PCM registers
 //-------------------------------------------------
 
-uint8_t pcm_engine::read(uint32_t regnum)
+byte pcm_engine.read(int regnum)
 {
 	// handle reads from the data register
 	if (regnum == 0x06 && m_regs.memory_access_mode() != 0)
@@ -687,7 +687,7 @@ uint8_t pcm_engine::read(uint32_t regnum)
 //  write - handle writes to the PCM registers
 //-------------------------------------------------
 
-void pcm_engine::write(uint32_t regnum, uint8_t data)
+void pcm_engine.write(int regnum, byte data)
 {
 	// handle reads to the data register
 	if (regnum == 0x06 && m_regs.memory_access_mode() != 0)
@@ -704,11 +704,11 @@ void pcm_engine::write(uint32_t regnum, uint8_t data)
 
 	// however, process keyons immediately
 	if (regnum >= 0x68 && regnum <= 0x7f)
-		m_channel[regnum - 0x68]->keyonoff(bitfield(data, 7));
+		m_channel[regnum - 0x68].keyonoff(bitfield(data, 7));
 
 	// and also wavetable writes
 	else if (regnum >= 0x08 && regnum <= 0x1f)
-		m_channel[regnum - 0x08]->load_wavetable();
+		m_channel[regnum - 0x08].load_wavetable();
 }
 
 }
