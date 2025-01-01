@@ -28,266 +28,723 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef YMFM_OPQ_H
-#define YMFM_OPQ_H
-
-#pragma once
-
-#include "ymfm.h"
-#include "ymfm_fm.h"
-
 package vavi.sound.ymfm;
 
+import java.lang.System.Logger.Level;
+import java.util.Arrays;
 
-//*********************************************************
-//  REGISTER CLASSES
-//*********************************************************
+import vavi.sound.ymfm.fm.fm_registers_base;
+import vavi.sound.ymfm.fm.opdata_cache;
+import vavi.sound.ymfm.ymfm.envelope_state;
+import vavi.sound.ymfm.ymfm.ymfm_interface;
+import vavi.sound.ymfm.ymfm.ymfm_saved_state;
 
-// ======================> opq_registers
+import static vavi.sound.ymfm.opz.TEMPORARY_DEBUG_PRINTS;
+import static vavi.sound.ymfm.ymfm.abs_sin_attenuation;
+import static vavi.sound.ymfm.ymfm.bitfield;
+import static vavi.sound.ymfm.ymfm.debug.log_unexpected_read_write;
+import static vavi.sound.ymfm.ymfm.detune_adjustment;
+import static vavi.sound.ymfm.ymfm.opn_lfo_pm_phase_adjustment;
+
 
 //
-// OPQ register map:
+// OPQ (aka YM3806/YM3533)
 //
-//      System-wide registers:
-//           03 xxxxxxxx Timer control (unknown; 0x71 causes interrupts at ~10ms)
-//           04 ----x--- LFO disable
-//              -----xxx LFO frequency (0=~4Hz, 6=~10Hz, 7=~47Hz)
-//           05 -x------ Key on/off operator 4
-//              --x----- Key on/off operator 3
-//              ---x---- Key on/off operator 2
-//              ----x--- Key on/off operator 1
-//              -----xxx Channel select
+// This chip is not officially documented as far as I know. What I have
+// comes from Jari Kangas' work on reverse engineering the PSR70:
 //
-//     Per-channel registers (channel in address bits 0-2)
-//        10-17 x------- Pan right
-//              -x------ Pan left
-//              --xxx--- Feedback level for operator 1 (0-7)
-//              -----xxx Operator connection algorithm (0-7)
-//        18-1F x------- Reverb
-//              -xxx---- PM sensitivity
-//              ------xx AM shift
-//        20-27 -xxx---- Block (0-7), Operator 2 & 4
-//              ----xxxx Frequency number upper 4 bits, Operator 2 & 4
-//        28-2F -xxx---- Block (0-7), Operator 1 & 3
-//              ----xxxx Frequency number upper 4 bits, Operator 1 & 3
-//        30-37 xxxxxxxx Frequency number lower 8 bits, Operator 2 & 4
-//        38-3F xxxxxxxx Frequency number lower 8 bits, Operator 1 & 3
+//    https://github.com/JKN0/PSR70-reverse
 //
-//     Per-operator registers (channel in address bits 0-2, operator in bits 3-4)
-//        40-5F 0-xxxxxx Detune value (0-63)
-//              1---xxxx Multiple value (0-15)
-//        60-7F -xxxxxxx Total level (0-127)
-//        80-9F xx------ Key scale rate (0-3)
-//              ---xxxxx Attack rate (0-31)
-//        A0-BF x------- LFO AM enable, retrigger disable
-//               x------ Waveform select
-//              ---xxxxx Decay rate (0-31)
-//        C0-DF ---xxxxx Sustain rate (0-31)
-//        E0-FF xxxx---- Sustain level (0-15)
-//              ----xxxx Release rate (0-15)
+// OPQ appears be bsaically a mixture of OPM and OPN.
 //
-// Diffs from OPM:
-//  - 2 frequencies/channel
-//  - retrigger disable
-//  - 2 waveforms
-//  - uses FNUM
-//  - reverb behavior
-//  - larger detune range
-//
-// Questions:
-//  - timer information is pretty light
-//  - how does echo work?
-//  -
+class opq {
 
-class opq_registers : public fm_registers_base
-{
-public:
-	// constants
-	static final int OUTPUTS = 2;
-	static final int CHANNELS = 8;
-	static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
-	static final int OPERATORS = CHANNELS * 4;
-	static final int WAVEFORMS = 2;
-	static final int REGISTERS = 0x120;
-	static final int REG_MODE = 0x03;
-	static final int DEFAULT_PRESCALE = 2;
-	static final int EG_CLOCK_DIVIDER = 3;
-	static final boolean EG_HAS_REVERB = true;
-	static final boolean MODULATOR_DELAY = false;
-	static final int CSM_TRIGGER_MASK = ALL_CHANNELS;
-	static final byte STATUS_TIMERA = 0;
-	static final byte STATUS_TIMERB = 0x04;
-	static final byte STATUS_BUSY = 0x80;
-	static final byte STATUS_IRQ = 0;
+    //*********************************************************
+    //  REGISTER CLASSES
+    //*********************************************************
 
-	// constructor
-	opq_registers();
+    // ======================> opq_registers
 
-	// reset to initial state
-	void reset();
+    //*********************************************************
+    //  OPQ SPECIFICS
+    //*********************************************************
 
-	// save/restore
-	void save_restore(ymfm_saved_state &state);
+    //
+    // OPQ register map:
+    //
+    //      System-wide registers:
+    //           03 xxxxxxxx Timer control (unknown; 0x71 causes interrupts at ~10ms)
+    //           04 ----x--- LFO disable
+    //              -----xxx LFO frequency (0=~4Hz, 6=~10Hz, 7=~47Hz)
+    //           05 -x------ Key on/off operator 4
+    //              --x----- Key on/off operator 3
+    //              ---x---- Key on/off operator 2
+    //              ----x--- Key on/off operator 1
+    //              -----xxx Channel select
+    //
+    //     Per-channel registers (channel in address bits 0-2)
+    //        10-17 x------- Pan right
+    //              -x------ Pan left
+    //              --xxx--- Feedback level for operator 1 (0-7)
+    //              -----xxx Operator connection algorithm (0-7)
+    //        18-1F x------- Reverb
+    //              -xxx---- PM sensitivity
+    //              ------xx AM shift
+    //        20-27 -xxx---- Block (0-7), Operator 2 & 4
+    //              ----xxxx Frequency number upper 4 bits, Operator 2 & 4
+    //        28-2F -xxx---- Block (0-7), Operator 1 & 3
+    //              ----xxxx Frequency number upper 4 bits, Operator 1 & 3
+    //        30-37 xxxxxxxx Frequency number lower 8 bits, Operator 2 & 4
+    //        38-3F xxxxxxxx Frequency number lower 8 bits, Operator 1 & 3
+    //
+    //     Per-operator registers (channel in address bits 0-2, operator in bits 3-4)
+    //        40-5F 0-xxxxxx Detune value (0-63)
+    //              1---xxxx Multiple value (0-15)
+    //        60-7F -xxxxxxx Total level (0-127)
+    //        80-9F xx------ Key scale rate (0-3)
+    //              ---xxxxx Attack rate (0-31)
+    //        A0-BF x------- LFO AM enable, retrigger disable
+    //               x------ Waveform select
+    //              ---xxxxx Decay rate (0-31)
+    //        C0-DF ---xxxxx Sustain rate (0-31)
+    //        E0-FF xxxx---- Sustain level (0-15)
+    //              ----xxxx Release rate (0-15)
+    //
+    // Diffs from OPM:
+    //  - 2 frequencies/channel
+    //  - retrigger disable
+    //  - 2 waveforms
+    //  - uses FNUM
+    //  - reverb behavior
+    //  - larger detune range
+    //
+    // Questions:
+    //  - timer information is pretty light
+    //  - how does echo work?
+    //  -
+    static class opq_registers extends fm_registers_base {
 
-	// map channel number to register offset
-	static final int channel_offset(int chnum)
-	{
-		assert(chnum < CHANNELS);
-		return chnum;
-	}
+        // constants
+        public static final int OUTPUTS = 2;
+        public static final int CHANNELS = 8;
+        public static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
+        public static final int OPERATORS = CHANNELS * 4;
+        public static final int WAVEFORMS = 2;
+        public static final int REGISTERS = 0x120;
+        public static final int REG_MODE = 0x03;
+        public static final int DEFAULT_PRESCALE = 2;
+        public static final int EG_CLOCK_DIVIDER = 3;
+        public static final boolean EG_HAS_REVERB = true;
+        public static final boolean MODULATOR_DELAY = false;
+        public static final int CSM_TRIGGER_MASK = ALL_CHANNELS;
+        public static final int STATUS_TIMERA = 0;
+        public static final int STATUS_TIMERB = 0x04;
+        public static final int STATUS_BUSY = 0x80;
+        public static final int STATUS_IRQ = 0;
 
-	// map operator number to register offset
-	static final int operator_offset(int opnum)
-	{
-		assert(opnum < OPERATORS);
-		return opnum;
-	}
+        //-------------------------------------------------
+        //  opq_registers - constructor
+        //-------------------------------------------------
+        public opq_registers() {
+            m_lfo_counter = 0;
+            m_lfo_am = 0;
 
-	// return an array of operator indices for each channel
-	struct operator_mapping { int chan[CHANNELS]; };
-	void operator_map(operator_mapping &dest) final;
+            // create the waveforms
+            for (int index = 0; index < WAVEFORM_LENGTH; index++)
+                m_waveform[0][index] = abs_sin_attenuation(index) | (bitfield(index, 9) << 15);
 
-	// handle writes to the register array
-	boolean write(int index, byte data, int &chan, int &opmask);
+            int zeroval = m_waveform[0][0];
+            for (int index = 0; index < WAVEFORM_LENGTH; index++)
+                m_waveform[1][index] = bitfield(index, 9) != 0 ? zeroval : m_waveform[0][index];
+        }
 
-	// clock the noise and LFO, if present, returning LFO PM value
-	int clock_noise_and_lfo();
+        //-------------------------------------------------
+        //  reset - reset to initial state
+        //-------------------------------------------------
+        public void reset() {
+            Arrays.fill(m_regdata, 0, REGISTERS, 0);
 
-	// reset the LFO
-	void reset_lfo() { m_lfo_counter = 0; }
+            // enable output on both channels by default
+            m_regdata[0x10] = m_regdata[0x11] = m_regdata[0x12] = m_regdata[0x13] = 0xc0;
+            m_regdata[0x14] = m_regdata[0x15] = m_regdata[0x16] = m_regdata[0x17] = 0xc0;
+        }
 
-	// return the AM offset from LFO for the given channel
-	int lfo_am_offset(int choffs) final;
+        //-------------------------------------------------
+        //  save_restore - save or restore the data
+        //-------------------------------------------------
+        public void save_restore(ymfm_saved_state state) {
+            state.save_restore(m_lfo_counter);
+            state.save_restore(m_lfo_am);
+            state.save_restore(m_regdata);
+        }
 
-	// return the current noise state, gated by the noise clock
-	int noise_state() final { return 0; }
+        // map channel number to register offset
+        static final int channel_offset(int chnum) {
+            assert (chnum < CHANNELS);
+            return chnum;
+        }
 
-	// caching helpers
-	void cache_operator_data(int choffs, int opoffs, opdata_cache &cache);
+        // map operator number to register offset
+        static final int operator_offset(int opnum) {
+            assert (opnum < OPERATORS);
+            return opnum;
+        }
 
-	// compute the phase step, given a PM value
-	int compute_phase_step(int choffs, int opoffs, opdata_cache final &cache, int lfo_raw_pm);
+        // return an array of operator indices for each channel
+        static class operator_mapping {
 
-	// log a key-on event
-	std.string log_keyon(int choffs, int opoffs);
+            int[] chan = new int[CHANNELS];
+        }
 
-	// system-wide registers
-	int timer_a_value() final                   { return 0; }
-	int timer_b_value() final                   { return byte(0x03, 2, 6) | 0xc0; } // ???
-	int csm() final                             { return 0; }
-	int reset_timer_b() final                   { return byte(0x03, 0, 1); } // ???
-	int reset_timer_a() final                   { return 0; }
-	int enable_timer_b() final                  { return byte(0x03, 0, 1); } // ???
-	int enable_timer_a() final                  { return 0; }
-	int load_timer_b() final                    { return byte(0x03, 0, 1); } // ???
-	int load_timer_a() final                    { return 0; }
-	int lfo_enable() final                      { return byte(0x04, 3, 1) ^ 1; }
-	int lfo_rate() final                        { return byte(0x04, 0, 3); }
+        static final operator_mapping s_fixed_map = new operator_mapping() {{
+            chan = new int[] {
+                    operator_list(0, 8, 16, 24),  // Channel 0 operators
+                    operator_list(1, 9, 17, 25),  // Channel 1 operators
+                    operator_list(2, 10, 18, 26),  // Channel 2 operators
+                    operator_list(3, 11, 19, 27),  // Channel 3 operators
+                    operator_list(4, 12, 20, 28),  // Channel 4 operators
+                    operator_list(5, 13, 21, 29),  // Channel 5 operators
+                    operator_list(6, 14, 22, 30),  // Channel 6 operators
+                    operator_list(7, 15, 23, 31),  // Channel 7 operators
+            };
+        }};
 
-	// per-channel registers
-	int ch_output_any(int choffs) final    { return byte(0x10, 6, 2, choffs); }
-	int ch_output_0(int choffs) final      { return byte(0x10, 6, 1, choffs); }
-	int ch_output_1(int choffs) final      { return byte(0x10, 7, 1, choffs); }
-	int ch_output_2(int choffs) final      { return 0; }
-	int ch_output_3(int choffs) final      { return 0; }
-	int ch_feedback(int choffs) final      { return byte(0x10, 3, 3, choffs); }
-	int ch_algorithm(int choffs) final     { return byte(0x10, 0, 3, choffs); }
-	int ch_reverb(int choffs) final        { return byte(0x18, 7, 1, choffs); }
-	int ch_lfo_pm_sens(int choffs) final   { return byte(0x18, 4, 3, choffs); }
-	int ch_lfo_am_sens(int choffs) final   { return byte(0x18, 0, 2, choffs); }
-	int ch_block_freq_24(int choffs) final { return word(0x20, 0, 7, 0x30, 0, 8, choffs); }
-	int ch_block_freq_13(int choffs) final { return word(0x28, 0, 7, 0x38, 0, 8, choffs); }
+        //-------------------------------------------------
+        //  operator_map - return an array of operator
+        //  indices for each channel; for OPM this is fixed
+        //-------------------------------------------------
+        public final void operator_map(operator_mapping dest) {
+            // seems like the operators are not swizzled like they are on OPM/OPN?
+            dest = s_fixed_map;
+        }
 
-	// per-operator registers
-	int op_detune(int opoffs) final        { return byte(0x40, 0, 6, opoffs); }
-	int op_multiple(int opoffs) final      { return byte(0x100, 0, 4, opoffs); }
-	int op_total_level(int opoffs) final   { return byte(0x60, 0, 7, opoffs); }
-	int op_ksr(int opoffs) final           { return byte(0x80, 6, 2, opoffs); }
-	int op_attack_rate(int opoffs) final   { return byte(0x80, 0, 5, opoffs); }
-	int op_lfo_am_enable(int opoffs) final { return byte(0xa0, 7, 1, opoffs); }
-	int op_waveform(int opoffs) final      { return byte(0xa0, 6, 1, opoffs); }
-	int op_decay_rate(int opoffs) final    { return byte(0xa0, 0, 5, opoffs); }
-	int op_sustain_rate(int opoffs) final  { return byte(0xc0, 0, 5, opoffs); }
-	int op_sustain_level(int opoffs) final { return byte(0xe0, 4, 4, opoffs); }
-	int op_release_rate(int opoffs) final  { return byte(0xe0, 0, 4, opoffs); }
+        //-------------------------------------------------
+        //  write - handle writes to the register array
+        //-------------------------------------------------
+        public boolean write(int index, byte data, int[] channel, int[] opmask) {
+            assert (index < REGISTERS);
 
-protected:
-	// return a bitfield extracted from a byte
-	int byte(int offset, int start, int count, int extra_offset = 0) final
-	{
-		return bitfield(m_regdata[offset + extra_offset], start, count);
-	}
+            // detune/multiple share a register based on the MSB of what is written
+            // remap the multiple values to 100-11F
+            if ((index & 0xe0) == 0x40 && bitfield(data, 7) != 0)
+                index += 0xc0;
 
-	// return a bitfield extracted from a pair of bytes, MSBs listed first
-	int word(int offset1, int start1, int count1, int offset2, int start2, int count2, int extra_offset = 0) final
-	{
-		return (byte(offset1, start1, count1, extra_offset) << count2) | byte(offset2, start2, count2, extra_offset);
-	}
+            m_regdata[index] = data;
 
-	// internal state
-	int m_lfo_counter;               // LFO counter
-	byte m_lfo_am;                     // current LFO AM value
-	byte m_regdata[REGISTERS];         // register data
-	int m_waveform[WAVEFORMS][WAVEFORM_LENGTH]; // waveforms
-};
+            // handle writes to the key on index
+            if (index == 0x05) {
+                channel[0] = bitfield(data, 0, 3);
+                opmask[0] = bitfield(data, 3, 4);
+                return true;
+            }
+            return false;
+        }
 
+        // this table is based on converting the frequencies in the applications
+        // manual to clock dividers, based on the assumption of a 7-bit LFO value
+        static final int[] lfo_max_count = {109, 78, 72, 68, 63, 45, 9, 6};
 
+        //-------------------------------------------------
+        //  clock_noise_and_lfo - clock the noise and LFO,
+        //  handling clock division, depth, and waveform
+        //  computations
+        //-------------------------------------------------
+        public int clock_noise_and_lfo() {
+            // OPQ LFO is not well-understood, but the enable and rate values
+            // look a lot like OPN, so we'll crib from there as a starting point
 
-//*********************************************************
-//  IMPLEMENTATION CLASSES
-//*********************************************************
+            // if LFO not enabled (not present on OPN), quick exit with 0s
+            if (lfo_enable() == 0) {
+                m_lfo_counter = 0;
+                m_lfo_am = 0;
+                return 0;
+            }
 
-// ======================> ym3806
+            int subcount = m_lfo_counter++;
 
-class ym3806
-{
-public:
-	using fm_engine = fm_engine_base<opq_registers>;
-	static final int OUTPUTS = fm_engine.OUTPUTS;
-	using output_data = fm_engine.output_data;
+            // when we cross the divider count, add enough to zero it and cause an
+            // increment at bit 8; the 7-bit value lives from bits 8-14
+            if (subcount >= lfo_max_count[lfo_rate()])
+                m_lfo_counter += 0x101 - subcount;
 
-	// constructor
-	ym3806(ymfm_interface &intf);
+            // AM value is 7 bits, staring at bit 8; grab the low 6 directly
+            m_lfo_am = bitfield(m_lfo_counter, 8, 6);
 
-	// reset
-	void reset();
+            // first half of the AM period (bit 6 == 0) is inverted
+            if (bitfield(m_lfo_counter, 8 + 6) == 0)
+                m_lfo_am ^= 0x3f;
 
-	// save/restore
-	void save_restore(ymfm_saved_state &state);
+            // PM value is 5 bits, starting at bit 10; grab the low 3 directly
+            int pm = bitfield(m_lfo_counter, 10, 3);
 
-	// pass-through helpers
-	int sample_rate(int input_clock) final { return m_fm.sample_rate(input_clock); }
-	void invalidate_caches() { m_fm.invalidate_caches(); }
+            // PM is reflected based on bit 3
+            if (bitfield(m_lfo_counter, 10 + 3) != 0)
+                pm ^= 7;
 
-	// read access
-	byte read_status();
-	byte read(int offset);
+            // PM is negated based on bit 4
+            return bitfield(m_lfo_counter, 10 + 4) != 0 ? -pm : pm;
+        }
 
-	// write access
-	void write_address(byte data) { /* not supported; only direct writes */ }
-	void write_data(byte data) { /* not supported; only direct writes */ }
-	void write(int offset, byte data);
+        // reset the LFO
+        void reset_lfo() {
+            m_lfo_counter = 0;
+        }
 
-	// generate one sample of sound
-	void generate(output_data *output, int numsamples = 1);
+        //-------------------------------------------------
+        //  lfo_am_offset - return the AM offset from LFO
+        //  for the given channel
+        //-------------------------------------------------
+        public final int lfo_am_offset(int choffs) {
+            // OPM maps AM quite differently from OPN
 
-protected:
-	// internal state
-	fm_engine m_fm;                  // core FM engine
-};
+            // shift value for AM sensitivity is [*, 0, 1, 2],
+            // mapping to values of [0, 23.9, 47.8, and 95.6dB]
+            int am_sensitivity = ch_lfo_am_sens(choffs);
+            if (am_sensitivity == 0)
+                return 0;
 
+            // QUESTION: see OPN note below for the dB range mapping; it applies
+            // here as well
 
-// ======================> ym3533
+            // raw LFO AM value on OPM is 0-FF, which is already a factor of 2
+            // larger than the OPN below, putting our staring point at 2x theirs;
+            // this works out since our minimum is 2x their maximum
+            return m_lfo_am << (am_sensitivity - 1);
+        }
 
-class ym3533 : public ym3806
-{
-public:
-	// constructor
-	ym3533(ymfm_interface &intf) :
-		ym3806(intf) { }
-};
+        // return the current noise state, gated by the noise clock
+        final int noise_state() {
+            return 0;
+        }
 
+        static final int[] s_multiple_map = {
+                1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 30, 32, 34, 36
+        };
+
+        //-------------------------------------------------
+        //  cache_operator_data - fill the operator cache
+        //  with prefetched data
+        //-------------------------------------------------
+        public void cache_operator_data(int choffs, int opoffs, opdata_cache cache) {
+            // set up the easy stuff
+            cache.waveform = m_waveform[op_waveform(opoffs)];
+
+            // get frequency from the appropriate registers
+            int block_freq = cache.block_freq = (opoffs & 8) != 0 ? ch_block_freq_24(choffs) : ch_block_freq_13(choffs);
+
+            // compute the keycode: block_freq is:
+            //
+            //     BBBFFFFFFFFFFFF
+            //     ^^^^???
+            //
+            // keycode is not understood, so just guessing it is like OPN:
+            // the 5-bit keycode uses the top 4 bits plus a magic formula
+            // for the final bit
+            int keycode = bitfield(block_freq, 11, 4) << 1;
+
+            // lowest bit is determined by a mix of next lower FNUM bits
+            // according to this equation from the YM2608 manual:
+            //
+            //   (F11 & (F10 | F9 | F8)) | (!F11 & F10 & F9 & F8)
+            //
+            // for speed, we just look it up in a 16-bit constant
+            keycode |= bitfield(0xfe80, bitfield(block_freq, 8, 4));
+
+            // detune adjustment: the detune values supported by the OPQ are
+            // a much larger range (6 bits vs 3 bits) compared to any other
+            // known FM chip; based on experiments, it seems that the extra
+            // bits provide a bigger detune range rather than finer control,
+            // so until we get true measurements just assemble a net detune
+            // value by summing smaller detunes
+            int detune = op_detune(opoffs) - 0x20;
+            int abs_detune = Math.abs(detune);
+            int adjust = (abs_detune / 3) * detune_adjustment(3, keycode) + detune_adjustment(abs_detune % 3, keycode);
+            cache.detune = (detune >= 0) ? adjust : -adjust;
+
+            // multiple value, as an x.1 value (0 means 0.5)
+            cache.multiple = s_multiple_map[op_multiple(opoffs)];
+
+            // phase step, or PHASE_STEP_DYNAMIC if PM is active; this depends on
+            // block_freq, detune, and multiple, so compute it after we've done those
+            if (lfo_enable() == 0 || ch_lfo_pm_sens(choffs) == 0)
+                cache.phase_step = compute_phase_step(choffs, opoffs, cache, 0);
+            else
+                cache.phase_step = opdata_cache.PHASE_STEP_DYNAMIC;
+
+            // total level, scaled by 8
+            cache.total_level = op_total_level(opoffs) << 3;
+
+            // 4-bit sustain level, but 15 means 31 so effectively 5 bits
+            cache.eg_sustain = op_sustain_level(opoffs);
+            cache.eg_sustain |= (cache.eg_sustain + 1) & 0x10;
+            cache.eg_sustain <<= 5;
+
+            // determine KSR adjustment for enevlope rates
+            int ksrval = keycode >> (op_ksr(opoffs) ^ 3);
+            cache.eg_rate[envelope_state.EG_ATTACK.ordinal()] = effective_rate(op_attack_rate(opoffs) * 2, ksrval);
+            cache.eg_rate[envelope_state.EG_DECAY.ordinal()] = effective_rate(op_decay_rate(opoffs) * 2, ksrval);
+            cache.eg_rate[envelope_state.EG_SUSTAIN.ordinal()] = effective_rate(op_sustain_rate(opoffs) * 2, ksrval);
+            cache.eg_rate[envelope_state.EG_RELEASE.ordinal()] = effective_rate(op_release_rate(opoffs) * 4 + 2, ksrval);
+            cache.eg_rate[envelope_state.EG_REVERB.ordinal()] = (ch_reverb(choffs) != 0) ? 5 * 4 : cache.eg_rate[envelope_state.EG_RELEASE.ordinal()];
+            cache.eg_shift = 0;
+        }
+
+        //-------------------------------------------------
+        //  compute_phase_step - compute the phase step
+        //-------------------------------------------------
+        public int compute_phase_step(int choffs, int opoffs, final opdata_cache cache, int lfo_raw_pm) {
+            // OPN phase calculation has only a single detune parameter
+            // and uses FNUMs instead of keycodes
+
+            // extract frequency number (low 12 bits of block_freq)
+            int fnum = bitfield(cache.block_freq, 0, 12);
+
+            // if there's a non-zero PM sensitivity, compute the adjustment
+            int pm_sensitivity = ch_lfo_pm_sens(choffs);
+            if (pm_sensitivity != 0) {
+                // apply the phase adjustment based on the upper 7 bits
+                // of FNUM and the PM depth parameters
+                fnum += opn_lfo_pm_phase_adjustment(bitfield(cache.block_freq, 5, 7), pm_sensitivity, lfo_raw_pm);
+
+                // keep fnum to 12 bits
+                fnum &= 0xfff;
+            }
+
+            // apply block shift to compute phase step
+            int block = bitfield(cache.block_freq, 12, 3);
+            int phase_step = (fnum << block) >> 2;
+
+            // apply detune based on the keycode
+            phase_step += cache.detune;
+
+            // clamp to 17 bits in case detune overflows
+            // QUESTION: is this specific to the YM2612/3438?
+            phase_step &= 0x1ffff;
+
+            // apply frequency multiplier (which is cached as an x.1 value)
+            return (phase_step * cache.multiple) >> 1;
+        }
+
+        //-------------------------------------------------
+        //  log_keyon - log a key-on event
+        //-------------------------------------------------
+        public String log_keyon(int choffs, int opoffs) {
+            int chnum = choffs;
+            int opnum = opoffs;
+
+            StringBuilder buffer = new StringBuilder();
+            int end = 0;
+
+            buffer.append("%d.%02d freq=%04X dt=%+2d fb=%d alg=%X mul=%X tl=%02X ksr=%d adsr=%02X/%02X/%02X/%X sl=%X out=%c%c".formatted(
+                    chnum, opnum,
+                    (opoffs & 1) != 0 ? ch_block_freq_24(choffs) : ch_block_freq_13(choffs),
+                    op_detune(opoffs) - 0x20,
+                    ch_feedback(choffs),
+                    ch_algorithm(choffs),
+                    op_multiple(opoffs),
+                    op_total_level(opoffs),
+                    op_ksr(opoffs),
+                    op_attack_rate(opoffs),
+                    op_decay_rate(opoffs),
+                    op_sustain_rate(opoffs),
+                    op_release_rate(opoffs),
+                    op_sustain_level(opoffs),
+                    ch_output_0(choffs) != 0 ? 'L' : '-',
+                    ch_output_1(choffs) != 0 ? 'R' : '-'));
+
+            boolean am = (lfo_enable() != 0 && op_lfo_am_enable(opoffs) != 0 && ch_lfo_am_sens(choffs) != 0);
+            if (am)
+                buffer.append(" am=%d".formatted(ch_lfo_am_sens(choffs)));
+            boolean pm = (lfo_enable() != 0 && ch_lfo_pm_sens(choffs) != 0);
+            if (pm)
+                buffer.append(" pm=%d".formatted(ch_lfo_pm_sens(choffs)));
+            if (am || pm)
+                buffer.append(" lfo=%02X".formatted(lfo_rate()));
+            if (ch_reverb(choffs) != 0)
+                buffer.append(" reverb");
+
+            return buffer.toString();
+        }
+
+        // system-wide registers
+        public final int timer_a_value() {
+            return 0;
+        }
+
+        public final int timer_b_value() {
+            return byte_(0x03, 2, 6) | 0xc0;
+        } // ???
+
+        public final int csm() {
+            return 0;
+        }
+
+        public final int reset_timer_b() {
+            return byte_(0x03, 0, 1);
+        } // ???
+
+        public final int reset_timer_a() {
+            return 0;
+        }
+
+        public final int enable_timer_b() {
+            return byte_(0x03, 0, 1);
+        } // ???
+
+        public final int enable_timer_a() {
+            return 0;
+        }
+
+        public final int load_timer_b() {
+            return byte_(0x03, 0, 1);
+        } // ???
+
+        public final int load_timer_a() {
+            return 0;
+        }
+
+        public final int lfo_enable() {
+            return byte_(0x04, 3, 1) ^ 1;
+        }
+
+        public final int lfo_rate() {
+            return byte_(0x04, 0, 3);
+        }
+
+        // per-channel registers
+        public final int ch_output_any(int choffs) {
+            return byte_(0x10, 6, 2, choffs);
+        }
+
+        public final int ch_output_0(int choffs) {
+            return byte_(0x10, 6, 1, choffs);
+        }
+
+        public final int ch_output_1(int choffs) {
+            return byte_(0x10, 7, 1, choffs);
+        }
+
+        public final int ch_output_2(int choffs) {
+            return 0;
+        }
+
+        public final int ch_output_3(int choffs) {
+            return 0;
+        }
+
+        public final int ch_feedback(int choffs) {
+            return byte_(0x10, 3, 3, choffs);
+        }
+
+        public final int ch_algorithm(int choffs) {
+            return byte_(0x10, 0, 3, choffs);
+        }
+
+        public final int ch_reverb(int choffs) {
+            return byte_(0x18, 7, 1, choffs);
+        }
+
+        public final int ch_lfo_pm_sens(int choffs) {
+            return byte_(0x18, 4, 3, choffs);
+        }
+
+        public final int ch_lfo_am_sens(int choffs) {
+            return byte_(0x18, 0, 2, choffs);
+        }
+
+        public final int ch_block_freq_24(int choffs) {
+            return word(0x20, 0, 7, 0x30, 0, 8, choffs);
+        }
+
+        public final int ch_block_freq_13(int choffs) {
+            return word(0x28, 0, 7, 0x38, 0, 8, choffs);
+        }
+
+        // per-operator registers
+        public final int op_detune(int opoffs) {
+            return byte_(0x40, 0, 6, opoffs);
+        }
+
+        public final int op_multiple(int opoffs) {
+            return byte_(0x100, 0, 4, opoffs);
+        }
+
+        public final int op_total_level(int opoffs) {
+            return byte_(0x60, 0, 7, opoffs);
+        }
+
+        public final int op_ksr(int opoffs) {
+            return byte_(0x80, 6, 2, opoffs);
+        }
+
+        public final int op_attack_rate(int opoffs) {
+            return byte_(0x80, 0, 5, opoffs);
+        }
+
+        public final int op_lfo_am_enable(int opoffs) {
+            return byte_(0xa0, 7, 1, opoffs);
+        }
+
+        public final int op_waveform(int opoffs) {
+            return byte_(0xa0, 6, 1, opoffs);
+        }
+
+        public final int op_decay_rate(int opoffs) {
+            return byte_(0xa0, 0, 5, opoffs);
+        }
+
+        public final int op_sustain_rate(int opoffs) {
+            return byte_(0xc0, 0, 5, opoffs);
+        }
+
+        public final int op_sustain_level(int opoffs) {
+            return byte_(0xe0, 4, 4, opoffs);
+        }
+
+        public final int op_release_rate(int opoffs) {
+            return byte_(0xe0, 0, 4, opoffs);
+        }
+
+        protected final int byte_(int offset, int start, int count) {
+            return byte_(offset, start, count, 0);
+        }
+
+        // return a bitfield extracted from a byte
+        protected final int byte_(int offset, int start, int count, int extra_offset/* = 0 */) {
+            return bitfield(m_regdata[offset + extra_offset], start, count);
+        }
+
+        // return a bitfield extracted from a pair of bytes, MSBs listed first
+        protected final int word(int offset1, int start1, int count1, int offset2, int start2, int count2, int extra_offset/* = 0 */) {
+            return (byte_(offset1, start1, count1, extra_offset) << count2) | byte_(offset2, start2, count2, extra_offset);
+        }
+
+        // internal state
+        protected int m_lfo_counter;               // LFO counter
+        protected int m_lfo_am;                     // current LFO AM value
+        protected int[] m_regdata = new int[REGISTERS];         // register data
+        protected int[][] m_waveform = new int[WAVEFORMS][WAVEFORM_LENGTH]; // waveforms
+    }
+
+    //*********************************************************
+    //  IMPLEMENTATION CLASSES
+    //*********************************************************
+
+    // ======================> ym3806
+
+    //*********************************************************
+    //  YM3806
+    //*********************************************************
+    static class ym3806 {
+
+        //	using fm_engine = fm_engine_base<opq_registers>;
+        public static final int OUTPUTS = opq_registers.OUTPUTS;
+        //	using output_data = fm_engine.output_data;
+
+        //-------------------------------------------------
+        //  ym3806 - constructor
+        //-------------------------------------------------
+        public ym3806(ymfm_interface intf) {
+            m_fm = (opq_registers) intf;
+        }
+
+        //-------------------------------------------------
+        //  reset - reset the system
+        //-------------------------------------------------
+        public void reset() {
+            // reset the engines
+            m_fm.reset();
+        }
+
+        //-------------------------------------------------
+        //  save_restore - save or restore the data
+        //-------------------------------------------------
+        public void save_restore(ymfm_saved_state state) {
+            m_fm.save_restore(state);
+        }
+
+        // pass-through helpers
+        public final int sample_rate(int input_clock) {
+            return m_fm.sample_rate(input_clock);
+        }
+
+        public void invalidate_caches() {
+            m_fm.invalidate_caches();
+        }
+
+        //-------------------------------------------------
+        //  read_status - read the status register
+        //-------------------------------------------------
+        public int read_status() {
+            int result = m_fm.status();
+            if (m_fm.intf().ymfm_is_busy())
+                result |= opq_registers.STATUS_BUSY;
+            return result;
+        }
+
+        //-------------------------------------------------
+        //  read - handle a read from the device
+        //-------------------------------------------------
+        public int read(int offset) {
+            int result = 0xff;
+            switch (offset) {
+                case 0: // status port
+                    result = read_status();
+                    break;
+
+                default: // unknown
+                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YM3806 offset %02X\n", offset);
+                    break;
+            }
+            if (log_unexpected_read_write.isLoggable(Level.DEBUG) && offset != 0) System.out.printf("Read %02X = %02X\n", offset, result);
+            return result;
+        }
+
+        // write access
+        public void write_address(byte data) { /* not supported; only direct writes */ }
+
+        public void write_data(byte data) { /* not supported; only direct writes */ }
+
+        //-------------------------------------------------
+        //  write - handle a write to the register
+        //  interface
+        //-------------------------------------------------
+        public void write(int offset, byte data) {
+            if (TEMPORARY_DEBUG_PRINTS != 0 && (offset != 3 || data != 0x71))
+                System.out.printf("Write %02X = %02X\n", offset, data);
+            // write the FM register
+            int[] dummy1 = new int[1], dummy2 = new int[1];
+            m_fm.write(offset, data, dummy1, dummy2); // TODO
+        }
+
+        //-------------------------------------------------
+        //  generate - generate one sample of sound
+        //-------------------------------------------------
+        public void generate(output_data output, int numsamples /* = 1 */) {
+            for (int samp = 0; samp < numsamples; samp++, output++) {
+                // clock the system
+                m_fm.clock(opq_registers.ALL_CHANNELS);
+
+                // update the FM content; YM3806 is full 14-bit with no intermediate clipping
+                m_fm.output(output.clear(), 0, 32767, opq_registers.ALL_CHANNELS);
+
+                // YM3608 appears to go through a YM3012 DAC, which means we want to apply
+                // the FP truncation logic to the outputs
+                output.roundtrip_fp();
+            }
+        }
+
+        // internal state
+        protected opq_registers m_fm;                  // core FM engine
+    }
+
+    // ======================> ym3533
+
+    static class ym3533 extends ym3806 {
+
+        // constructor
+        public ym3533(ymfm_interface intf) {
+            super(intf);
+        }
+    }
 }
-
-
-#endif // YMFM_OPQ_H

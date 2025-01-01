@@ -30,33 +30,38 @@
 
 package vavi.sound.ymfm;
 
+import java.io.IOException;
 import java.lang.System.Logger;
-import java.nio.channels.Channels;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
-import org.apache.tools.ant.types.DataType;
-import vavi.util.win32.WAVE.data;
+import vavi.io.LittleEndianDataOutputStream;
+import vavi.sound.ymfm.fm.fm_engine_base;
 
 import static java.lang.System.getLogger;
 
 
-//*********************************************************
-//  DEBUGGING
-//*********************************************************
-class debug {
+class ymfm {
 
-	// masks to help isolate specific channels
-	public static final int GLOBAL_FM_CHANNEL_MASK = 0xffff_ffff;
-	public static final int GLOBAL_ADPCM_A_CHANNEL_MASK = 0xffff_ffff;
-	public static final int GLOBAL_ADPCM_B_CHANNEL_MASK = 0xffff_ffff;
-	public static final int GLOBAL_PCM_CHANNEL_MASK = 0xffff_ffff;
+	//*********************************************************
+	//  DEBUGGING
+	//*********************************************************
+	static class debug {
 
-	// types of logging
+		// masks to help isolate specific channels
+		public static final int GLOBAL_FM_CHANNEL_MASK = 0xffff_ffff;
+		public static final int GLOBAL_ADPCM_A_CHANNEL_MASK = 0xffff_ffff;
+		public static final int GLOBAL_ADPCM_B_CHANNEL_MASK = 0xffff_ffff;
+		public static final int GLOBAL_PCM_CHANNEL_MASK = 0xffff_ffff;
 
-	// helpers to write based on the log type
-	public static final Logger log_fm_write = getLogger("LOG_FM_WRITES");
-	public static final Logger log_keyon = getLogger("LOG_KEYON_EVENTS");
-	public static final Logger log_unexpected_read_write = getLogger("LOG_UNEXPECTED_READ_WRITES");
+		// types of logging
+
+		// helpers to write based on the log type
+		public static final Logger log_fm_write = getLogger("LOG_FM_WRITES");
+		public static final Logger log_keyon = getLogger("LOG_KEYON_EVENTS");
+		public static final Logger log_unexpected_read_write = getLogger("LOG_UNEXPECTED_READ_WRITES");
+	}
 
 	//*********************************************************
 	//  GLOBAL HELPERS
@@ -93,10 +98,10 @@ class debug {
 	//  versions for various architectures are included
 	//  below
 	//-------------------------------------------------
-	static byte count_leading_zeros(int value) {
+	static int count_leading_zeros(int value) {
 		if (value == 0)
 			return 32;
-		return __builtin_clz(value);
+		return Integer.numberOfLeadingZeros(value);
 	}
 
 	// Many of the Yamaha FM chips emit a floating-point value, which is sent to
@@ -221,39 +226,41 @@ class debug {
 	// ======================> ymfm_output
 
 	// struct containing an array of output values
-	//template<int NumOutputs>
-	static class ymfm_output {
+	static abstract class ymfm_output {
+
+		abstract int getNumOutputs();
 
 		// clear all outputs to 0
 		ymfm_output clear() {
-			for (int index = 0; index < NumOutputs; index++)
+			for (int index = 0; index < getNumOutputs(); index++)
 				data[index] = 0;
 			return this;
 		}
 
 		// clamp all outputs to a 16-bit signed value
 		ymfm_output clamp16() {
-			for (int index = 0; index < NumOutputs; index++)
+			for (int index = 0; index < getNumOutputs(); index++)
 				data[index] = clamp(data[index], -32768, 32767);
 			return this;
 		}
 
 		// run each output value through the floating-point processor
 		ymfm_output roundtrip_fp() {
-			for (int index = 0; index < NumOutputs; index++)
-				data[index] = roundtrip_fp(data[index]);
+			for (int index = 0; index < getNumOutputs(); index++)
+				data[index] = ymfm.roundtrip_fp(data[index]);
 			return this;
 		}
 
 		// internal state
-		int[] data = new int[NumOutputs];
+		int[] data = new int[getNumOutputs()];
 	}
 
 	// ======================> ymfm_wavfile
 
 	// this class is a debugging helper that accumulates data and writes it to wav files
-	//template<int Channels>
-	static class ymfm_wavfile implements AutoCloseable {
+	static abstract class ymfm_wavfile implements AutoCloseable {
+
+		protected abstract int getChannels();
 
 		// construction
 		public ymfm_wavfile(int samplerate /* = 44100 */) {
@@ -273,53 +280,50 @@ class debug {
 
 		// destruction
 		@Override
-		public void close() {
+		public void close() throws IOException {
 			if (!m_buffer.isEmpty()) {
 				// create file
-				byte[] name = new byte[20];
-				snprintf(name[0], sizeof(name), "wavlog-%02d.wav", m_index);
-				FILE out = fopen(name, "wb");
+				Path name = Path.of("wavlog-%02d.wav".formatted(m_index));
+				LittleEndianDataOutputStream ledos = new LittleEndianDataOutputStream(Files.newOutputStream(name));
 
 				// make the wav file header
-				byte[] header = new byte[44];
-				memcpy(header[0], "RIFF", 4);
-				*( int *)&header[4] = m_buffer.size() * 2 + 44 - 8;
-				memcpy( & header[8], "WAVE", 4);
-				memcpy( & header[12], "fmt ", 4);
-				*( int *)&header[16] = 16;
-				*( int *)&header[20] = 1;
-				*( int *)&header[22] = Channels;
-				*( int *)&header[24] = m_samplerate;
-				*( int *)&header[28] = m_samplerate * 2 * Channels;
-				*( int *)&header[32] = 2 * Channels;
-				*( int *)&header[34] = 16;
-				memcpy( & header[36], "data", 4);
-				*( int *)&header[40] = m_buffer.size() * 2 + 44 - 44;
+				ledos.writeChars("RIFF");
+				ledos.writeInt(m_buffer.size() * 2 + 44 - 8);
+				ledos.writeChars("WAVE");
+				ledos.writeChars("fmt ");
+				ledos.writeInt(16);
+				ledos.writeInt(1);
+				ledos.writeInt(getChannels());
+				ledos.writeInt(m_samplerate);
+				ledos.writeInt(m_samplerate * 2 * getChannels());
+				ledos.writeInt(2 * getChannels());
+				ledos.writeInt(16);
+				ledos.writeChars("data");
+				ledos.writeInt(m_buffer.size() * 2 + 44 - 44);
 
 				// write header then data
-				fwrite(header[0], 1, sizeof(header), out);
-				fwrite(m_buffer[0], 2, m_buffer.size(), out);
-				fclose(out);
+				for (int b : m_buffer) ledos.writeShort(b);
+				ledos.close();
 			}
 		}
 
 		// add data to the file
 		//template<int Outputs>
-		public void add(ymfm_output<Outputs> output) {
-			int[] sum = new int[Channels];
-			for (int index = 0; index < Outputs; index++)
-				sum[index % Channels] += output.data[index];
-			for (int index = 0; index < Channels; index++)
+		public void add(ymfm_output output) {
+			int[] sum = new int[getChannels()];
+			for (int index = 0; index < output.getNumOutputs(); index++)
+				sum[index % getChannels()] += output.data[index];
+			for (int index = 0; index < getChannels(); index++)
 				m_buffer.add(sum[index]);
 		}
 
 		// add data to the file, using a reference
 		//template<int Outputs>
-		public void add(ymfm_output<Outputs> output, final ymfm_output<Outputs> ref) {
-			int[] sum = new int[Channels];
-			for (int index = 0; index < Outputs; index++)
-				sum[index % Channels] += output.data[index] - ref.data[index];
-			for (int index = 0; index < Channels; index++)
+		public void add(ymfm_output output, final ymfm_output ref) {
+			int[] sum = new int[getChannels()];
+			for (int index = 0; index < output.getNumOutputs(); index++)
+				sum[index % getChannels()] += output.data[index] - ref.data[index];
+			for (int index = 0; index < getChannels(); index++)
 				m_buffer.add(sum[index]);
 		}
 
@@ -351,77 +355,68 @@ class debug {
 
 		// generic save/restore
 		//template<typename DataType>
-		public void save_restore(DataType data) {
+		public <DataType> void save_restore(DataType data) {
 			if (saving())
 				save(data);
 			else
 				restore(data);
 		}
 
-
 		// save data to the buffer
-		public void save(boolean[] data) {
-			write(data[0] ? 1 : 0);
+		public void save(boolean data) {
+			write((byte) (data ? 1 : 0));
 		}
 
-		public void save(byte[] data) {
-			write(data[0]);
+		public void save(byte data) {
+			write(data);
 		}
 
-		public void save(int[] data) {
-			write((byte) (data[0])).write(data[0] >> 8);
+		public void save(short data) {
+			write(data).write(data >> 8);
 		}
 
-		public void save(int[] data) {
-			write(data[0]).write(data[0] >> 8).write(data[0] >> 16).write(data[0] >> 24);
+		public void save(int data) {
+			write(data).write(data >> 8).write(data >> 16).write(data >> 24);
 		}
 
 		public void save(envelope_state data) {
-			write(byte(data));
+			write(data.ordinal());
 		}
 
 		//template<typename DataType, int Count>
-		public void save(DataType (data)[Count])
-
-		{
-			for (int index = 0; index < Count; index++) save(data[index]);
+		public <DataType extends ymfm_output> void save(DataType data) {
+			for (int index = 0; index < data.getNumOutputs(); index++) save(data.data[index]);
 		}
 
 		// restore data from the buffer
-		public void restore(boolean[] data) {
-			data[0] = read() ? true : false;
+		public boolean restoreBoolean() {
+			return read() != 0;
 		}
 
-		public void restore(byte[] data) {
-			data[0] = read();
+		public byte restoreByte() {
+			return read();
 		}
 
-		public void restore(int[] data) {
-			data[0] = read();
-			data[0] |= read() << 8;
+		public short restoreShort() {
+			return (short) (read() | read() << 8);
 		}
 
-		public void restore(int[] data) {
-			data[0] = read();
-			data[0] |= read() << 8;
-			data[0] |= read() << 16;
-			data[0] |= read() << 24;
+		public int restoreInt() {
+			return read() | (read() << 8) | (read() << 16) | (read() << 24);
 		}
 
-		public void restore(envelope_state data) {
-			data[0] = envelope_state(read());
+		public envelope_state restore_envelope_state() {
+			return envelope_state.values()[read()];
 		}
 
 		//template<typename DataType, int Count>
-		public void restore(DataType (data)[Count])
-
-		{
-			for (int index = 0; index < Count; index++) restore(data[index]);
+		public <DataType extends ymfm_output> void restore(DataType data) {
+			for (int index = 0; index < data.getNumOutputs(); index++) data.data[index] = restoreInt();
 		}
 
 		// internal helper
-		public ymfm_saved_state write(byte data) {
-			m_buffer.add(data);
+		public ymfm_saved_state write(int data) {
+			m_buffer.add((byte) data);
 			return this;
 		}
 
@@ -452,9 +447,8 @@ class debug {
 		void engine_check_interrupts();
 
 		// mode register write; called by the interface after synchronization
-		void engine_mode_write(byte data);
+		void engine_mode_write(int data);
 	}
-
 
 	// ======================> ymfm_interface
 
@@ -477,7 +471,7 @@ class debug {
 		// register, which could affect timers and interrupts; our responsibility
 		// is to ensure the system is up to date before calling the engine's
 		// engine_mode_write() method
-		public void ymfm_sync_mode_write(byte data) {
+		public void ymfm_sync_mode_write(int data) {
 			m_engine.engine_mode_write(data);
 		}
 
@@ -529,7 +523,7 @@ class debug {
 
 		// the chip implementation calls this whenever data is written outside
 		// of the chip; our responsibility is to pass the written data on to any consumers
-		public void ymfm_external_write(access_class type, int address, byte data) {
+		public void ymfm_external_write(access_class type, int address, int data) {
 		}
 
 		// pointer to engine callbacks -- this is set directly by the engine at
@@ -543,7 +537,7 @@ class debug {
 
 	// the values here are stored as 4.8 logarithmic values for 1/4 phase
 	// this matches the internal format of the OPN chip, extracted from the die
-	static final short[] s_sin_table = {
+	static final int[] s_sin_table = {
 		0x859, 0x6c3, 0x607, 0x58b, 0x52e, 0x4e4, 0x4a6, 0x471, 0x443, 0x41a, 0x3f5, 0x3d3, 0x3b5, 0x398, 0x37e, 0x365,
 		0x34e, 0x339, 0x324, 0x311, 0x2ff, 0x2ed, 0x2dc, 0x2cd, 0x2bd, 0x2af, 0x2a0, 0x293, 0x286, 0x279, 0x26d, 0x261,
 		0x256, 0x24b, 0x240, 0x236, 0x22c, 0x222, 0x218, 0x20f, 0x206, 0x1fd, 0x1f5, 0x1ec, 0x1e4, 0x1dc, 0x1d4, 0x1cd,
@@ -569,10 +563,10 @@ class debug {
 	//  logarithmically-adjusted and treated as an
 	//  attenuation value, in 4.8 fixed point format
 	//-------------------------------------------------
-	int abs_sin_attenuation(int input) {
+	static int abs_sin_attenuation(int input) {
 		// if the top bit is set, we're in the second half of the curve
 		// which is a mirror image, so invert the index
-		if (bitfield(input, 8))
+		if (bitfield(input, 8) != 0)
 			input = ~input;
 
 		// return the value from the table
@@ -684,9 +678,9 @@ class debug {
 	//  but the equations are rather complicated, so
 	//  we'll keep the simplicity of the table
 	//-------------------------------------------------
-	int detune_adjustment(int detune, int keycode) {
+	static int detune_adjustment(int detune, int keycode) {
 		int result = s_detune_adjustment[keycode][detune & 3];
-		return bitfield(detune, 2) ? -result : result;
+		return bitfield(detune, 2) != 0 ? -result : result;
 	}
 
 	static final int[] s_phase_step = {
@@ -788,7 +782,7 @@ class debug {
 		eff_freq += delta;
 
 		// handle over/underflow by adjusting the block:
-		if (int(eff_freq) >= 768){
+		if (eff_freq >= 768){
 			// minimum delta is -512 (PM), so we can only underflow by 1 octave
 			if (eff_freq < 0) {
 				eff_freq += 768;
@@ -799,8 +793,10 @@ class debug {
 			// maximum delta is +512+608 (PM+detune), so we can overflow by up to 2 octaves
 			else {
 				eff_freq -= 768;
-				if (eff_freq >= 768)
-					block++, eff_freq -= 768;
+				if (eff_freq >= 768) {
+					block++;
+					eff_freq -= 768;
+				}
 				if (block++ >= 7)
 					return s_phase_step[767];
 			}
@@ -828,7 +824,7 @@ class debug {
 	//  return a signed PM adjustment to the frequency;
 	//  algorithm written to match Nuked behavior
 	//-------------------------------------------------
-	int opn_lfo_pm_phase_adjustment(int fnum_bits, int pm_sensitivity, int lfo_raw_pm) {
+	static int opn_lfo_pm_phase_adjustment(int fnum_bits, int pm_sensitivity, int lfo_raw_pm) {
 		// this table encodes 2 shift values to apply to the top 7 bits
 		// of fnum; it is effectively a cheap multiply by a constant
 		// value containing 0-2 bits
