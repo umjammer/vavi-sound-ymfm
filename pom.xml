@@ -69,9 +69,9 @@
     </dependency>
 
     <dependency>
-      <groupId>vavi</groupId> <!-- vavi / com.github.umjammer -->
-      <artifactId>vavi-util-screenscraping</artifactId>
-      <version>1.0.15-SNAPSHOT</version>
+      <groupId>com.github.umjammer</groupId> <!-- vavi / com.github.umjammer -->
+      <artifactId>vavi-util-serdes</artifactId>
+      <version>1.0.7</version>
     </dependency>
 
     <dependency>

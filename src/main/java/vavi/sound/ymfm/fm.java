@@ -30,25 +30,20 @@
 
 package vavi.sound.ymfm;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.System.Logger.Level;
 import java.util.HashMap;
 import java.util.Map;
 
-import vavi.sound.ymfm.fm.fm_channel.output_data;
 import vavi.sound.ymfm.ymfm.envelope_state;
 import vavi.sound.ymfm.ymfm.ymfm_engine_callbacks;
 import vavi.sound.ymfm.ymfm.ymfm_interface;
 import vavi.sound.ymfm.ymfm.ymfm_output;
-import vavi.sound.ymfm.ymfm.ymfm_saved_state;
+import vavi.util.serdes.Element;
+import vavi.util.serdes.Serdes;
 
-import static vavi.sound.ymfm.fm.fm_registers_base.DYNAMIC_OPS;
-import static vavi.sound.ymfm.fm.fm_registers_base.EG_HAS_DEPRESS;
-import static vavi.sound.ymfm.fm.fm_registers_base.EG_HAS_REVERB;
-import static vavi.sound.ymfm.fm.fm_registers_base.EG_HAS_SSG;
-import static vavi.sound.ymfm.fm.fm_registers_base.MODULATOR_DELAY;
-import static vavi.sound.ymfm.fm.keyon_type.KEYON_CSM;
-import static vavi.sound.ymfm.fm.keyon_type.KEYON_NORMAL;
-import static vavi.sound.ymfm.fm.keyon_type.KEYON_RHYTHM;
 import static vavi.sound.ymfm.ymfm.attenuation_increment;
 import static vavi.sound.ymfm.ymfm.attenuation_to_volume;
 import static vavi.sound.ymfm.ymfm.bitfield;
@@ -107,7 +102,78 @@ class fm {
 	// base class for family-specific register classes; this provides a few
 	// constants, common defaults, and helpers, but mostly each derived class is
 	// responsible for defining all commonly-called methods
-	static class fm_registers_base extends ymfm_interface {
+	abstract static class fm_registers_base extends ymfm_interface {
+
+		private Map<String, Object> params = new HashMap<>();
+
+		protected Map<String, Object> getParams() {
+			return params;
+		}
+
+		public void set_instrument_data(byte[] data) {}
+
+		public int read(int address) { return 0; }
+
+		public abstract int ch_feedback(int choffs);
+
+		public abstract int ch_output_any(int choffs);
+
+		public abstract int ch_algorithm(int choffs);
+
+		public abstract int ch_output_0(int choffs);
+		public abstract int ch_output_1(int choffs);
+		public abstract int ch_output_2(int choffs);
+		public abstract int ch_output_3(int choffs);
+
+		public abstract void save(OutputStream os) throws IOException;
+
+		public abstract void restore(InputStream is) throws IOException;
+
+		public abstract void reset();
+
+		public abstract int enable_timer_a();
+
+		public abstract int enable_timer_b();
+
+		public abstract int csm();
+
+		public abstract int timer_a_value();
+
+		public abstract int timer_b_value();
+
+		public abstract int load_timer_b();
+
+		public abstract int load_timer_a();
+
+		public abstract int reset_timer_b();
+
+		public abstract int reset_timer_a();
+
+		public abstract boolean write(int regMode, int data, int[] dummy1, int[] dummy2);
+
+		public abstract int clock_noise_and_lfo();
+
+		public abstract int channel_offset(int chnum);
+
+		public abstract int operator_offset(int opnum);
+
+		public abstract void cache_operator_data(int mChoffs, int mOpoffs, opdata_cache mCache);
+
+		public abstract int noise_state();
+
+		public abstract int compute_phase_step(int mChoffs, int mOpoffs, opdata_cache mCache, int lfoRawPm);
+
+		public abstract int op_lfo_am_enable(int mOpoffs);
+
+		public abstract Object log_keyon(int mChoffs, int opoffs);
+
+		public abstract int lfo_am_offset(int mChoffs);
+
+		public int newflag() { return 0; }
+
+		public int new2flag() { return 0; }
+
+		public abstract void operator_map(int[][] map);
 
 		// this value is returned from the write() function for rhythm channels
 		public static final int RHYTHM_CHANNEL = 0xff;
@@ -207,14 +273,14 @@ class fm {
 	// fm_operator represents an FM operator (or "slot" in FM parlance), which
 	// produces an output sine wave modulated by an envelope
 	//template<class RegisterType>
-	static class fm_operator<RegisterType extends fm_engine_base> {
+	static class fm_operator<RegisterType extends fm_registers_base> {
 
 		// "quiet" value, used to optimize when we can skip doing work
 		static final int EG_QUIET = 0x380;
 
-		//-------------------------------------------------
-		//  fm_operator - constructor
-		//-------------------------------------------------
+		/**
+		 * fm_operator - constructor
+		 */
 		public fm_operator(fm_engine_base owner, int opoffs) {
 			m_choffs = 0;
 			m_opoffs = opoffs;
@@ -228,21 +294,23 @@ class fm {
 			m_owner = owner;
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			state.save_restore(m_phase);
-			state.save_restore(m_env_attenuation);
-			state.save_restore(m_env_state);
-			state.save_restore(m_ssg_inverted);
-			state.save_restore(m_key_state);
-			state.save_restore(m_keyon_live);
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the channel state
-		//-------------------------------------------------
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException  {
+			Serdes.Util.deserialize(is, this);
+		}
+
+		/**
+		 * reset - reset the channel state
+		 */
 		public void reset() {
 			// reset our data
 			m_phase = 0;
@@ -267,24 +335,24 @@ class fm {
 			m_choffs = choffs;
 		}
 
-		//-------------------------------------------------
-		//  prepare - prepare for clocking
-		//-------------------------------------------------
+		/**
+		 * prepare - prepare for clocking
+		 */
 		public boolean prepare() {
 			// cache the data
 			m_regs.cache_operator_data(m_choffs, m_opoffs, m_cache);
 
 			// clock the key state
 			clock_keystate(m_keyon_live != 0 ? 1 : 0);
-			m_keyon_live &= ~(1 << KEYON_CSM.ordinal());
+			m_keyon_live &= ~(1 << keyon_type.KEYON_CSM.ordinal());
 
 			// we're active until we're quiet after the release
-			return (m_env_state != (EG_HAS_REVERB ? EG_REVERB : EG_RELEASE) || m_env_attenuation < EG_QUIET);
+			return (m_env_state != ((int) m_regs.getParams().get("EG_HAS_REVERB") != 0 ? EG_REVERB : EG_RELEASE) || m_env_attenuation < EG_QUIET);
 		}
 
-		//-------------------------------------------------
-		//  clock - master clocking function
-		//-------------------------------------------------
+		/**
+		 * clock - master clocking function
+		 */
 		public void clock(int env_counter, int lfo_raw_pm) {
 			// clock the SSG-EG state (OPN/OPNA)
 			if (m_regs.op_ssg_eg_enable(m_opoffs) != 0)
@@ -305,11 +373,11 @@ class fm {
 			return m_phase >> 10;
 		}
 
-		//-------------------------------------------------
-		//  compute_volume - compute the 14-bit signed
-		//  volume of this operator, given a phase
-		//  modulation and an AM LFO offset
-		//-------------------------------------------------
+		/**
+		 * compute_volume - compute the 14-bit signed
+		 * volume of this operator, given a phase
+		 * modulation and an AM LFO offset
+		 */
 		public final int compute_volume(int phase, int am_offset) {
 			// the low 10 bits of phase represents a full 2*PI period over
 			// the full sin wave
@@ -319,7 +387,7 @@ class fm {
 				return 0;
 
 			// get the absolute value of the sin, as attenuation, as a 4.8 fixed point value
-			int sin_attenuation = m_cache.waveform[phase & (m_regs.params.get("WAVEFORM_LENGTH") - 1)];
+			int sin_attenuation = m_cache.waveform[phase & ((int) m_regs.getParams().get("WAVEFORM_LENGTH") - 1)];
 
 			// get the attenuation from the evelope generator as a 4.6 value, shifted up to 4.8
 			int env_attenuation = envelope_attenuation(am_offset) << 2;
@@ -331,11 +399,11 @@ class fm {
 			return bitfield(sin_attenuation, 15) != 0 ? -result : result;
 		}
 
-		//-------------------------------------------------
-		//  compute_noise_volume - compute the 14-bit
-		//  signed noise volume of this operator, given a
-		//  noise input value and an AM offset
-		//-------------------------------------------------
+		/**
+		 * compute_noise_volume - compute the 14-bit
+		 * signed noise volume of this operator, given a
+		 * noise input value and an AM offset
+		 */
 		public final int compute_noise_volume(int am_offset) {
 			// application manual says the logarithmic transform is not applied here, so we
 			// just use the raw envelope attenuation, inverted (since 0 attenuation should be
@@ -348,9 +416,9 @@ class fm {
 			return bitfield(m_regs.noise_state(), 0) != 0 ? -result : result;
 		}
 
-		//-------------------------------------------------
-		//  keyonoff - signal a key on/off event
-		//-------------------------------------------------
+		/**
+		 * keyonoff - signal a key on/off event
+		 */
 		public void keyonoff(int on, keyon_type type) {
 			m_keyon_live = (m_keyon_live & ~(1 << type.ordinal())) | (bitfield(on, 0) << (int) (type.ordinal()));
 		}
@@ -377,11 +445,11 @@ class fm {
 			return m_cache;
 		}
 
-		//-------------------------------------------------
-		//  start_attack - start the attack phase; called
-		//  when a keyon happens or when an SSG-EG cycle
-		//  is complete and restarts
-		//-------------------------------------------------
+		/**
+		 * start_attack - start the attack phase; called
+		 * when a keyon happens or when an SSG-EG cycle
+		 * is complete and restarts
+		 */
 		private void start_attack(boolean is_restart /* = false */) {
 			// don't change anything if already in attack state
 			if (m_env_state == EG_ATTACK)
@@ -391,7 +459,7 @@ class fm {
 			// generally not inverted at start, except if SSG-EG is enabled and
 			// one of the inverted modes is specified; leave this alone on a
 			// restart, as it is managed by the clock_ssg_eg_state() code
-			if (EG_HAS_SSG && !is_restart)
+			if ((int) m_regs.getParams().get("EG_HAS_SSG") != 0 && !is_restart)
 				m_ssg_inverted = (m_regs.op_ssg_eg_enable(m_opoffs) & bitfield(m_regs.op_ssg_eg_mode(m_opoffs), 2)) != 0;
 
 			// reset the phase when we start an attack due to a key on
@@ -405,10 +473,10 @@ class fm {
 				m_env_attenuation = 0;
 		}
 
-		//-------------------------------------------------
-		//  start_release - start the release phase;
-		//  called when a keyoff happens
-		//-------------------------------------------------
+		/**
+		 * start_release - start the release phase;
+		 * called when a keyoff happens
+		 */
 		private void start_release() {
 			// don't change anything if already in release state
 			if (m_env_state.ordinal() >= EG_RELEASE.ordinal())
@@ -417,16 +485,16 @@ class fm {
 
 			// if attenuation if inverted due to SSG-EG, snap the inverted attenuation
 			// as the starting point
-			if (EG_HAS_SSG && m_ssg_inverted) {
+			if ((int) m_regs.getParams().get("EG_HAS_SSG") != 0 && m_ssg_inverted) {
 				m_env_attenuation = (0x200 - m_env_attenuation) & 0x3ff;
 				m_ssg_inverted = false;
 			}
 		}
 
-		//-------------------------------------------------
-		//  clock_keystate - clock the keystate to match
-		//  the incoming keystate
-		//-------------------------------------------------
+		/**
+		 * clock_keystate - clock the keystate to match
+		 * the incoming keystate
+		 */
 		private void clock_keystate(int keystate) {
 			assert (keystate == 0 || keystate == 1);
 
@@ -438,7 +506,7 @@ class fm {
 				if (keystate != 0) {
 					// OPLL has a DP ("depress"?) state to bring the volume
 					// down before starting the attack
-					if (EG_HAS_DEPRESS && m_env_attenuation < 0x200)
+					if ((int) m_regs.getParams().get("EG_HAS_DEPRESS") != 0 && m_env_attenuation < 0x200)
 						m_env_state = EG_DEPRESS;
 					else
 						start_attack(false);
@@ -450,10 +518,10 @@ class fm {
 			}
 		}
 
-		//-------------------------------------------------
-		//  clock_ssg_eg_state - clock the SSG-EG state;
-		//  should only be called if SSG-EG is enabled
-		//-------------------------------------------------
+		/**
+		 * clock_ssg_eg_state - clock the SSG-EG state;
+		 * should only be called if SSG-EG is enabled
+		 */
 		private void clock_ssg_eg_state() {
 			// work only happens once the attenuation crosses above 0x200
 			if (bitfield(m_env_attenuation, 9) == 0)
@@ -500,10 +568,10 @@ class fm {
 				m_env_attenuation = 0x3ff;
 		}
 
-		//-------------------------------------------------
-		//  clock_envelope - clock the envelope state
-		//  according to the given count
-		//-------------------------------------------------
+		/**
+		 * clock_envelope - clock the envelope state
+		 * according to the given count
+		 */
 		private void clock_envelope(int env_counter) {
 			// handle attack->decay transitions
 			if (m_env_state == EG_ATTACK && m_env_attenuation == 0)
@@ -559,20 +627,20 @@ class fm {
 					m_env_attenuation = 0x3ff;
 
 				// transition from depress to attack
-				if (EG_HAS_DEPRESS && m_env_state == EG_DEPRESS && m_env_attenuation >= 0x200)
+				if ((int) m_regs.getParams().get("EG_HAS_DEPRESS") != 0 && m_env_state == EG_DEPRESS && m_env_attenuation >= 0x200)
 					start_attack(false);
 
 				// transition from release to reverb, should switch at -18dB
-				if (EG_HAS_REVERB && m_env_state == EG_RELEASE && m_env_attenuation >= 0xc0)
+				if ((int) m_regs.getParams().get("EG_HAS_REVERB") != 0 && m_env_state == EG_RELEASE && m_env_attenuation >= 0xc0)
 					m_env_state = EG_REVERB;
 			}
 		}
 
-		//-------------------------------------------------
-		//  clock_phase - clock the 10.10 phase value; the
-		//  OPN version of the logic has been verified
-		//  against the Nuked phase generator
-		//-------------------------------------------------
+		/**
+		 * clock_phase - clock the 10.10 phase value; the
+		 * OPN version of the logic has been verified
+		 * against the Nuked phase generator
+		 */
 		private void clock_phase(int lfo_raw_pm) {
 			// read from the cache, or recalculate if PM active
 			int phase_step = m_cache.phase_step;
@@ -583,19 +651,19 @@ class fm {
 			m_phase += phase_step;
 		}
 
-		//-------------------------------------------------
-		//  envelope_attenuation - return the effective
-		//  attenuation of the envelope
-		//-------------------------------------------------
+		/**
+		 * envelope_attenuation - return the effective
+		 * attenuation of the envelope
+		 */
 		private final int envelope_attenuation(int am_offset) {
 			int result = m_env_attenuation >> m_cache.eg_shift;
 
 			// invert if necessary due to SSG-EG
-			if (EG_HAS_SSG && m_ssg_inverted)
+			if ((int) m_regs.getParams().get("EG_HAS_SSG") != 0 && m_ssg_inverted)
 				result = (0x200 - result) & 0x3ff;
 
 			// add in LFO AM modulation
-			if (m_regs.op_lfo_am_enable(m_opoffs))
+			if (m_regs.op_lfo_am_enable(m_opoffs) != 0)
 				result += am_offset;
 
 			// add in total level and KSL from the cache
@@ -608,11 +676,17 @@ class fm {
 		// internal state
 		private int m_choffs;                     // channel offset in registers
 		private int m_opoffs;                     // operator offset in registers
+		@Element(sequence = 0)
 		private int m_phase;                      // current phase value (10.10 format)
+		@Element(sequence = 1)
 		private int m_env_attenuation;            // computed envelope attenuation (4.6 format)
+		@Element(sequence = 2)
 		private envelope_state m_env_state;            // current envelope state
+		@Element(sequence = 3)
 		private boolean m_ssg_inverted;                // non-zero if the output should be inverted (bit 0)
+		@Element(sequence = 4)
 		private int m_key_state;                   // current key state: on or off (bit 0)
+		@Element(sequence = 5)
 		private int m_keyon_live;                  // live key on state (bit 0 = direct, bit 1 = rhythm, bit 2 = CSM)
 		private opdata_cache m_cache;                  // cached values for performance
 		private RegisterType m_regs;                  // direct reference to registers
@@ -627,14 +701,16 @@ class fm {
 	// fm_channel represents an FM channel which combines the output of 2 or 4
 	// operators into a final result
 	//template<class RegisterType>
-	static class fm_channel<RegisterType extends fm_engine_base> {
+	@Serdes
+	static class fm_channel<RegisterType extends fm_registers_base> {
+
+		final int OUTPUTS;
 
 		//	using output_data = ymfm_output<RegisterType.OUTPUTS>;
-		static class output_data extends ymfm_output { @Override int getNumOutputs() { return fm_engine_base.OUTPUTS; }}
 
-		//-------------------------------------------------
-		//  fm_channel - constructor
-		//-------------------------------------------------
+		/**
+		 * fm_channel - constructor
+		 */
 		public fm_channel(fm_engine_base owner, int choffs) {
 
 			m_choffs = choffs;
@@ -643,20 +719,27 @@ class fm {
 //			m_op = {null, null, null, null};
 			m_regs = (RegisterType) owner.regs();
 			m_owner = owner;
+
+			OUTPUTS = (int) m_regs.getParams().get("OUTPUTS");
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			state.save_restore(m_feedback[0]);
-			state.save_restore(m_feedback[1]);
-			state.save_restore(m_feedback_in);
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the channel state
-		//-------------------------------------------------
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
+		}
+
+		/**
+		 * reset - reset the channel state
+		 */
 		public void reset() {
 			// reset our data
 			m_feedback[0] = m_feedback[1] = 0;
@@ -676,9 +759,9 @@ class fm {
 				op.set_choffs(m_choffs);
 		}
 
-		//-------------------------------------------------
-		//  keyonoff - signal key on/off to our operators
-		//-------------------------------------------------
+		/**
+		 * keyonoff - signal key on/off to our operators
+		 */
 		public void keyonoff(int states, keyon_type type, int chnum) {
 			for (int opnum = 0; opnum < m_op.length; opnum++)
 				if (m_op[opnum] != null)
@@ -690,9 +773,9 @@ class fm {
 						log_keyon.log(Level.DEBUG, "%c%s\n", bitfield(states, opnum) != 0 ? '+' : '-', m_regs.log_keyon(m_choffs, m_op[opnum].opoffs()));
 		}
 
-		//-------------------------------------------------
-		//  prepare - prepare for clocking
-		//-------------------------------------------------
+		/**
+		 * prepare - prepare for clocking
+		 */
 		public boolean prepare() {
 			int active_mask = 0;
 
@@ -705,9 +788,9 @@ class fm {
 			return (active_mask != 0);
 		}
 
-		//-------------------------------------------------
-		//  clock - master clock of all operators
-		//-------------------------------------------------
+		/**
+		 * clock - master clock of all operators
+		 */
 		public void clock(int env_counter, int lfo_raw_pm) {
 			// clock the feedback through
 			m_feedback[0] = m_feedback[1];
@@ -773,13 +856,13 @@ class fm {
 			ALGORITHM(0, 2, 0, 1, 0, 1)     // 11: (O1 + (O2 -> O3) + O4) -> out (O1+O3+O4) [unique]
 		};
 
-		//-------------------------------------------------
-		//  output_2op - combine 4 operators according to
-		//  the specified algorithm, returning a sum
-		//  according to the rshift and clipmax parameters,
-		//  which vary between different implementations
-		//-------------------------------------------------
-		public final void output_2op(output_data output, int rshift, int clipmax) {
+		/**
+		 * output_2op - combine 4 operators according to
+		 * the specified algorithm, returning a sum
+		 * according to the rshift and clipmax parameters,
+		 * which vary between different implementations
+		 */
+		public final void output_2op(ymfm_output output, int rshift, int clipmax) {
 			// The first 2 operators should be populated
 			assert (m_op[0] != null);
 			assert (m_op[1] != null);
@@ -808,10 +891,10 @@ class fm {
 			if (bitfield(m_regs.ch_algorithm(m_choffs), 0) == 0) {
 				// some OPL chips use the previous sample for modulation instead of
 				// the current sample
-				opmod = (MODULATOR_DELAY ? m_feedback[1] : op1value) >> 1;
+				opmod = ((int) m_regs.getParams().get("MODULATOR_DELAY") != 0 ? m_feedback[1] : op1value) >> 1;
 				result = m_op[1].compute_volume(m_op[1].phase() + opmod, am_offset) >> rshift;
 			} else {
-				result = (MODULATOR_DELAY ? m_feedback[1] : op1value) >> rshift;
+				result = ((int) m_regs.getParams().get("MODULATOR_DELAY") != 0 ? m_feedback[1] : op1value) >> rshift;
 				result += m_op[1].compute_volume(m_op[1].phase(), am_offset) >> rshift;
 				int clipmin = -clipmax - 1;
 				result = clamp(result, clipmin, clipmax);
@@ -821,13 +904,13 @@ class fm {
 			add_to_output(m_choffs, output, result);
 		}
 
-		//-------------------------------------------------
-		//  output_4op - combine 4 operators according to
-		//  the specified algorithm, returning a sum
-		//  according to the rshift and clipmax parameters,
-		//  which vary between different implementations
-		//-------------------------------------------------
-		public final void output_4op(output_data output, int rshift, int clipmax) {
+		/**
+		 * output_4op - combine 4 operators according to
+		 * the specified algorithm, returning a sum
+		 * according to the rshift and clipmax parameters,
+		 * which vary between different implementations
+		 */
+		public final void output_4op(ymfm_output output, int rshift, int clipmax) {
 			// all 4 operators should be populated
 			assert (m_op[0] != null);
 			assert (m_op[1] != null);
@@ -872,7 +955,7 @@ class fm {
 			// compute the 14-bit volume/value of operator 4; this could be a noise
 			// value on the OPM; all algorithms consume OP4 output at a minimum
 			int result;
-			if (m_regs.noise_enable() && m_choffs == 7)
+			if (m_regs.noise_enable() != 0 && m_choffs == 7)
 				result = m_op[3].compute_noise_volume(am_offset);
 			else {
 				opmod = opout[bitfield(algorithm_ops, 4, 3)] >> 1;
@@ -893,12 +976,12 @@ class fm {
 			add_to_output(m_choffs, output, result);
 		}
 
-		//-------------------------------------------------
-		//  output_rhythm_ch6 - special case output
-		//  computation for OPL channel 6 in rhythm mode,
-		//  which outputs a Bass Drum instrument
-		//-------------------------------------------------
-		public final void output_rhythm_ch6(output_data output, int rshift, int clipmax) {
+		/**
+		 * output_rhythm_ch6 - special case output
+		 * computation for OPL channel 6 in rhythm mode,
+		 * which outputs a Bass Drum instrument
+		 */
+		public final void output_rhythm_ch6(ymfm_output output, int rshift, int clipmax) {
 			// AM amount is the same across all operators; compute it once
 			int am_offset = m_regs.lfo_am_offset(m_choffs);
 
@@ -923,13 +1006,13 @@ class fm {
 			add_to_output(m_choffs, output, result * 2);
 		}
 
-		//-------------------------------------------------
-		//  output_rhythm_ch7 - special case output
-		//  computation for OPL channel 7 in rhythm mode,
-		//  which outputs High Hat and Snare Drum
-		//  instruments
-		//-------------------------------------------------
-		public final void output_rhythm_ch7(int phase_select, output_data output, int rshift, int clipmax) {
+		/**
+		 * output_rhythm_ch7 - special case output
+		 * computation for OPL channel 7 in rhythm mode,
+		 * which outputs High Hat and Snare Drum
+		 * instruments
+		 */
+		public final void output_rhythm_ch7(int phase_select, ymfm_output output, int rshift, int clipmax) {
 			// AM amount is the same across all operators; compute it once
 			int am_offset = m_regs.lfo_am_offset(m_choffs);
 			int noise_state = bitfield(m_regs.noise_state(), 0);
@@ -951,12 +1034,12 @@ class fm {
 			add_to_output(m_choffs, output, result * 2);
 		}
 
-		//-------------------------------------------------
-		//  output_rhythm_ch8 - special case output
-		//  computation for OPL channel 8 in rhythm mode,
-		//  which outputs Tom Tom and Top Cymbal instruments
-		//-------------------------------------------------
-		public final void output_rhythm_ch8(int phase_select, output_data output, int rshift, int clipmax) {
+		/**
+		 * output_rhythm_ch8 - special case output
+		 * computation for OPL channel 8 in rhythm mode,
+		 * which outputs Tom Tom and Top Cymbal instruments
+		 */
+		public final void output_rhythm_ch8(int phase_select, ymfm_output output, int rshift, int clipmax) {
 			// AM amount is the same across all operators; compute it once
 			int am_offset = m_regs.lfo_am_offset(m_choffs);
 
@@ -975,9 +1058,9 @@ class fm {
 
 		// are we a 4-operator channel or a 2-operator one?
 		public final boolean is4op() {
-			if (DYNAMIC_OPS)
+			if ((int) m_regs.getParams().get("DYNAMIC_OPS") != 0)
 				return (m_op[2] != null);
-			return (m_regs.params.get("OPERATORS") / m_regs.params.get("CHANNELS") == 4);
+			return ((int) m_regs.getParams().get("OPERATORS") / (int) m_regs.getParams().get("CHANNELS")) == 4;
 		}
 
 		// return a reference to our registers
@@ -991,7 +1074,7 @@ class fm {
 		}
 
 		// helper to add values to the outputs based on channel enables
-		private final void add_to_output(int choffs, output_data output, int value) {
+		private final void add_to_output(int choffs, ymfm_output output, int value) {
 			// create these constants to appease overzealous compilers checking array
 			// bounds in unreachable code (looking at you, clang)
 			final int out0_index = 0;
@@ -999,19 +1082,21 @@ class fm {
 			final int out2_index = 2 % OUTPUTS;
 			final int out3_index = 3 % OUTPUTS;
 
-			if (OUTPUTS == 1 || m_regs.ch_output_0(choffs))
+			if (OUTPUTS == 1 || m_regs.ch_output_0(choffs) != 0)
 				output.data[out0_index] += value;
-			if (OUTPUTS >= 2 && m_regs.ch_output_1(choffs))
+			if (OUTPUTS >= 2 && m_regs.ch_output_1(choffs) != 0)
 				output.data[out1_index] += value;
-			if (OUTPUTS >= 3 && m_regs.ch_output_2(choffs))
+			if (OUTPUTS >= 3 && m_regs.ch_output_2(choffs) != 0)
 				output.data[out2_index] += value;
-			if (OUTPUTS >= 4 && m_regs.ch_output_3(choffs))
+			if (OUTPUTS >= 4 && m_regs.ch_output_3(choffs) != 0)
 				output.data[out3_index] += value;
 		}
 
 		// internal state
 		private int m_choffs;                     // channel offset in registers
+		@Element(sequence = 0)
 		private int[] m_feedback = new int[2];                 // feedback memory for operator 1
+		@Element(sequence = 1)
 		private int m_feedback_in;         // next input value for op 1 feedback (set in output)
 		private fm_operator[] m_op = new fm_operator[4]; // up to 4 operators
 		private RegisterType m_regs;                  // direct reference to registers
@@ -1028,27 +1113,25 @@ class fm {
 	// form a Yamaha FM core; chips that implement other engines (ADPCM, wavetable,
 	// etc) take this output and combine it with the others externally
 	//template<class RegisterType>
-	static abstract class fm_engine_base<RegisterType extends fm_engine_base> implements ymfm_engine_callbacks {
+	@Serdes
+	static abstract class fm_engine_base<RegisterType extends fm_registers_base> implements ymfm_engine_callbacks {
 
 		abstract RegisterType getRegisterType();
 
-		protected Map<String, Integer> params = new HashMap<>();
-
 		// expose some constants from the registers
-//		public final int OUTPUTS = getRegisterType().OUTPUTS;
-//		public final int CHANNELS = getRegisterType().CHANNELS;
-//		public final int ALL_CHANNELS = getRegisterType().ALL_CHANNELS;
-//		public final int OPERATORS = getRegisterType().OPERATORS;
+		public final int OUTPUTS = (int) getRegisterType().getParams().get("OUTPUTS");
+		public final int CHANNELS = (int) getRegisterType().getParams().get("CHANNELS");
+		public final int ALL_CHANNELS = (int) getRegisterType().getParams().get("ALL_CHANNELS");
+		public final int OPERATORS = (int) getRegisterType().getParams().get("OPERATORS");
 
 		// also expose status flags for consumers that inject additional bits
-//		public final int STATUS_TIMERA = getRegisterType().STATUS_TIMERA;
-//		public final int STATUS_TIMERB = getRegisterType().STATUS_TIMERB;
-//		public final int STATUS_BUSY = getRegisterType().STATUS_BUSY;
-//		public final int STATUS_IRQ = getRegisterType().STATUS_IRQ;
+		public final int STATUS_TIMERA = (int) getRegisterType().getParams().get("STATUS_TIMERA");
+		public final int STATUS_TIMERB = (int) getRegisterType().getParams().get("STATUS_TIMERB");
+		public final int STATUS_BUSY = (int) getRegisterType().getParams().get("STATUS_BUSY");
+		public final int STATUS_IRQ = (int) getRegisterType().getParams().get("STATUS_IRQ");
 
 		// expose the correct output class
 		//	using output_data = ymfm_output<OUTPUTS>;
-		class output_data extends ymfm_output { @Override int getNumOutputs() { return params.get("OUTPUTS"); }}
 
 		public abstract int lfo_am_offset(int mChoffs);
 
@@ -1085,6 +1168,14 @@ class fm {
 
 		public abstract Object log_keyon(int mChoffs, int opoffs);
 
+		public abstract int newflag();
+
+		public abstract int read(int i);
+
+		public abstract int new2flag();
+
+		public abstract void set_instrument_data(byte[] data);
+
 		protected abstract int rhythm_enable();
 
 		protected abstract int status_mask();
@@ -1111,33 +1202,33 @@ class fm {
 
 		protected abstract int timer_a_value();
 
-		//-------------------------------------------------
-		//  fm_engine_base - constructor
-		//-------------------------------------------------
+		/**
+		 * fm_engine_base - constructor
+		 */
 		public fm_engine_base(ymfm_interface intf) {
 			m_intf = intf;
 			m_env_counter = 0;
 			m_status = 0;
-			m_clock_prescale = params.get("DEFAULT_PRESCALE");
-			m_irq_mask = params.get("STATUS_TIMERA") | params.get("STATUS_TIMERB");
+			m_clock_prescale = (int) m_regs.getParams().get("DEFAULT_PRESCALE");
+			m_irq_mask = STATUS_TIMERA | STATUS_TIMERB;
 			m_irq_state = 0;
 //			m_timer_running = {0, 0};
 			m_total_clocks = 0;
-			m_active_channels = params.get("ALL_CHANNELS");
-			m_modified_channels = params.get("ALL_CHANNELS");
+			m_active_channels = ALL_CHANNELS;
+			m_modified_channels = ALL_CHANNELS;
 			m_prepare_count = 0;
 			// inform the interface of their engine
 			m_intf.m_engine = this;
 
-			m_channel = new fm_channel[params.get("CHANNELS")]; // channel pointers
-			m_operator = new fm_operator[params.get("OPERATORS")]; // operator pointers
+			m_channel = new fm_channel[CHANNELS]; // channel pointers
+			m_operator = new fm_operator[OPERATORS]; // operator pointers
 
 			// create the channels
-			for (int chnum = 0; chnum < params.get("CHANNELS"); chnum++)
+			for (int chnum = 0; chnum < CHANNELS; chnum++)
 				m_channel[chnum] = new fm_channel(this, getRegisterType().channel_offset(chnum));
 
 			// create the operators
-			for (int opnum = 0; opnum < params.get("OPERATORS"); opnum++)
+			for (int opnum = 0; opnum < OPERATORS; opnum++)
 				m_operator[opnum] = new fm_operator(this, getRegisterType().operator_offset(opnum));
 
 //#if (YMFM_DEBUG_LOG_WAVFILES)
@@ -1149,38 +1240,53 @@ class fm {
 			assign_operators();
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
 			// save our data
-			state.save_restore(m_env_counter);
-			state.save_restore(m_status);
-			state.save_restore(m_clock_prescale);
-			state.save_restore(m_irq_mask);
-			state.save_restore(m_irq_state);
-			state.save_restore(m_timer_running[0]);
-			state.save_restore(m_timer_running[1]);
-			state.save_restore(m_total_clocks);
+			Serdes.Util.serialize(this, os);
 
 			// save the register/family data
-			m_regs.save_restore(state);
+			m_regs.save(os);
 
 			// save channel data
-			for (int chnum = 0; chnum < params.get("CHANNELS"); chnum++)
-				m_channel[chnum].save_restore(state);
+			for (int chnum = 0; chnum < CHANNELS; chnum++)
+				m_channel[chnum].save(os);
 
 			// save operator data
-			for (int opnum = 0; opnum < params.get("OPERATORS"); opnum++)
-				m_operator[opnum].save_restore(state);
+			for (int opnum = 0; opnum < OPERATORS; opnum++)
+				m_operator[opnum].save(os);
 
 			// invalidate any caches
 			invalidate_caches();
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the overall state
-		//-------------------------------------------------
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			// save our data
+			Serdes.Util.deserialize(is, this);
+
+			// save the register/family data
+			m_regs.restore(is);
+
+			// save channel data
+			for (int chnum = 0; chnum < CHANNELS; chnum++)
+				m_channel[chnum].restore(is);
+
+			// save operator data
+			for (int opnum = 0; opnum < OPERATORS; opnum++)
+				m_operator[opnum].restore(is);
+
+			// invalidate any caches
+			invalidate_caches();
+		}
+
+		/**
+		 * reset - reset the overall state
+		 */
 		public void reset() {
 			// reset all status bits
 			set_reset_status(0, 0xff);
@@ -1190,7 +1296,7 @@ class fm {
 
 			// explicitly write to the mode register since it has side-effects
 			// QUESTION: old cores initialize this to 0x30 -- who is right?
-			write(params.get("REG_MODE"), 0);
+			write((int) m_regs.getParams().get("REG_MODE"), 0);
 
 			// reset the channels
 			for (var chan : m_channel)
@@ -1201,10 +1307,10 @@ class fm {
 				op.reset();
 		}
 
-		//-------------------------------------------------
-		//  clock - iterate over all channels, clocking
-		//  them forward one step
-		//-------------------------------------------------
+		/**
+		 * clock - iterate over all channels, clocking
+		 * them forward one step
+		 */
 		public int clock(int chanmask) {
 			// update the clock counter
 			m_total_clocks++;
@@ -1213,12 +1319,12 @@ class fm {
 			// also prepare every 4k samples to catch ending notes
 			if (m_modified_channels != 0 || m_prepare_count++ >= 4096) {
 				// reassign operators to channels if dynamic
-				if (params.get("DYNAMIC_OPS") != 0)
+				if ((int) m_regs.getParams().get("DYNAMIC_OPS") != 0)
 					assign_operators();
 
 				// call each channel to prepare
 				m_active_channels = 0;
-				for (int chnum = 0; chnum < params.get("CHANNELS"); chnum++)
+				for (int chnum = 0; chnum < CHANNELS; chnum++)
 					if (bitfield(chanmask, chnum) != 0)
 						if (m_channel[chnum].prepare())
 							m_active_channels |= 1 << chnum;
@@ -1229,16 +1335,16 @@ class fm {
 
 			// if the envelope clock divider is 1, just increment by 4;
 			// otherwise, increment by 1 and manually wrap when we reach the divide count
-			if (params.get("EG_CLOCK_DIVIDER") == 1)
+			if ((int) m_regs.getParams().get("EG_CLOCK_DIVIDER") == 1)
 				m_env_counter += 4;
-			else if (bitfield(++m_env_counter, 0, 2) == params.get("EG_CLOCK_DIVIDER"))
-				m_env_counter += 4 - params.get("EG_CLOCK_DIVIDER");
+			else if (bitfield(++m_env_counter, 0, 2) == (int) m_regs.getParams().get("EG_CLOCK_DIVIDER"))
+				m_env_counter += 4 - (int) m_regs.getParams().get("EG_CLOCK_DIVIDER");
 
 			// clock the noise generator
 			int lfo_raw_pm = m_regs.clock_noise_and_lfo();
 
 			// now update the state of all the channels and operators
-			for (int chnum = 0; chnum < params.get("CHANNELS"); chnum++)
+			for (int chnum = 0; chnum < CHANNELS; chnum++)
 				if (bitfield(chanmask, chnum) != 0)
 					m_channel[chnum].clock(m_env_counter, lfo_raw_pm);
 
@@ -1246,10 +1352,10 @@ class fm {
 			return m_env_counter;
 		}
 
-		//-------------------------------------------------
-		//  output - compute a sum over the relevant
-		//  channels
-		//-------------------------------------------------
+		/**
+		 * output - compute a sum over the relevant
+		 * channels
+		 */
 		public final void output(ymfm_output output, int rshift, int clipmax, int chanmask) {
 			// mask out some channels for debug purposes
 			chanmask &= GLOBAL_FM_CHANNEL_MASK;
@@ -1262,7 +1368,7 @@ class fm {
 			// to percussion (this is an OPL-specific feature)
 			if (m_regs.rhythm_enable() != 0) {
 				// we don't support the OPM noise channel here; ensure it is off
-				assert !m_regs.noise_enable();
+				assert m_regs.noise_enable() == 0;
 
 				// precompute the operator 13+17 phase selection value
 				int op13phase = m_operator[13].phase();
@@ -1270,36 +1376,36 @@ class fm {
 				int phase_select = (bitfield(op13phase, 2) ^ bitfield(op13phase, 7)) | bitfield(op13phase, 3) | (bitfield(op17phase, 5) ^ bitfield(op17phase, 3));
 
 				// sum over all the desired channels
-				for (int chnum = 0; chnum < params.get("CHANNELS"); chnum++)
+				for (int chnum = 0; chnum < CHANNELS; chnum++)
 					if (bitfield(chanmask, chnum) != 0) {
 //#if (YMFM_DEBUG_LOG_WAVFILES)
 //						var reference = output;
 //#endif
 						if (chnum == 6)
-							m_channel[chnum].output_rhythm_ch6((fm_channel.output_data) output, rshift, clipmax);
+							m_channel[chnum].output_rhythm_ch6(output, rshift, clipmax);
 						else if (chnum == 7)
-							m_channel[chnum].output_rhythm_ch7(phase_select, (fm_channel.output_data) output, rshift, clipmax);
+							m_channel[chnum].output_rhythm_ch7(phase_select, output, rshift, clipmax);
 						else if (chnum == 8)
-							m_channel[chnum].output_rhythm_ch8(phase_select, (fm_channel.output_data) output, rshift, clipmax);
+							m_channel[chnum].output_rhythm_ch8(phase_select, output, rshift, clipmax);
 						else if (m_channel[chnum].is4op())
-							m_channel[chnum].output_4op((fm_channel.output_data) output, rshift, clipmax);
+							m_channel[chnum].output_4op(output, rshift, clipmax);
 						else
-							m_channel[chnum].output_2op((fm_channel.output_data) output, rshift, clipmax);
+							m_channel[chnum].output_2op(output, rshift, clipmax);
 //#if (YMFM_DEBUG_LOG_WAVFILES)
 //						m_wavfile[chnum].add(output, reference);
 //#endif
 					}
 			} else {
 				// sum over all the desired channels
-				for (int chnum = 0; chnum < params.get("CHANNELS"); chnum++)
+				for (int chnum = 0; chnum < CHANNELS; chnum++)
 					if (bitfield(chanmask, chnum) != 0) {
 //#if (YMFM_DEBUG_LOG_WAVFILES)
 //						var reference = output;
 //#endif
 						if (m_channel[chnum].is4op())
-							m_channel[chnum].output_4op((fm_channel.output_data) output, rshift, clipmax);
+							m_channel[chnum].output_4op(output, rshift, clipmax);
 						else
-							m_channel[chnum].output_2op((fm_channel.output_data) output, rshift, clipmax);
+							m_channel[chnum].output_2op(output, rshift, clipmax);
 //#if (YMFM_DEBUG_LOG_WAVFILES)
 //						m_wavfile[chnum].add(output, reference);
 //#endif
@@ -1307,50 +1413,50 @@ class fm {
 			}
 		}
 
-		//-------------------------------------------------
-		//  write - handle writes to the OPN registers
-		//-------------------------------------------------
+		/**
+		 * write - handle writes to the OPN registers
+		 */
 		public void write(int regnum, int data) {
 			log_fm_write.log(Level.DEBUG, "%03X = %02X\n", regnum, data);
 
 			// special case: writes to the mode register can impact IRQs;
 			// schedule these writes to ensure ordering with timers
-			if (regnum == params.get("REG_MODE")) {
+			if (regnum == (int) m_regs.getParams().get("REG_MODE")) {
 				m_intf.ymfm_sync_mode_write(data);
 				return;
 			}
 
 			// for now just mark all channels as modified
-			m_modified_channels = params.get("ALL_CHANNELS");
+			m_modified_channels = ALL_CHANNELS;
 
 			// most writes are passive, consumed only when needed
 			int[] keyon_channel = new int[1];
 			int[] keyon_opmask = new int[1];
 			if (m_regs.write(regnum, data, keyon_channel, keyon_opmask)) {
 				// handle writes to the keyon register(s)
-				if (keyon_channel[0] < params.get("CHANNELS")) {
+				if (keyon_channel[0] < CHANNELS) {
 					// normal channel on/off
-					m_channel[keyon_channel[0]].keyonoff(keyon_opmask[0], KEYON_NORMAL, keyon_channel[0]);
-				} else if (params.get("CHANNELS") >= 9 && keyon_channel[0] == params.get("RHYTHM_CHANNEL")) {
+					m_channel[keyon_channel[0]].keyonoff(keyon_opmask[0], fm.keyon_type.KEYON_NORMAL, keyon_channel[0]);
+				} else if (CHANNELS >= 9 && keyon_channel[0] == (int) m_regs.getParams().get("RHYTHM_CHANNEL")) {
 					// special case for the OPL rhythm channels
-					m_channel[6].keyonoff(bitfield(keyon_opmask[0], 4) != 0 ? 3 : 0, KEYON_RHYTHM, 6);
-					m_channel[7].keyonoff(bitfield(keyon_opmask[0], 0) | (bitfield(keyon_opmask[0], 3) << 1), KEYON_RHYTHM, 7);
-					m_channel[8].keyonoff(bitfield(keyon_opmask[0], 2) | (bitfield(keyon_opmask[0], 1) << 1), KEYON_RHYTHM, 8);
+					m_channel[6].keyonoff(bitfield(keyon_opmask[0], 4) != 0 ? 3 : 0, fm.keyon_type.KEYON_RHYTHM, 6);
+					m_channel[7].keyonoff(bitfield(keyon_opmask[0], 0) | (bitfield(keyon_opmask[0], 3) << 1), fm.keyon_type.KEYON_RHYTHM, 7);
+					m_channel[8].keyonoff(bitfield(keyon_opmask[0], 2) | (bitfield(keyon_opmask[0], 1) << 1), fm.keyon_type.KEYON_RHYTHM, 8);
 				}
 			}
 		}
 
-		//-------------------------------------------------
-		//  status - return the current state of the
-		//  status flags
-		//-------------------------------------------------
+		/**
+		 * status - return the current state of the
+		 * status flags
+		 */
 		public final int status() {
-			return m_status & ~params.get("STATUS_BUSY") & ~m_regs.status_mask();
+			return m_status & ~STATUS_BUSY & ~m_regs.status_mask();
 		}
 
 		// set/reset bits in the status register, updating the IRQ status
 		public int set_reset_status(int set, int reset) {
-			m_status = (m_status | set) & ~(reset | params.get("STATUS_BUSY"));
+			m_status = (m_status | set) & ~(reset | STATUS_BUSY);
 			m_intf.ymfm_sync_check_interrupts();
 			return m_status & ~m_regs.status_mask();
 		}
@@ -1377,7 +1483,7 @@ class fm {
 //		for (int chnum = 0; chnum < CHANNELS; chnum++)
 //			m_wavfile[chnum].set_samplerate(baseclock / (m_clock_prescale * OPERATORS));
 //#endif
-			return baseclock / (m_clock_prescale * params.get("OPERATORS"));
+			return baseclock / (m_clock_prescale * OPERATORS);
 		}
 
 		// return the owning device
@@ -1392,7 +1498,7 @@ class fm {
 
 		// invalidate any caches
 		public void invalidate_caches() {
-			m_modified_channels = params.get("ALL_CHANNELS");
+			m_modified_channels = ALL_CHANNELS;
 		}
 
 		// simple getters for debugging
@@ -1404,25 +1510,25 @@ class fm {
 			return m_operator[index];
 		}
 
-		//-------------------------------------------------
-		//  engine_timer_expired - timer has expired - signal
-		//  status and possibly IRQs
-		//-------------------------------------------------
+		/**
+		 * engine_timer_expired - timer has expired - signal
+		 * status and possibly IRQs
+		 */
 		@Override
 		public void engine_timer_expired(int tnum) {
 			assert (tnum == 0 || tnum == 1);
 
 			// update status
-			if (tnum == 0 && m_regs.enable_timer_a())
-				set_reset_status(params.get("STATUS_TIMERA"), 0);
-			else if (tnum == 1 && m_regs.enable_timer_b())
-				set_reset_status(params.get("STATUS_TIMERB"), 0);
+			if (tnum == 0 && m_regs.enable_timer_a() != 0)
+				set_reset_status(STATUS_TIMERA, 0);
+			else if (tnum == 1 && m_regs.enable_timer_b() != 0)
+				set_reset_status(STATUS_TIMERB, 0);
 
 			// if timer A fired in CSM mode, trigger CSM on all relevant channels
-			if (tnum == 0 && m_regs.csm())
-				for (int chnum = 0; chnum < params.get("CHANNELS"); chnum++)
-					if (bitfield(params.get("CSM_TRIGGER_MASK"), chnum) != 0) {
-						m_channel[chnum].keyonoff(0xf, KEYON_CSM, chnum);
+			if (tnum == 0 && m_regs.csm() != 0)
+				for (int chnum = 0; chnum < CHANNELS; chnum++)
+					if (bitfield((int) m_regs.getParams().get("CSM_TRIGGER_MASK"), chnum) != 0) {
+						m_channel[chnum].keyonoff(0xf, fm.keyon_type.KEYON_CSM, chnum);
 						m_modified_channels |= 1 << chnum;
 					}
 
@@ -1431,10 +1537,10 @@ class fm {
 			update_timer(tnum, 1, 0);
 		}
 
-		//-------------------------------------------------
-		//  check_interrupts - check the interrupt sources
-		//  for interrupts
-		//-------------------------------------------------
+		/**
+		 * check_interrupts - check the interrupt sources
+		 * for interrupts
+		 */
 		@Override
 		public void engine_check_interrupts() {
 			// update the state
@@ -1443,27 +1549,27 @@ class fm {
 
 			// set the IRQ status bit
 			if (m_irq_state != 0)
-				m_status |= params.get("STATUS_IRQ");
+				m_status |= STATUS_IRQ;
 			else
-				m_status &= ~params.get("STATUS_IRQ");
+				m_status &= ~STATUS_IRQ;
 
 			// if changed, signal the new state
 			if (old_state != m_irq_state)
 				m_intf.ymfm_update_irq(m_irq_state != 0);
 		}
 
-		//-------------------------------------------------
-		//  engine_mode_write - handle a mode register write
-		//  via timer callback
-		//-------------------------------------------------
+		/**
+		 * engine_mode_write - handle a mode register write
+		 * via timer callback
+		 */
 		@Override
 		public void engine_mode_write(int data) {
 			// mark all channels as modified
-			m_modified_channels = params.get("ALL_CHANNELS");
+			m_modified_channels = ALL_CHANNELS;
 
 			// actually write the mode register now
 			int[] dummy1 = new int[1], dummy2 = new int[1];
-			m_regs.write(params.get("REG_MODE"), data, dummy1, dummy2);
+			m_regs.write((int) m_regs.getParams().get("REG_MODE"), data, dummy1, dummy2);
 
 			// reset IRQ status -- when written, all other bits are ignored
 			// QUESTION: should this maybe just reset the IRQ bit and not all the bits?
@@ -1473,11 +1579,11 @@ class fm {
 			else {
 				// reset timer status
 
-				byte reset_mask = 0;
-				if (m_regs.reset_timer_b())
-					reset_mask |= params.get("STATUS_TIMERB");
-				if (m_regs.reset_timer_a())
-					reset_mask |= params.get("STATUS_TIMERA");
+				int reset_mask = 0;
+				if (m_regs.reset_timer_b() != 0)
+					reset_mask |= (int) m_regs.getParams().get("STATUS_TIMERB");
+				if (m_regs.reset_timer_a() != 0)
+					reset_mask |= (int) m_regs.getParams().get("STATUS_TIMERA");
 				set_reset_status(0, reset_mask);
 
 				// load timers; note that timer B gets a small negative adjustment because
@@ -1488,25 +1594,25 @@ class fm {
 			}
 		}
 
-		//-------------------------------------------------
-		//  assign_operators - get the current mapping of
-		//  operators to channels and assign them all
-		//-------------------------------------------------
+		/**
+		 * assign_operators - get the current mapping of
+		 * operators to channels and assign them all
+		 */
 		protected void assign_operators() {
-			params.typename getRegisterType().operator_mapping map;
-			m_regs.operator_map(params.get("map"));
+			int[][] map = new int[0][];
+			m_regs.operator_map(map);
 
-			for (int chnum = 0; chnum < params.get("CHANNELS"); chnum++)
+			for (int chnum = 0; chnum < CHANNELS; chnum++)
 				for (int index = 0; index < 4; index++) {
-					int opnum = bitfield(map.chan[chnum], 8 * index, 8);
+					int opnum = bitfield(map[0][chnum], 8 * index, 8);
 					m_channel[chnum].assign(index, (opnum == 0xff) ? null : m_operator[opnum]);
 				}
 		}
 
-		//-------------------------------------------------
-		//  update_timer - update the state of the given
-		//  timer
-		//-------------------------------------------------
+		/**
+		 * update_timer - update the state of the given
+		 * timer
+		 */
 		protected void update_timer(int tnum, int enable, int delta_clocks) {
 			// if the timer is live, but not currently enabled, set the timer
 			if (enable != 0 && m_timer_running[tnum] == 0) {
@@ -1517,7 +1623,7 @@ class fm {
 				period += delta_clocks;
 
 				// reset it
-				m_intf.ymfm_set_timer(tnum, period * params.get("OPERATORS") * m_clock_prescale);
+				m_intf.ymfm_set_timer(tnum, period * OPERATORS * m_clock_prescale);
 				m_timer_running[tnum] = 1;
 			}
 
@@ -1530,12 +1636,19 @@ class fm {
 
 		// internal state
 		protected ymfm_interface m_intf;          // reference to the system interface
+		@Element(sequence = 0)
 		protected int m_env_counter;          // envelope counter; low 2 bits are sub-counter
+		@Element(sequence = 1)
 		protected int m_status;                // current status register
+		@Element(sequence = 2)
 		protected int m_clock_prescale;        // prescale factor (2/3/6)
+		@Element(sequence = 3)
 		protected int m_irq_mask;              // mask of which bits signal IRQs
+		@Element(sequence = 4)
 		protected int m_irq_state;             // current IRQ state
+		@Element(sequence = 5)
 		protected int[] m_timer_running = new int[2];      // current timer running state
+		@Element(sequence = 6)
 		protected int m_total_clocks;          // low 8 bits of the total number of clocks processed
 		protected int m_active_channels;      // mask of active channels (computed by prepare)
 		protected int m_modified_channels;    // mask of channels that have been modified

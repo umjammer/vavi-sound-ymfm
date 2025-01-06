@@ -30,15 +30,18 @@
 
 package vavi.sound.ymfm;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.System.Logger.Level;
 import java.util.Arrays;
 
-import vavi.sound.ymfm.pcm.pcm_channel.output_data;
 import vavi.sound.ymfm.ymfm.debug;
 import vavi.sound.ymfm.ymfm.envelope_state;
 import vavi.sound.ymfm.ymfm.ymfm_interface;
 import vavi.sound.ymfm.ymfm.ymfm_output;
-import vavi.sound.ymfm.ymfm.ymfm_saved_state;
+import vavi.util.serdes.Element;
+import vavi.util.serdes.Serdes;
 
 import static vavi.sound.ymfm.ymfm.access_class.ACCESS_PCM;
 import static vavi.sound.ymfm.ymfm.attenuation_increment;
@@ -163,6 +166,7 @@ class pcm {
 	//        C8-DF xxxx---- Rate correction
 	//              ----xxxx Release rate
 	//        E0-F7 -----xxx AM depth
+	@Serdes
 	static class pcm_registers {
 
 		// constants
@@ -175,16 +179,23 @@ class pcm {
 		public pcm_registers() {
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			state.save_restore(m_regdata);
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the register state
-		//-------------------------------------------------
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
+		}
+
+		/**
+		 * reset - reset the register state
+		 */
 		public void reset() {
 			Arrays.fill(m_regdata, 0, REGISTERS, (byte) 0);
 			m_regdata[0xf8] = 0x1b;
@@ -204,10 +215,10 @@ class pcm {
 		// these are correct
 		static final int[] s_pm_depth = {0, 2, 3, 4, 6, 12, 24, 48};
 
-		//-------------------------------------------------
-		//  cache_channel_data - update the cache with
-		//  data from the registers
-		//-------------------------------------------------
+		/**
+		 * cache_channel_data - update the cache with
+		 * data from the registers
+		 */
 		public void cache_channel_data(int choffs, pcm_cache cache) {
 			// compute step from octave and fnumber; the math here implies
 			// a .18 fraction but .16 should be perfectly fine
@@ -406,10 +417,10 @@ class pcm {
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  effective_rate - return the effective rate,
-		//  clamping and applying corrections as needed
-		//-------------------------------------------------
+		/**
+		 * effective_rate - return the effective rate,
+		 * clamping and applying corrections as needed
+		 */
 		private int effective_rate(int raw, int correction) {
 			// raw rates of 0 and 15 just pin to min/max
 			if (raw == 0)
@@ -422,6 +433,7 @@ class pcm {
 		}
 
 		// internal state
+		@Element
 		private int[] m_regdata = new int[REGISTERS];         // register data
 	}
 
@@ -440,11 +452,10 @@ class pcm {
 		static final int EG_QUIET = 0x200;
 
 		//	using output_data = ymfm_output<pcm_registers.OUTPUTS>;
-		static class output_data extends ymfm_output { @Override int getNumOutputs() { return pcm_registers.OUTPUTS; }}
 
-		//-------------------------------------------------
-		//  pcm_channel - constructor
-		//-------------------------------------------------
+		/**
+		 * pcm_channel - constructor
+		 */
 		public pcm_channel(pcm_engine owner, int choffs) {
 			m_choffs = choffs;
 			m_baseaddr = 0;
@@ -462,26 +473,23 @@ class pcm {
 			m_owner = owner;
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			state.save_restore(m_baseaddr);
-			state.save_restore(m_endpos);
-			state.save_restore(m_looppos);
-			state.save_restore(m_curpos);
-			state.save_restore(m_nextpos);
-			state.save_restore(m_lfo_counter);
-			state.save_restore(m_eg_state);
-			state.save_restore(m_env_attenuation);
-			state.save_restore(m_total_level);
-			state.save_restore(m_format);
-			state.save_restore(m_key_state);
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the channel state
-		//-------------------------------------------------
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
+		}
+
+		/**
+		 * reset - reset the channel state
+		 */
 		public void reset() {
 			m_baseaddr = 0;
 			m_endpos = 0;
@@ -501,9 +509,9 @@ class pcm {
 			return m_choffs;
 		}
 
-		//-------------------------------------------------
-		//  prepare - prepare for clocking
-		//-------------------------------------------------
+		/**
+		 * prepare - prepare for clocking
+		 */
 		public boolean prepare() {
 			// cache the data
 			m_regs.cache_channel_data(m_choffs, m_cache);
@@ -528,9 +536,9 @@ class pcm {
 			return m_eg_state.ordinal() < EG_RELEASE.ordinal() || m_env_attenuation < EG_QUIET;
 		}
 
-		//-------------------------------------------------
-		//  clock - master clocking function
-		//-------------------------------------------------
+		/**
+		 * clock - master clocking function
+		 */
 		public void clock(int env_counter) {
 			// clock the LFO, which is an x.18 value incremented based on the
 			// LFO speed value
@@ -568,11 +576,11 @@ class pcm {
 			}
 		}
 
-		//-------------------------------------------------
-		//  output - return the computed output value, with
-		//  panning applied
-		//-------------------------------------------------
-		public final void output(output_data output) {
+		/**
+		 * output - return the computed output value, with
+		 * panning applied
+		 */
+		public final void output(ymfm_output output) {
 			// early out if the envelope is effectively off
 			int envelope = m_env_attenuation;
 			if (envelope > EG_QUIET)
@@ -605,9 +613,9 @@ class pcm {
 			output.data[outnum + 1] += (rvol * sample) >> 15;
 		}
 
-		//-------------------------------------------------
-		//  keyonoff - signal key on/off
-		//-------------------------------------------------
+		/**
+		 * keyonoff - signal key on/off
+		 */
 		public void keyonoff(boolean on) {
 			// mark the key state as pending
 			m_key_state |= KEY_PENDING | (on ? KEY_PENDING_ON : 0);
@@ -646,10 +654,10 @@ class pcm {
 			}
 		}
 
-		//-------------------------------------------------
-		//  load_wavetable - load a wavetable by fetching
-		//  its data from external memory
-		//-------------------------------------------------
+		/**
+		 * load_wavetable - load a wavetable by fetching
+		 * its data from external memory
+		 */
 		public void load_wavetable() {
 			// determine the address of the wave table header
 			int wavnum = m_regs.ch_wave_table_num(m_choffs);
@@ -691,9 +699,9 @@ class pcm {
 			m_env_attenuation = 0x3ff;
 		}
 
-		//-------------------------------------------------
-		//  start_attack - start the attack phase
-		//-------------------------------------------------
+		/**
+		 * start_attack - start the attack phase
+		 */
 		private void start_attack() {
 			// don't change anything if already in attack state
 			if (m_eg_state == EG_ATTACK)
@@ -712,9 +720,9 @@ class pcm {
 			m_curpos = m_nextpos = 0;
 		}
 
-		//-------------------------------------------------
-		//  start_release - start the release phase
-		//-------------------------------------------------
+		/**
+		 * start_release - start the release phase
+		 */
 		private void start_release() {
 			// don't change anything if already in release or reverb state
 			if (m_eg_state.ordinal() >= EG_RELEASE.ordinal())
@@ -722,9 +730,9 @@ class pcm {
 			m_eg_state = EG_RELEASE;
 		}
 
-		//-------------------------------------------------
-		//  clock_envelope - clock the envelope generator
-		//-------------------------------------------------
+		/**
+		 * clock_envelope - clock the envelope generator
+		 */
 		private void clock_envelope(int env_counter) {
 			// handle attack->decay transitions
 			if (m_eg_state == EG_ATTACK && m_env_attenuation == 0)
@@ -770,10 +778,10 @@ class pcm {
 			}
 		}
 
-		//-------------------------------------------------
-		//  fetch_sample - fetch a sample at the current
-		//  position
-		//-------------------------------------------------
+		/**
+		 * fetch_sample - fetch a sample at the current
+		 * position
+		 */
 		private final int fetch_sample() {
 			int addr = m_baseaddr;
 			int pos = m_curpos >> 16;
@@ -796,26 +804,37 @@ class pcm {
 				return (read_pcm(addr + 2) << 8) | ((read_pcm(addr + 1) << 0) & 0xf0);
 		}
 
-		//-------------------------------------------------
-		//  read_pcm - read a byte from the external PCM
-		//  memory interface
-		//-------------------------------------------------
+		/**
+		 * read_pcm - read a byte from the external PCM
+		 * memory interface
+		 */
 		private byte read_pcm(int address) {
 			return m_owner.intf().ymfm_external_read(ACCESS_PCM, address);
 		}
 
 		// internal state
 		private final int m_choffs;              // channel offset
+		@Element(sequence = 0)
 		private int m_baseaddr;                  // base address
+		@Element(sequence = 1)
 		private int m_endpos;                    // ending position
+		@Element(sequence = 2)
 		private int m_looppos;                   // loop position
+		@Element(sequence = 3)
 		private int m_curpos;                    // current position
+		@Element(sequence = 4)
 		private int m_nextpos;                   // next position
+		@Element(sequence = 5)
 		private int m_lfo_counter;               // LFO counter
+		@Element(sequence = 6)
 		private envelope_state m_eg_state;            // envelope state
+		@Element(sequence = 7)
 		private int m_env_attenuation;           // computed envelope attenuation
+		@Element(sequence = 8)
 		private int m_total_level;               // total level with as 7.10 for interp
+		@Element(sequence = 9)
 		private int m_format;                     // sample format
+		@Element(sequence = 10)
 		private int m_key_state;                  // current key state
 		private pcm_cache m_cache;                    // cached data
 		private pcm_registers m_regs;                // reference to registers
@@ -827,6 +846,7 @@ class pcm {
 	//*********************************************************
 	// PCM ENGINE
 	//*********************************************************
+	@Serdes
 	static class pcm_engine {
 
 		public static final int OUTPUTS = pcm_registers.OUTPUTS;
@@ -835,9 +855,9 @@ class pcm {
 
 		//	using output_data = pcm_channel.output_data;
 
-		//-------------------------------------------------
-		//  pcm_engine - constructor
-		//-------------------------------------------------
+		/**
+		 * pcm_engine - constructor
+		 */
 		public pcm_engine(ymfm_interface intf) {
 			m_intf = intf;
 			m_env_counter = 0;
@@ -848,9 +868,9 @@ class pcm {
 				m_channel[chnum] = new pcm_channel(this, chnum);
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the engine state
-		//-------------------------------------------------
+		/**
+		 * reset - reset the engine state
+		 */
 		public void reset() {
 			// reset register state
 			m_regs.reset();
@@ -860,21 +880,33 @@ class pcm {
 				chan.reset();
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
 			// save our data
-			state.save_restore(m_env_counter);
+			Serdes.Util.serialize(this, os);
 
 			// save channel state
 			for (int chnum = 0; chnum < CHANNELS; chnum++)
-				m_channel[chnum].save_restore(state);
+				m_channel[chnum].save(os);
 		}
 
-		//-------------------------------------------------
-		//  clock - master clocking function
-		//-------------------------------------------------
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			// save our data
+			Serdes.Util.deserialize(is, this);
+
+			// save channel state
+			for (int chnum = 0; chnum < CHANNELS; chnum++)
+				m_channel[chnum].restore(is);
+		}
+
+		/**
+		 * clock - master clocking function
+		 */
 		public void clock(int chanmask) {
 			// if something was modified, prepare
 			// also prepare every 4k samples to catch ending notes
@@ -902,10 +934,10 @@ class pcm {
 					m_channel[chnum].clock(m_env_counter >> 1);
 		}
 
-		//-------------------------------------------------
-		//  update - master update function
-		//-------------------------------------------------
-		public void output(output_data output, int chanmask) {
+		/**
+		 * update - master update function
+		 */
+		public void output(ymfm_output output, int chanmask) {
 			// mask out some channels for debug purposes
 			chanmask &= debug.GLOBAL_PCM_CHANNEL_MASK;
 
@@ -915,9 +947,9 @@ class pcm {
 					m_channel[chnum].output(output);
 		}
 
-		//-------------------------------------------------
-		//  read - handle reads from the PCM registers
-		//-------------------------------------------------
+		/**
+		 * read - handle reads from the PCM registers
+		 */
 		public int read(int regnum) {
 			// handle reads from the data register
 			if (regnum == 0x06 && m_regs.memory_access_mode() != 0)
@@ -926,9 +958,9 @@ class pcm {
 			return m_regs.read(regnum);
 		}
 
-		//-------------------------------------------------
-		//  write - handle writes to the PCM registers
-		//-------------------------------------------------
+		/**
+		 * write - handle writes to the PCM registers
+		 */
 		public void write(int regnum, byte data) {
 			// handle reads to the data register
 			if (regnum == 0x06 && m_regs.memory_access_mode() != 0) {
@@ -963,6 +995,7 @@ class pcm {
 
 		// internal state
 		private ymfm_interface m_intf;                           // reference to the interface
+		@Element
 		private int m_env_counter;                           // envelope counter
 		private int m_modified_channels;                     // bitmask of modified channels
 		private int m_active_channels;                       // bitmask of active channels

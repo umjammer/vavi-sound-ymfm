@@ -30,13 +30,17 @@
 
 package vavi.sound.ymfm;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.System.Logger.Level;
 import java.util.Arrays;
 
 import vavi.sound.ymfm.ymfm.debug;
 import vavi.sound.ymfm.ymfm.ymfm_interface;
 import vavi.sound.ymfm.ymfm.ymfm_output;
-import vavi.sound.ymfm.ymfm.ymfm_saved_state;
+import vavi.util.serdes.Element;
+import vavi.util.serdes.Serdes;
 
 import static vavi.sound.ymfm.ymfm.access_class.ACCESS_ADPCM_A;
 import static vavi.sound.ymfm.ymfm.access_class.ACCESS_ADPCM_B;
@@ -45,10 +49,10 @@ import static vavi.sound.ymfm.ymfm.clamp;
 import static vavi.sound.ymfm.ymfm.debug.log_keyon;
 
 
-class adpcm {
+public class adpcm {
 
 	//*********************************************************
-	//  INTERFACE CLASSES
+	// INTERFACE CLASSES
 	//*********************************************************
 
 	//*********************************************************
@@ -73,6 +77,7 @@ class adpcm {
 	//        20-25 xxxxxxxx End address (low)
 	//        28-2D xxxxxxxx End address (high)
 	//
+	@Serdes
 	static class adpcm_a_registers {
 
 		// constants
@@ -85,9 +90,9 @@ class adpcm {
 		adpcm_a_registers() {
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the register state
-		//-------------------------------------------------
+		/**
+		 * reset - reset the register state
+		 */
 		public void reset() {
 			Arrays.fill(m_regdata, 0, REGISTERS, 0);
 
@@ -97,11 +102,18 @@ class adpcm {
 				m_regdata[0x0b] = m_regdata[0x0c] = m_regdata[0x0d] = (byte) 0xdf;
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			state.save_restore(m_regdata);
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
+		}
+
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
 		}
 
 		// map channel number to register offset
@@ -165,6 +177,7 @@ class adpcm {
 		}
 
 		// internal state
+		@Element
 		private int[] m_regdata = new int[REGISTERS];         // register data
 	}
 
@@ -175,9 +188,9 @@ class adpcm {
 	//*********************************************************
 	static class adpcm_a_channel {
 
-		//-------------------------------------------------
-		//  adpcm_a_channel - constructor
-		//-------------------------------------------------
+		/**
+		 * adpcm_a_channel - constructor
+		 */
 		public adpcm_a_channel(adpcm_a_engine owner, int choffs, int addrshift) {
 			m_choffs = choffs;
 			m_address_shift = addrshift;
@@ -191,9 +204,9 @@ class adpcm {
 			m_owner = owner;
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the channel state
-		//-------------------------------------------------
+		/**
+		 * reset - reset the channel state
+		 */
 		public void reset() {
 			m_playing = false;
 			m_curnibble = 0;
@@ -203,21 +216,23 @@ class adpcm {
 			m_step_index = 0;
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			state.save_restore(m_playing);
-			state.save_restore(m_curnibble);
-			state.save_restore(m_curbyte);
-			state.save_restore(m_curaddress);
-			state.save_restore(m_accumulator);
-			state.save_restore(m_step_index);
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
 		}
 
-		//-------------------------------------------------
-		//  keyonoff - signal key on/off
-		//-------------------------------------------------
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
+		}
+
+		/**
+		 * keyonoff - signal key on/off
+		 */
 		public void keyonoff(boolean on) {
 			// QUESTION: repeated key ons restart the sample?
 			m_playing = on;
@@ -252,9 +267,9 @@ class adpcm {
 
 		static final int[] s_step_inc = {-1, -1, -1, -1, 2, 5, 7, 9};
 
-		//-------------------------------------------------
-		//  clock - master clocking function
-		//-------------------------------------------------
+		/**
+		 * clock - master clocking function
+		 */
 		public boolean clock() {
 			// if not playing, just output 0
 			if (!m_playing) {
@@ -305,10 +320,10 @@ class adpcm {
 			return false;
 		}
 
-		//-------------------------------------------------
-		//  output - return the computed output value, with
-		//  panning applied
-		//-------------------------------------------------
+		/**
+		 * output - return the computed output value, with
+		 * panning applied
+		 */
 		//	template<int NumOutputs>
 		public final void output(ymfm_output output) {
 			// volume combines instrument and total levels
@@ -337,11 +352,17 @@ class adpcm {
 		// internal state
 		private final int m_choffs;              // channel offset
 		private final int m_address_shift;       // address bits shift-left
+		@Element(sequence = 0)
 		private boolean m_playing;                   // currently playing?
+		@Element(sequence = 1)
 		private int m_curnibble;                 // index of the current nibble
+		@Element(sequence = 2)
 		private int m_curbyte;                   // current byte of data
+		@Element(sequence = 3)
 		private int m_curaddress;                // current address
+		@Element(sequence = 4)
 		private int m_accumulator;                // accumulator
+		@Element(sequence = 5)
 		private int m_step_index;                 // index in the stepping table
 		private adpcm_a_registers m_regs;            // reference to registers
 		private adpcm_a_engine m_owner;              // reference to our owner
@@ -352,13 +373,15 @@ class adpcm {
 	//*********************************************************
 	// ADPCM "A" ENGINE
 	//*********************************************************
-	static class adpcm_a_engine<NumOutputs> {
+	static class adpcm_a_engine {
+
+		static int NumOutput;
 
 		public static final int CHANNELS = adpcm_a_registers.CHANNELS;
 
-		//-------------------------------------------------
-		//  adpcm_a_engine - constructor
-		//-------------------------------------------------
+		/**
+		 * adpcm_a_engine - constructor
+		 */
 		public adpcm_a_engine(ymfm_interface intf, int addrshift) {
 			m_intf = intf;
 
@@ -367,9 +390,9 @@ class adpcm {
 				m_channel[chnum] = new adpcm_a_channel(this, chnum, addrshift);
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the engine state
-		//-------------------------------------------------
+		/**
+		 * reset - reset the engine state
+		 */
 		public void reset() {
 			// reset register state
 			m_regs.reset();
@@ -379,21 +402,33 @@ class adpcm {
 				chan.reset();
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
 			// save register state
-			m_regs.save_restore(state);
+			m_regs.save(os);
 
 			// save channel state
 			for (int chnum = 0; chnum < CHANNELS; chnum++)
-				m_channel[chnum].save_restore(state);
+				m_channel[chnum].save(os);
 		}
 
-		//-------------------------------------------------
-		//  clock - master clocking function
-		//-------------------------------------------------
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			// save register state
+			m_regs.restore(is);
+
+			// save channel state
+			for (int chnum = 0; chnum < CHANNELS; chnum++)
+				m_channel[chnum].restore(is);
+		}
+
+		/**
+		 * clock - master clocking function
+		 */
 		public int clock(int chanmask) {
 			// clock each channel, setting a bit in result if it finished
 			int result = 0;
@@ -406,9 +441,9 @@ class adpcm {
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  update - master update function
-		//-------------------------------------------------
+		/**
+		 * update - master update function
+		 */
 		//	template<int NumOutputs>
 		public void output(ymfm_output output, int chanmask) {
 			// mask out some channels for debug purposes
@@ -423,9 +458,9 @@ class adpcm {
 //	template void adpcm_a_engine.output<1>(ymfm_output<1> output, int chanmask);
 //	template void adpcm_a_engine.output<2>(ymfm_output<2> output, int chanmask);
 
-		//-------------------------------------------------
-		//  write - handle writes to the ADPCM-A registers
-		//-------------------------------------------------
+		/**
+		 * write - handle writes to the ADPCM-A registers
+		 */
 		public void write(int regnum, byte data) {
 			// store the raw value to the register array;
 			// most writes are passive, consumed only when needed
@@ -501,7 +536,8 @@ class adpcm {
 	//           0f xx------ DAC data low [Y8950]
 	//           10 -----xxx DAC data exponent [Y8950]
 	//
-	static abstract class adpcm_b_registers {
+	@Serdes
+	static class adpcm_b_registers {
 
 		// constants
 		public static final int REGISTERS = 0x11;
@@ -510,9 +546,9 @@ class adpcm {
 		public adpcm_b_registers() {
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the register state
-		//-------------------------------------------------
+		/**
+		 * reset - reset the register state
+		 */
 		public void reset() {
 			Arrays.fill(m_regdata, 0, REGISTERS, 0);
 
@@ -520,15 +556,22 @@ class adpcm {
 			m_regdata[0x0c] = m_regdata[0x0d] = 0xff;
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			state.save_restore(m_regdata);
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
+		}
+
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
 		}
 
 		// direct read/write access
-		public void write(int index, byte data) {
+		public void write(int index, int data) {
 			m_regdata[index] = data;
 		}
 
@@ -618,6 +661,7 @@ class adpcm {
 		}
 
 		// internal state
+		@Element
 		private int[] m_regdata = new int[REGISTERS];         // register data
 	}
 
@@ -635,9 +679,9 @@ class adpcm {
 		public static final byte STATUS_BRDY = 0x02;
 		public static final byte STATUS_PLAYING = 0x04;
 
-		//-------------------------------------------------
-		//  adpcm_b_channel - constructor
-		//-------------------------------------------------
+		/**
+		 * adpcm_b_channel - constructor
+		 */
 		public adpcm_b_channel(adpcm_b_engine owner, int addrshift) {
 			m_address_shift = addrshift;
 			m_status = STATUS_BRDY;
@@ -653,9 +697,9 @@ class adpcm {
 			m_owner = owner;
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the channel state
-		//-------------------------------------------------
+		/**
+		 * reset - reset the channel state
+		 */
 		public void reset() {
 			m_status = STATUS_BRDY;
 			m_curnibble = 0;
@@ -668,19 +712,18 @@ class adpcm {
 			m_adpcm_step = STEP_MIN;
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			state.save_restore(m_status);
-			state.save_restore(m_curnibble);
-			state.save_restore(m_curbyte);
-			state.save_restore(m_dummy_read);
-			state.save_restore(m_position);
-			state.save_restore(m_curaddress);
-			state.save_restore(m_accumulator);
-			state.save_restore(m_prev_accum);
-			state.save_restore(m_adpcm_step);
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
+		}
+
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
 		}
 
 		// signal key on/off
@@ -688,9 +731,9 @@ class adpcm {
 
 		static final int[] s_step_scale = {57, 57, 57, 57, 77, 102, 128, 153};
 
-		//-------------------------------------------------
-		//  clock - master clocking function
-		//-------------------------------------------------
+		/**
+		 * clock - master clocking function
+		 */
 		public void clock() {
 			// only process if active and not recording (which we don't support)
 			if (m_regs.execute() == 0 || m_regs.record() != 0 || (m_status & STATUS_PLAYING) == 0) {
@@ -768,10 +811,10 @@ class adpcm {
 			m_adpcm_step = clamp((m_adpcm_step * s_step_scale[bitfield(data, 0, 3)]) / 64, STEP_MIN, STEP_MAX);
 		}
 
-		//-------------------------------------------------
-		//  output - return the computed output value, with
-		//  panning applied
-		//-------------------------------------------------
+		/**
+		 * output - return the computed output value, with
+		 * panning applied
+		 */
 		//template<int NumOutputs>
 		public final void output(ymfm_output output, int rshift) {
 			// mask out some channels for debug purposes
@@ -796,9 +839,9 @@ class adpcm {
 			return m_status;
 		}
 
-		//-------------------------------------------------
-		//  read - handle special register reads
-		//-------------------------------------------------
+		/**
+		 * read - handle special register reads
+		 */
 		public int read(int regnum) {
 			int result = 0;
 
@@ -832,10 +875,10 @@ class adpcm {
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  write - handle special register writes
-		//-------------------------------------------------
-		public void write(int regnum, byte value) {
+		/**
+		 * write - handle special register writes
+		 */
+		public void write(int regnum, int value) {
 			// register 0 can do a reset; also use writes here to reset the
 			// dummy read counter
 			if (regnum == 0x00) {
@@ -897,10 +940,10 @@ class adpcm {
 			}
 		}
 
-		//-------------------------------------------------
-		//  address_shift - compute the current address
-		//  shift amount based on register settings
-		//-------------------------------------------------
+		/**
+		 * address_shift - compute the current address
+		 * shift amount based on register settings
+		 */
 		private final int address_shift() {
 			// if a constant address shift, just provide that
 			if (m_address_shift != 0)
@@ -916,10 +959,10 @@ class adpcm {
 			return 2;
 		}
 
-		//-------------------------------------------------
-		//  load_start - load the start address and
-		//  initialize the state
-		//-------------------------------------------------
+		/**
+		 * load_start - load the start address and
+		 * initialize the state
+		 */
 		private void load_start() {
 			m_status = (m_status & ~STATUS_EOS) | STATUS_PLAYING;
 			m_curaddress = m_regs.external() != 0 ? (m_regs.start() << address_shift()) : 0;
@@ -943,14 +986,23 @@ class adpcm {
 
 		// internal state
 		private final int m_address_shift; // address bits shift-left
+		@Element(sequence = 0)
 		private int m_status;              // currently playing?
+		@Element(sequence = 1)
 		private int m_curnibble;           // index of the current nibble
+		@Element(sequence = 2)
 		private int m_curbyte;             // current byte of data
+		@Element(sequence = 3)
 		private int m_dummy_read;          // dummy read tracker
+		@Element(sequence = 4)
 		private int m_position;            // current fractional position
+		@Element(sequence = 5)
 		private int m_curaddress;          // current address
+		@Element(sequence = 6)
 		private int m_accumulator;          // accumulator
+		@Element(sequence = 7)
 		private int m_prev_accum;           // previous accumulator (for linear interp)
+		@Element(sequence = 8)
 		private int m_adpcm_step;           // next forecast
 		private adpcm_b_registers m_regs;      // reference to registers
 		private adpcm_b_engine m_owner;        // reference to our owner
@@ -961,11 +1013,13 @@ class adpcm {
 	//*********************************************************
 	// ADPCM "B" ENGINE
 	//*********************************************************
-	static class adpcm_b_engine<NumOutputs> {
+	static class adpcm_b_engine {
 
-		//-------------------------------------------------
-		//  adpcm_b_engine - constructor
-		//-------------------------------------------------
+		static int NumOutputs;
+
+		/**
+		 * adpcm_b_engine - constructor
+		 */
 		public adpcm_b_engine(ymfm_interface intf, int addrshift /* = 0 */) {
 			m_intf = intf;
 
@@ -973,9 +1027,9 @@ class adpcm {
 			m_channel = new adpcm_b_channel(this, addrshift);
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the engine state
-		//-------------------------------------------------
+		/**
+		 * reset - reset the engine state
+		 */
 		public void reset() {
 			// reset registers
 			m_regs.reset();
@@ -984,28 +1038,39 @@ class adpcm {
 			m_channel.reset();
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
 			// save our state
-			m_regs.save_restore(state);
+			m_regs.save(os);
 
 			// save channel state
-			m_channel.save_restore(state);
+			m_channel.save(os);
 		}
 
-		//-------------------------------------------------
-		//  clock - master clocking function
-		//-------------------------------------------------
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			// save our state
+			m_regs.restore(is);
+
+			// save channel state
+			m_channel.restore(is);
+		}
+
+		/**
+		 * clock - master clocking function
+		 */
 		public void clock() {
 			// clock each channel, setting a bit in result if it finished
 			m_channel.clock();
 		}
 
-		//-------------------------------------------------
-		//  output - master output function
-		//-------------------------------------------------
+		/**
+		 * output - master output function
+		 */
 		//	template<int NumOutputs>
 		public void output(ymfm_output output, int rshift) {
 			// compute the output of each channel
@@ -1020,10 +1085,10 @@ class adpcm {
 			return m_channel.read(regnum);
 		}
 
-		//-------------------------------------------------
-		//  write - handle writes to the ADPCM-B registers
-		//-------------------------------------------------
-		public void write(int regnum, byte data) {
+		/**
+		 * write - handle writes to the ADPCM-B registers
+		 */
+		public void write(int regnum, int data) {
 			// store the raw value to the register array;
 			// most writes are passive, consumed only when needed
 			m_regs.write(regnum, data);
@@ -1034,7 +1099,7 @@ class adpcm {
 
 		// status
 		public final int status() {
-			return m_channel.status();
+			return m_channel.m_owner.status();
 		}
 
 		// return a reference to our interface

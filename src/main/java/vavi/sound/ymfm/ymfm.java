@@ -67,11 +67,11 @@ class ymfm {
 	//  GLOBAL HELPERS
 	//*********************************************************
 
-	//-------------------------------------------------
-	//  bitfield - extract a bitfield from the given
-	//  value, starting at bit 'start' for a length of
-	//  'length' bits
-	//-------------------------------------------------
+	/**
+	 * bitfield - extract a bitfield from the given
+	 * value, starting at bit 'start' for a length of
+	 * 'length' bits
+	 */
 	static int bitfield(int value, int start, int length /* = 1 */) {
 		return (value >> start) & ((1 << length) - 1);
 	}
@@ -80,10 +80,10 @@ class ymfm {
 		return bitfield(value, start, 1);
 	}
 
-	//-------------------------------------------------
-	//  clamp - clamp between the minimum and maximum
-	//  values provided
-	//-------------------------------------------------
+	/**
+	 * clamp - clamp between the minimum and maximum
+	 * values provided
+	 */
 	static int clamp(int value, int minval, int maxval) {
 		if (value < minval)
 			return minval;
@@ -92,12 +92,12 @@ class ymfm {
 		return value;
 	}
 
-	//-------------------------------------------------
-	//  count_leading_zeros - return the number of
-	//  leading zeros in a 32-bit value; CPU-optimized
-	//  versions for various architectures are included
-	//  below
-	//-------------------------------------------------
+	/**
+	 * count_leading_zeros - return the number of
+	 * leading zeros in a 32-bit value; CPU-optimized
+	 * versions for various architectures are included
+	 * below
+	 */
 	static int count_leading_zeros(int value) {
 		if (value == 0)
 			return 32;
@@ -127,11 +127,11 @@ class ymfm {
 	// 0 10xxxxxxxx-----  ->  1 10xxxxxxxx-----  ->  110   0  0xxxxxxx
 	// 0 0xxxxxxxx------  ->  1 0xxxxxxxx------  ->  111   0  0xxxxxxx
 
-	//-------------------------------------------------
-	//  encode_fp - given a 32-bit signed input value
-	//  convert it to a signed 3.10 floating-point
-	//  value
-	//-------------------------------------------------
+	/**
+	 * encode_fp - given a 32-bit signed input value
+	 * convert it to a signed 3.10 floating-point
+	 * value
+	 */
 	static int encode_fp(int value) {
 		// handle overflows first
 		if (value < -32768)
@@ -156,10 +156,10 @@ class ymfm {
 		return ((exponent << 10) | (mantissa & 0x3ff)) ^ 0x200;
 	}
 
-	//-------------------------------------------------
-	//  decode_fp - given a 3.10 floating-point value,
-	//  convert it to a signed 16-bit value
-	//-------------------------------------------------
+	/**
+	 * decode_fp - given a 3.10 floating-point value,
+	 * convert it to a signed 16-bit value
+	 */
 	static int decode_fp(int value) {
 		// invert the sign and the exponent
 		value ^= 0x1e00;
@@ -168,10 +168,10 @@ class ymfm {
 		return (int) ((value << 6) >> bitfield(value, 10, 3));
 	}
 
-	//-------------------------------------------------
-	//  roundtrip_fp - compute the result of a round
-	//  trip through the encode/decode process above
-	//-------------------------------------------------
+	/**
+	 * roundtrip_fp - compute the result of a round
+	 * trip through the encode/decode process above
+	 */
 	static int roundtrip_fp(int value) {
 		// handle overflows first
 		if (value < -32768)
@@ -196,7 +196,7 @@ class ymfm {
 	}
 
 	//*********************************************************
-	//  HELPER CLASSES
+	// HELPER CLASSES
 	//*********************************************************
 
 	// various envelope states
@@ -226,39 +226,58 @@ class ymfm {
 	// ======================> ymfm_output
 
 	// struct containing an array of output values
-	static abstract class ymfm_output {
+	static class ymfm_output {
 
-		abstract int getNumOutputs();
+		private final int numOutputs;
+		private int pos = 0;
+
+		ymfm_output(int numOutputs) {
+			this.numOutputs = numOutputs;
+
+			data = new int[numOutputs];
+		}
+
+		public int getNumOutputs() {
+			return numOutputs;
+		}
 
 		// clear all outputs to 0
 		ymfm_output clear() {
-			for (int index = 0; index < getNumOutputs(); index++)
+			for (int index = 0; index < numOutputs; index++)
 				data[index] = 0;
 			return this;
 		}
 
 		// clamp all outputs to a 16-bit signed value
 		ymfm_output clamp16() {
-			for (int index = 0; index < getNumOutputs(); index++)
+			for (int index = 0; index < numOutputs; index++)
 				data[index] = clamp(data[index], -32768, 32767);
 			return this;
 		}
 
 		// run each output value through the floating-point processor
 		ymfm_output roundtrip_fp() {
-			for (int index = 0; index < getNumOutputs(); index++)
+			for (int index = 0; index < numOutputs; index++)
 				data[index] = ymfm.roundtrip_fp(data[index]);
 			return this;
 		}
 
+		void inc() {
+			pos++;
+		}
+
+		int pos() {
+			return pos;
+		}
+
 		// internal state
-		int[] data = new int[getNumOutputs()];
+		int[] data;
 	}
 
 	// ======================> ymfm_wavfile
 
 	// this class is a debugging helper that accumulates data and writes it to wav files
-	static abstract class ymfm_wavfile implements AutoCloseable {
+	abstract static class ymfm_wavfile implements AutoCloseable {
 
 		protected abstract int getChannels();
 
@@ -333,102 +352,6 @@ class ymfm {
 		List<Integer> m_buffer;
 	}
 
-    // ======================> ymfm_saved_state
-
-	// this class contains a managed vector of bytes that is used to save and
-	// restore state
-	static class ymfm_saved_state {
-
-		// construction
-		public ymfm_saved_state(List<Byte> buffer, boolean saving) {
-			m_buffer = buffer;
-			m_offset = saving ? -1 : 0;
-
-			if (saving)
-				buffer.clear();
-		}
-
-		// are we saving or restoring?
-		public final boolean saving() {
-			return (m_offset < 0);
-		}
-
-		// generic save/restore
-		//template<typename DataType>
-		public <DataType> void save_restore(DataType data) {
-			if (saving())
-				save(data);
-			else
-				restore(data);
-		}
-
-		// save data to the buffer
-		public void save(boolean data) {
-			write((byte) (data ? 1 : 0));
-		}
-
-		public void save(byte data) {
-			write(data);
-		}
-
-		public void save(short data) {
-			write(data).write(data >> 8);
-		}
-
-		public void save(int data) {
-			write(data).write(data >> 8).write(data >> 16).write(data >> 24);
-		}
-
-		public void save(envelope_state data) {
-			write(data.ordinal());
-		}
-
-		//template<typename DataType, int Count>
-		public <DataType extends ymfm_output> void save(DataType data) {
-			for (int index = 0; index < data.getNumOutputs(); index++) save(data.data[index]);
-		}
-
-		// restore data from the buffer
-		public boolean restoreBoolean() {
-			return read() != 0;
-		}
-
-		public byte restoreByte() {
-			return read();
-		}
-
-		public short restoreShort() {
-			return (short) (read() | read() << 8);
-		}
-
-		public int restoreInt() {
-			return read() | (read() << 8) | (read() << 16) | (read() << 24);
-		}
-
-		public envelope_state restore_envelope_state() {
-			return envelope_state.values()[read()];
-		}
-
-		//template<typename DataType, int Count>
-		public <DataType extends ymfm_output> void restore(DataType data) {
-			for (int index = 0; index < data.getNumOutputs(); index++) data.data[index] = restoreInt();
-		}
-
-		// internal helper
-		public ymfm_saved_state write(int data) {
-			m_buffer.add((byte) data);
-			return this;
-		}
-
-		public byte read() {
-			return (m_offset < m_buffer.size()) ? m_buffer.get(m_offset++) : 0;
-		}
-
-		// internal state
-		public List<Byte> m_buffer;
-		public int m_offset;
-	}
-
 	//*********************************************************
 	//  INTERFACE CLASSES
 	//*********************************************************
@@ -457,6 +380,7 @@ class ymfm {
 	abstract static class ymfm_interface {
 		// the engine is our friend
 //		template<typename RegisterType> friend class fm_engine_base;
+		fm_engine_base fm_engine_base;
 
 		// the following functions must be implemented by any derived classes; the
 		// default implementations are sufficient for some minimal operation, but will
@@ -556,13 +480,13 @@ class ymfm {
 		0x002, 0x001, 0x001, 0x001, 0x001, 0x001, 0x001, 0x001, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000
 	};
 
-	//-------------------------------------------------
-	//  abs_sin_attenuation - given a sin (phase) input
-	//  where the range 0-2*PI is mapped onto 10 bits,
-	//  return the absolute value of sin(input),
-	//  logarithmically-adjusted and treated as an
-	//  attenuation value, in 4.8 fixed point format
-	//-------------------------------------------------
+	/**
+	 * abs_sin_attenuation - given a sin (phase) input
+	 * where the range 0-2*PI is mapped onto 10 bits,
+	 * return the absolute value of sin(input),
+	 * logarithmically-adjusted and treated as an
+	 * attenuation value, in 4.8 fixed point format
+	 */
 	static int abs_sin_attenuation(int input) {
 		// if the top bit is set, we're in the second half of the curve
 		// which is a mirror image, so invert the index
@@ -615,11 +539,11 @@ class ymfm {
 		X(0x014), X(0x011), X(0x00e), X(0x00b), X(0x008), X(0x006), X(0x003), X(0x000)
 	};
 
-	//-------------------------------------------------
-	//  attenuation_to_volume - given a 5.8 fixed point
-	//  logarithmic attenuation value, return a 13-bit
-	//  linear volume
-	//-------------------------------------------------
+	/**
+	 * attenuation_to_volume - given a 5.8 fixed point
+	 * logarithmic attenuation value, return a 13-bit
+	 * linear volume
+	 */
 	static int attenuation_to_volume(int input) {
 		// the values here are 10-bit mantissas with an implied leading bit
 		// this matches the internal format of the OPN chip, extracted from the die
@@ -648,13 +572,13 @@ class ymfm {
 		0x88888888, 0x88888888, 0x88888888, 0x88888888   // 60-63  (0x3C-0x3F)
 	};
 
-	//-------------------------------------------------
-	//  attenuation_increment - given a 6-bit ADSR
-	//  rate value and a 3-bit stepping index,
-	//  return a 4-bit increment to the attenutaion
-	//  for this step (or for the attack case, the
-	//  fractional scale factor to decrease by)
-	//-------------------------------------------------
+	/**
+	 * attenuation_increment - given a 6-bit ADSR
+	 * rate value and a 3-bit stepping index,
+	 * return a 4-bit increment to the attenutaion
+	 * for this step (or for the attack case, the
+	 * fractional scale factor to decrease by)
+	 */
 	static int attenuation_increment(int rate, int index) {
 		return bitfield(s_increment_table[rate], 4 * index, 4);
 	}
@@ -670,14 +594,14 @@ class ymfm {
 		{0, 8, 16, 22}, {0, 8, 16, 22}, {0, 8, 16, 22}, {0, 8, 16, 22}
 	};
 
-	//-------------------------------------------------
-	//  detune_adjustment - given a 5-bit key code
-	//  value and a 3-bit detune parameter, return a
-	//  6-bit signed phase displacement; this table
-	//  has been verified against Nuked's equations,
-	//  but the equations are rather complicated, so
-	//  we'll keep the simplicity of the table
-	//-------------------------------------------------
+	/**
+	 * detune_adjustment - given a 5-bit key code
+	 * value and a 3-bit detune parameter, return a
+	 * 6-bit signed phase displacement; this table
+	 * has been verified against Nuked's equations,
+	 * but the equations are rather complicated, so
+	 * we'll keep the simplicity of the table
+	 */
 	static int detune_adjustment(int detune, int keycode) {
 		int result = s_detune_adjustment[keycode][detune & 3];
 		return bitfield(detune, 2) != 0 ? -result : result;
@@ -734,14 +658,14 @@ class ymfm {
 		81952, 82016, 82080, 82144, 82176, 82272, 82304, 82400, 82464, 82528, 82592, 82656, 82752, 82848, 82880, 82976
 	};
 
-	//-------------------------------------------------
-	//  opm_key_code_to_phase_step - converts an
-	//  OPM concatenated block (3 bits), keycode
-	//  (4 bits) and key fraction (6 bits) to a 0.10
-	//  phase step, after applying the given delta;
-	//  this applies to OPM and OPZ, so it lives here
-	//  in a central location
-	//-------------------------------------------------
+	/**
+	 * opm_key_code_to_phase_step - converts an
+	 * OPM concatenated block (3 bits), keycode
+	 * (4 bits) and key fraction (6 bits) to a 0.10
+	 * phase step, after applying the given delta;
+	 * this applies to OPM and OPZ, so it lives here
+	 * in a central location
+	 */
 	static int opm_key_code_to_phase_step(int block_freq, int delta) {
 		// The phase step is essentially the fnum in OPN-speak. To compute this table,
 		// we used the standard formula for computing the frequency of a note, and
@@ -817,13 +741,13 @@ class ymfm {
 		{0x77, 0x77, 0x17, 0x12, 0x07, 0x07, 0x02, 0x01}
 	};
 
-	//-------------------------------------------------
-	//  opn_lfo_pm_phase_adjustment - given the 7 most
-	//  significant frequency number bits, plus a 3-bit
-	//  PM depth value and a signed 5-bit raw PM value,
-	//  return a signed PM adjustment to the frequency;
-	//  algorithm written to match Nuked behavior
-	//-------------------------------------------------
+	/**
+	 * opn_lfo_pm_phase_adjustment - given the 7 most
+	 * significant frequency number bits, plus a 3-bit
+	 * PM depth value and a signed 5-bit raw PM value,
+	 * return a signed PM adjustment to the frequency;
+	 * algorithm written to match Nuked behavior
+	 */
 	static int opn_lfo_pm_phase_adjustment(int fnum_bits, int pm_sensitivity, int lfo_raw_pm) {
 		// this table encodes 2 shift values to apply to the top 7 bits
 		// of fnum; it is effectively a cheap multiply by a constant

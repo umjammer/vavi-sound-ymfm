@@ -30,37 +30,42 @@
 
 package vavi.sound.ymfm;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+
 import vavi.sound.ymfm.ssg.ssg_engine;
 import vavi.sound.ymfm.ssg.ssg_override;
 import vavi.sound.ymfm.ymfm.ymfm_interface;
 import vavi.sound.ymfm.ymfm.ymfm_output;
-import vavi.sound.ymfm.ymfm.ymfm_saved_state;
+import vavi.util.serdes.Element;
+import vavi.util.serdes.Serdes;
 
 
-class misc {
+public class misc {
 
 	//*********************************************************
-	//  SSG IMPLEMENTATION CLASSES
+	// SSG IMPLEMENTATION CLASSES
 	//*********************************************************
 
 	// ======================> ym2149
 
 	//*********************************************************
-	//  YM2149
+	// YM2149
 	//*********************************************************
 	// ym2149 is just an SSG with no FM part, but we expose FM-like parts so that it
 	// integrates smoothly with everything else; they just don't do anything
+	@Serdes
 	static class ym2149 {
 
 		public static final int OUTPUTS = ssg_engine.OUTPUTS;
 		public static final int SSG_OUTPUTS = ssg_engine.OUTPUTS;
 
 		//	using output_data = ymfm_output < OUTPUTS >;
-		private static class output_data extends ymfm_output { @Override int getNumOutputs() { return ssg_engine.OUTPUTS; }}
 
-		//-------------------------------------------------
-		//  ym2149 - constructor
-		//-------------------------------------------------
+		/**
+		 * ym2149 - constructor
+		 */
 		public ym2149(ymfm_interface intf) {
 			m_address = 0;
 			m_ssg = (ssg_engine) intf;
@@ -71,20 +76,28 @@ class misc {
 			m_ssg.override(intf);
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the system
-		//-------------------------------------------------
+		/**
+		 * reset - reset the system
+		 */
 		public void reset() {
 			// reset the engines
 			m_ssg.reset();
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			state.save_restore(m_address);
-			m_ssg.save_restore(state);
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
+			m_ssg.save(os);
+		}
+
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
+			m_ssg.restore(is);
 		}
 
 		// pass-through helpers
@@ -92,16 +105,16 @@ class misc {
 			return input_clock / ssg_engine.CLOCK_DIVIDER / 8;
 		}
 
-		//-------------------------------------------------
-		//  read_data - read the data register
-		//-------------------------------------------------
+		/**
+		 * read_data - read the data register
+		 */
 		public int read_data() {
 			return m_ssg.read(m_address & 0x0f);
 		}
 
-		//-------------------------------------------------
-		//  read - handle a read from the device
-		//-------------------------------------------------
+		/**
+		 * read - handle a read from the device
+		 */
 		public int read(int offset) {
 			int result = (byte) 0xff;
 			switch (offset & 3) { // BC2,BC1
@@ -118,27 +131,27 @@ class misc {
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  write_address - handle a write to the address
-		//  register
-		//-------------------------------------------------
-		public void write_address(byte data) {
+		/**
+		 * write_address - handle a write to the address
+		 * register
+		 */
+		public void write_address(int data) {
 			// just set the address
 			m_address = data;
 		}
 
-		//-------------------------------------------------
-		//  write - handle a write to the register
-		//  interface
-		//-------------------------------------------------
+		/**
+		 * write - handle a write to the register
+		 * interface
+		 */
 		public void write_data(byte data) {
 			m_ssg.write(m_address & 0x0f, data);
 		}
 
-		//-------------------------------------------------
-		//  write - handle a write to the register
-		//  interface
-		//-------------------------------------------------
+		/**
+		 * write - handle a write to the register
+		 * interface
+		 */
 		public void write(int offset, byte data) {
 			switch (offset & 3) { // BC2,BC1
 				case 0: // address
@@ -155,11 +168,11 @@ class misc {
 			}
 		}
 
-		//-------------------------------------------------
-		//  generate - generate samples of SSG sound
-		//-------------------------------------------------
-		public void generate(output_data output, int numsamples /* = 1 */) {
-			for (int samp = 0; samp < numsamples; samp++, output++) {
+		/**
+		 * generate - generate samples of SSG sound
+		 */
+		public void generate(ymfm_output output, int numsamples /* = 1 */) {
+			for (int samp = 0; samp < numsamples; samp++, output.inc()) {
 				// clock the SSG
 				m_ssg.clock();
 
@@ -169,7 +182,8 @@ class misc {
 		}
 
 		// internal state
-		protected byte m_address;               // address register
+		@Element
+		protected int m_address;               // address register
 		protected ssg_engine m_ssg;                // SSG engine
 	}
 }

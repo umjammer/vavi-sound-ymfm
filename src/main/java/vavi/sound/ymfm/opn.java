@@ -30,21 +30,26 @@
 
 package vavi.sound.ymfm;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.System.Logger.Level;
 import java.util.Arrays;
 import java.util.function.BiConsumer;
 
-import org.openqa.selenium.OutputType;
 import vavi.sound.ymfm.adpcm.adpcm_a_engine;
 import vavi.sound.ymfm.adpcm.adpcm_b_channel;
 import vavi.sound.ymfm.adpcm.adpcm_b_engine;
 import vavi.sound.ymfm.fm.fm_registers_base;
 import vavi.sound.ymfm.fm.opdata_cache;
-import vavi.sound.ymfm.pcm.output_data;
 import vavi.sound.ymfm.ssg.ssg_engine;
 import vavi.sound.ymfm.ssg.ssg_override;
+import vavi.sound.ymfm.ymfm.envelope_state;
 import vavi.sound.ymfm.ymfm.ymfm_interface;
-import vavi.sound.ymfm.ymfm.ymfm_saved_state;
+import vavi.sound.ymfm.ymfm.ymfm_output;
+import vavi.util.serdes.Element;
+import vavi.util.serdes.Serdes;
+import vavi.util.win32.WAVE.data;
 
 import static vavi.sound.ymfm.opn.opn_fidelity.OPN_FIDELITY_MAX;
 import static vavi.sound.ymfm.ymfm.abs_sin_attenuation;
@@ -127,17 +132,18 @@ class opn {
 	//        BC-BF --xxxxxx Latched frequency number upper bits (from AC-AF)
 	//
 	//template<boolean IsOpnA>
-	static abstract class opn_registers_base extends fm_registers_base {
+	@Serdes
+	abstract static class opn_registers_base extends fm_registers_base {
 
-		abstract boolean isOpnA();
+		protected final boolean IsOpnA;
 
 		// constants
-		public final int OUTPUTS = isOpnA() ? 2 : 1;
-		public final int CHANNELS = isOpnA() ? 6 : 3;
-		public final int ALL_CHANNELS = (1 << CHANNELS) - 1;
-		public final int OPERATORS = CHANNELS * 4;
+		public final int OUTPUTS;
+		public final int CHANNELS;
+		public final int ALL_CHANNELS;
+		public final int OPERATORS;
 		public static final int WAVEFORMS = 1;
-		public final int REGISTERS = isOpnA() ? 0x200 : 0x100;
+		public final int REGISTERS;
 		public static final int REG_MODE = 0x27;
 		public static final int DEFAULT_PRESCALE = 6;
 		public static final int EG_CLOCK_DIVIDER = 3;
@@ -149,90 +155,104 @@ class opn {
 		public static final int STATUS_BUSY = 0x80;
 		public static final int STATUS_IRQ = 0;
 
-		//-------------------------------------------------
-		//  opn_registers_base - constructor
-		//-------------------------------------------------
-		public opn_registers_base() {
+		/**
+		 * opn_registers_base - constructor
+		 */
+		protected opn_registers_base(boolean IsOpnA) {
+			this.IsOpnA = IsOpnA;
+
 			m_lfo_counter = 0;
 			m_lfo_am = 0;
+
+			OUTPUTS = IsOpnA ? 2 : 1;
+			CHANNELS = IsOpnA ? 6 : 3;
+			ALL_CHANNELS = (1 << CHANNELS) - 1;
+			OPERATORS = CHANNELS * 4;
+			REGISTERS = IsOpnA ? 0x200 : 0x100;
+
+			getParams().put("OUTPUTS", OUTPUTS);
+			getParams().put("CHANNELS", CHANNELS);
+			getParams().put("ALL_CHANNELS", ALL_CHANNELS);
+			getParams().put("OPERATORS", OPERATORS);
+			getParams().put("WAVEFORMS", WAVEFORMS);
+			getParams().put("REGISTERS", REGISTERS);
+			getParams().put("REG_MODE", REG_MODE);
+			getParams().put("DEFAULT_PRESCALE", DEFAULT_PRESCALE);
+			getParams().put("EG_CLOCK_DIVIDER", EG_CLOCK_DIVIDER);
+			getParams().put("EG_HAS_SSG", EG_HAS_SSG);
+			getParams().put("MODULATOR_DELAY", MODULATOR_DELAY);
+			getParams().put("CSM_TRIGGER_MASK", CSM_TRIGGER_MASK);
+			getParams().put("STATUS_TIMERA", STATUS_TIMERA);
+			getParams().put("STATUS_TIMERB", STATUS_TIMERB);
+			getParams().put("STATUS_BUSY", STATUS_BUSY);
+			getParams().put("STATUS_IRQ", STATUS_IRQ);
+
+			m_regdata = new int[REGISTERS];
 
 			// create the waveforms
 			for (int index = 0; index < WAVEFORM_LENGTH; index++)
 				m_waveform[0][index] = abs_sin_attenuation(index) | (bitfield(index, 9) << 15);
 		}
 
-		//-------------------------------------------------
-		//  reset - reset to initial state
-		//-------------------------------------------------
+		/**
+		 * reset - reset to initial state
+		 */
+		@Override
 		public void reset() {
 			Arrays.fill(m_regdata, 0, REGISTERS, 0);
-			if (isOpnA()) {
+			if (IsOpnA) {
 				// enable output on both channels by default
 				m_regdata[0xb4] = m_regdata[0xb5] = m_regdata[0xb6] = 0xc0;
 				m_regdata[0x1b4] = m_regdata[0x1b5] = m_regdata[0x1b6] = 0xc0;
 			}
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			if (isOpnA()) {
-				state.save_restore(m_lfo_counter);
-				state.save_restore(m_lfo_am);
-			}
-			state.save_restore(m_regdata);
+		/**
+		 * save_restore - save or restore the data
+		 */
+		@Override
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
+		}
+
+		/**
+		 * save_restore - save or restore the data
+		 */
+		@Override
+		public void restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
 		}
 
 		// map channel number to register offset
-		final int channel_offset(int chnum) {
+		@Override
+		public final int channel_offset(int chnum) {
 			assert (chnum < CHANNELS);
-			if (!isOpnA())
+			if (!IsOpnA)
 				return chnum;
 			else
 				return (chnum % 3) + 0x100 * (chnum / 3);
 		}
 
 		// map operator number to register offset
-		final int operator_offset(int opnum) {
+		@Override
+		public final int operator_offset(int opnum) {
 			assert (opnum < OPERATORS);
-			if (!isOpnA())
+			if (!IsOpnA)
 				return opnum + opnum / 3;
 			else
 				return (opnum % 12) + ((opnum % 12) / 3) + 0x100 * (opnum / 12);
 		}
 
 		// return an array of operator indices for each channel
-		class operator_mapping {
+		static int[] s_fixed_map;
 
-			int[] chan = new int[CHANNELS];
-		}
-
-		final operator_mapping s_fixed_map = new operator_mapping() {{
-			chan = new int[] {
-				operator_list(0, 6, 3, 9),  // Channel 0 operators
-				operator_list(1, 7, 4, 10),  // Channel 1 operators
-				operator_list(2, 8, 5, 11),  // Channel 2 operators
-			};
-		}};
-
-		final operator_mapping s_fixed_map_false = new operator_mapping() {{
-			chan = new int[] {
-				operator_list(0, 6, 3, 9),  // Channel 0 operators
-				operator_list(1, 7, 4, 10),  // Channel 1 operators
-				operator_list(2, 8, 5, 11),  // Channel 2 operators
-				operator_list(12, 18, 15, 21),  // Channel 3 operators
-				operator_list(13, 19, 16, 22),  // Channel 4 operators
-				operator_list(14, 20, 17, 23),  // Channel 5 operators
-			};
-		}};
-
-		//-------------------------------------------------
-		//  operator_map - return an array of operator
-		//  indices for each channel; for OPN this is fixed
-		//-------------------------------------------------
+		/**
+		 * operator_map - return an array of operator
+		 * indices for each channel; for OPN this is fixed
+		 */
 		//	template<>opn_registers_base<true>.
-		final void operator_map(operator_mapping dest) {
+		@Override
+		public final void operator_map(int[][] dest) {
 			// Note that the channel index order is 0,2,1,3, so we bitswap the index.
 			//
 			// This is because the order in the map is:
@@ -240,30 +260,20 @@ class opn {
 			//
 			// But when wiring up the connections, the more natural order is:
 			//    carrier 1, modulator 1, carrier 2, modulator 2
-			dest = s_fixed_map;
-		}
-
-		//  opn_registers_base<false>.
-		final void operator_map_false(operator_mapping dest) {
-			// Note that the channel index order is 0,2,1,3, so we bitswap the index.
-			//
-			// This is because the order in the map is:
-			//    carrier 1, carrier 2, modulator 1, modulator 2
-			//
-			// But when wiring up the connections, the more natural order is:
-			//    carrier 1, modulator 1, carrier 2, modulator 2
-			dest = s_fixed_map;
+			dest[0] = s_fixed_map;
 		}
 
 		// read a register value
-		final int read(int index) {
-			return m_regdata[index];
+		@Override
+		public final int read(int address) {
+			return m_regdata[address];
 		}
 
-		//-------------------------------------------------
-		//  write - handle writes to the register array
-		//-------------------------------------------------
-		public boolean write(int index, byte data, int[] channel, int[] opmask) {
+		/**
+		 * write - handle writes to the register array
+		 */
+		@Override
+		public boolean write(int index, int data, int[] channel, int[] opmask) {
 			assert (index < REGISTERS);
 
 			// writes in the 0xa0-af/0x1a0-af region are handled as latched pairs
@@ -273,7 +283,7 @@ class opn {
 					return false;
 
 				int latchindex = 0xb8 | bitfield(index, 3);
-				if (isOpnA())
+				if (IsOpnA)
 					latchindex |= index & 0x100;
 
 				// writes to the upper half just latch (only low 6 bits matter)
@@ -300,7 +310,7 @@ class opn {
 				channel[0] = bitfield(data, 0, 2);
 				if (channel[0] == 3)
 					return false;
-				if (isOpnA())
+				if (IsOpnA)
 					channel[0] += bitfield(data, 2, 1) * 3;
 				opmask[0] = bitfield(data, 4, 4);
 				return true;
@@ -308,23 +318,24 @@ class opn {
 			return false;
 		}
 
-		//-------------------------------------------------
-		//  clock_noise_and_lfo - clock the noise and LFO,
-		//  handling clock division, depth, and waveform
-		//  computations
-		//-------------------------------------------------
+		/**
+		 * clock_noise_and_lfo - clock the noise and LFO,
+		 * handling clock division, depth, and waveform
+		 * computations
+		 */
+		@Override
 		public int clock_noise_and_lfo() {
 			// OPN has no noise generation
 
 			// if LFO not enabled (not present on OPN), quick exit with 0s
-			if (!isOpnA() || lfo_enable() == 0) {
+			if (!IsOpnA || lfo_enable() == 0) {
 				m_lfo_counter = 0;
 
 				// special case: if LFO is disabled on OPNA, it basically just keeps the counter
 				// at 0; since position 0 gives an AM value of 0x3f, it is important to reflect
 				// that here; for example, MegaDrive Venom plays some notes with LFO globally
 				// disabled but enabling LFO on the operators, and it expects this added attenutation
-				m_lfo_am = isOpnA() ? 0x3f : 0x00;
+				m_lfo_am = IsOpnA ? 0x3f : 0x00;
 				return 0;
 			}
 
@@ -332,7 +343,7 @@ class opn {
 			// manual to clock dividers, based on the assumption of a 7-bit LFO value
 			/*static final*/
 			int[] lfo_max_count = {109, 78, 72, 68, 63, 45, 9, 6};
-			int subcount = byte_(m_lfo_counter++);
+			int subcount = m_lfo_counter++;
 
 			// when we cross the divider count, add enough to zero it and cause an
 			// increment at bit 8; the 7-bit value lives from bits 8-14
@@ -366,10 +377,11 @@ class opn {
 			m_lfo_counter = 0;
 		}
 
-		//-------------------------------------------------
-		//  lfo_am_offset - return the AM offset from LFO
-		//  for the given channel
-		//-------------------------------------------------
+		/**
+		 * lfo_am_offset - return the AM offset from LFO
+		 * for the given channel
+		 */
+		@Override
 		public final int lfo_am_offset(int choffs) {
 			// shift value for AM sensitivity is [7, 3, 1, 0],
 			// mapping to values of [0, 1.4, 5.9, and 11.8dB]
@@ -386,14 +398,16 @@ class opn {
 		}
 
 		// return LFO/noise states
-		final int noise_state() {
+		@Override
+		public final int noise_state() {
 			return 0;
 		}
 
-		//-------------------------------------------------
-		//  cache_operator_data - fill the operator cache
-		//  with prefetched data
-		//-------------------------------------------------
+		/**
+		 * cache_operator_data - fill the operator cache
+		 * with prefetched data
+		 */
+		@Override
 		public void cache_operator_data(int choffs, int opoffs, opdata_cache cache) {
 			// set up the easy stuff
 			cache.waveform = m_waveform[0];
@@ -439,7 +453,7 @@ class opn {
 
 			// phase step, or PHASE_STEP_DYNAMIC if PM is active; this depends on
 			// block_freq, detune, and multiple, so compute it after we've done those
-			if (!isOpnA() || lfo_enable() == 0 || ch_lfo_pm_sens(choffs) == 0)
+			if (!IsOpnA || lfo_enable() == 0 || ch_lfo_pm_sens(choffs) == 0)
 				cache.phase_step = compute_phase_step(choffs, opoffs, cache, 0);
 			else
 				cache.phase_step = opdata_cache.PHASE_STEP_DYNAMIC;
@@ -454,15 +468,16 @@ class opn {
 
 			// determine KSR adjustment for enevlope rates
 			int ksrval = keycode >> (op_ksr(opoffs) ^ 3);
-			cache.eg_rate[EG_ATTACK] = effective_rate(op_attack_rate(opoffs) * 2, ksrval);
-			cache.eg_rate[EG_DECAY] = effective_rate(op_decay_rate(opoffs) * 2, ksrval);
-			cache.eg_rate[EG_SUSTAIN] = effective_rate(op_sustain_rate(opoffs) * 2, ksrval);
-			cache.eg_rate[EG_RELEASE] = effective_rate(op_release_rate(opoffs) * 4 + 2, ksrval);
+			cache.eg_rate[envelope_state.EG_ATTACK.ordinal()] = effective_rate(op_attack_rate(opoffs) * 2, ksrval);
+			cache.eg_rate[envelope_state.EG_DECAY.ordinal()] = effective_rate(op_decay_rate(opoffs) * 2, ksrval);
+			cache.eg_rate[envelope_state.EG_SUSTAIN.ordinal()] = effective_rate(op_sustain_rate(opoffs) * 2, ksrval);
+			cache.eg_rate[envelope_state.EG_RELEASE.ordinal()] = effective_rate(op_release_rate(opoffs) * 4 + 2, ksrval);
 		}
 
-		//-------------------------------------------------
-		//  compute_phase_step - compute the phase step
-		//-------------------------------------------------
+		/**
+		 * compute_phase_step - compute the phase step
+		 */
+		@Override
 		public int compute_phase_step(int choffs, int opoffs, final opdata_cache cache, int lfo_raw_pm) {
 			// OPN phase calculation has only a single detune parameter
 			// and uses FNUMs instead of keycodes
@@ -496,9 +511,10 @@ class opn {
 			return (phase_step * cache.multiple) >> 1;
 		}
 
-		//-------------------------------------------------
-		//  log_keyon - log a key-on event
-		//-------------------------------------------------
+		/**
+		 * log_keyon - log a key-on event
+		 */
+		@Override
 		public String log_keyon(int choffs, int opoffs) {
 			int chnum = (choffs & 3) + 3 * bitfield(choffs, 8);
 			int opnum = (opoffs & 15) - ((opoffs & 15) / 4) + 12 * bitfield(opoffs, 8);
@@ -556,49 +572,58 @@ class opn {
 		}
 
 		public final int lfo_enable() {
-			return isOpnA() ? byte_(0x22, 3, 1) : 0;
+			return IsOpnA ? byte_(0x22, 3, 1) : 0;
 		}
 
 		public final int lfo_rate() {
-			return isOpnA() ? byte_(0x22, 0, 3) : 0;
+			return IsOpnA ? byte_(0x22, 0, 3) : 0;
 		}
 
+		@Override
 		public final int timer_a_value() {
 			return word(0x24, 0, 8, 0x25, 0, 2);
 		}
 
+		@Override
 		public final int timer_b_value() {
 			return byte_(0x26, 0, 8);
 		}
 
+		@Override
 		public final int csm() {
 			return (byte_(0x27, 6, 2) == 2) ? 1 : 0;
 		}
 
 		public final int multi_freq() {
-			return (byte_(0x27, 6, 2) != 0) ? 1: 0;
+			return (byte_(0x27, 6, 2) != 0) ? 1 : 0;
 		}
 
+		@Override
 		public final int reset_timer_b() {
 			return byte_(0x27, 5, 1);
 		}
 
+		@Override
 		public final int reset_timer_a() {
 			return byte_(0x27, 4, 1);
 		}
 
+		@Override
 		public final int enable_timer_b() {
 			return byte_(0x27, 3, 1);
 		}
 
+		@Override
 		public final int enable_timer_a() {
 			return byte_(0x27, 2, 1);
 		}
 
+		@Override
 		public final int load_timer_b() {
 			return byte_(0x27, 1, 1);
 		}
 
+		@Override
 		public final int load_timer_a() {
 			return byte_(0x27, 0, 1);
 		}
@@ -612,40 +637,47 @@ class opn {
 			return word(0xa4, 0, 6, 0xa0, 0, 8, choffs);
 		}
 
+		@Override
 		public final int ch_feedback(int choffs) {
 			return byte_(0xb0, 3, 3, choffs);
 		}
 
+		@Override
 		public final int ch_algorithm(int choffs) {
 			return byte_(0xb0, 0, 3, choffs);
 		}
 
+		@Override
 		public final int ch_output_any(int choffs) {
-			return isOpnA() ? byte_(0xb4, 6, 2, choffs) : 1;
+			return IsOpnA ? byte_(0xb4, 6, 2, choffs) : 1;
 		}
 
+		@Override
 		public final int ch_output_0(int choffs) {
-			return isOpnA() ? byte_(0xb4, 7, 1, choffs) : 1;
+			return IsOpnA ? byte_(0xb4, 7, 1, choffs) : 1;
 		}
 
+		@Override
 		public final int ch_output_1(int choffs) {
-			return isOpnA() ? byte_(0xb4, 6, 1, choffs) : 0;
+			return IsOpnA ? byte_(0xb4, 6, 1, choffs) : 0;
 		}
 
+		@Override
 		public final int ch_output_2(int choffs) {
 			return 0;
 		}
 
+		@Override
 		public final int ch_output_3(int choffs) {
 			return 0;
 		}
 
 		public final int ch_lfo_am_sens(int choffs) {
-			return isOpnA() ? byte_(0xb4, 4, 2, choffs) : 0;
+			return IsOpnA ? byte_(0xb4, 4, 2, choffs) : 0;
 		}
 
 		public final int ch_lfo_pm_sens(int choffs) {
-			return isOpnA() ? byte_(0xb4, 0, 3, choffs) : 0;
+			return IsOpnA ? byte_(0xb4, 0, 3, choffs) : 0;
 		}
 
 		// per-operator registers
@@ -673,8 +705,9 @@ class opn {
 			return byte_(0x60, 0, 5, opoffs);
 		}
 
+		@Override
 		public final int op_lfo_am_enable(int opoffs) {
-			return isOpnA() ? byte_(0x60, 7, 1, opoffs) : 0;
+			return IsOpnA ? byte_(0x60, 7, 1, opoffs) : 0;
 		}
 
 		public final int op_sustain_rate(int opoffs) {
@@ -689,10 +722,12 @@ class opn {
 			return byte_(0x80, 0, 4, opoffs);
 		}
 
+		@Override
 		public final int op_ssg_eg_enable(int opoffs) {
 			return byte_(0x90, 3, 1, opoffs);
 		}
 
+		@Override
 		public final int op_ssg_eg_mode(int opoffs) {
 			return byte_(0x90, 0, 3, opoffs);
 		}
@@ -707,7 +742,7 @@ class opn {
 		}
 
 		protected final int word(int offset1, int start1, int count1, int offset2, int start2, int count2) {
-			return word( offset1,  start1,  count1,  offset2,  start2,  count2, 0);
+			return word(offset1, start1, count1, offset2, start2, count2, 0);
 		}
 
 		// return a bitfield extracted from a pair of bytes, MSBs listed first
@@ -715,15 +750,49 @@ class opn {
 			return (byte_(offset1, start1, count1, extra_offset) << count2) | byte_(offset2, start2, count2, extra_offset);
 		}
 
+		// for serdes
+		boolean isOpnA(int seq) {
+			return IsOpnA;
+		}
+
 		// internal state
+		@Element(sequence = 0, condition = "isOpnA")
 		protected int m_lfo_counter;               // LFO counter
+		@Element(sequence = 1, condition = "isOpnA")
 		protected int m_lfo_am;                     // current LFO AM value
-		protected int[] m_regdata = new int[REGISTERS];         // register data
+		@Element(sequence = 2)
+		protected int[] m_regdata;         // register data
 		protected int[][] m_waveform = new int[WAVEFORMS][WAVEFORM_LENGTH]; // waveforms
 	}
 
-    static class opn_registers extends opn_registers_base { @Override boolean isOpnA() { return false; }}
-    static class opna_registers extends opn_registers_base { @Override boolean isOpnA() { return true; }}
+	// using opn_registers = opn_registers_base<false>;
+	static class opn_registers extends opn.opn_registers_base {
+		opn_registers() {super(false);}
+		static {
+			// false
+			s_fixed_map = new int[] {
+				operator_list(0, 6, 3, 9),  // Channel 0 operators
+				operator_list(1, 7, 4, 10),  // Channel 1 operators
+				operator_list(2, 8, 5, 11),  // Channel 2 operators
+				operator_list(12, 18, 15, 21),  // Channel 3 operators
+				operator_list(13, 19, 16, 22),  // Channel 4 operators
+				operator_list(14, 20, 17, 23),  // Channel 5 operators
+			};
+		}
+	}
+
+	// using opna_registers = opn_registers_base<true>;
+	static class opna_registers extends opn_registers_base {
+		opna_registers() {super(true);}
+		static {
+			// true
+			s_fixed_map = new int[] {
+				operator_list(0, 6, 3, 9),  // Channel 0 operators
+				operator_list(1, 7, 4, 10),  // Channel 1 operators
+				operator_list(2, 8, 5, 11),  // Channel 2 operators
+			};
+		}
+	}
 
 	//*********************************************************
 	//  OPN IMPLEMENTATION CLASSES
@@ -794,15 +863,13 @@ class opn {
 	//    OPN_FIDELITY_MIN =  166kHz
 	//    OPN_FIEDLITY_MED =  333kHz
 
-    // ======================> opn_fidelity
+	// ======================> opn_fidelity
 
 	enum opn_fidelity {
 		OPN_FIDELITY_MAX,
 		OPN_FIDELITY_MIN,
-		OPN_FIDELITY_MED,
-
-		OPN_FIDELITY_DEFAULT;
-		//= OPN_FIDELITY_MAX
+		OPN_FIDELITY_MED;
+		static final int OPN_FIDELITY_DEFAULT = OPN_FIDELITY_MAX.ordinal();
 	}
 
 	// ======================> ssg_resampler
@@ -811,84 +878,82 @@ class opn {
 	//  SSG RESAMPLER
 	//*********************************************************
 	//template<typename OutputType, int FirstOutput, boolean MixTo1>
-	static class ssg_resampler {
+	@Serdes
+	abstract static class ssg_resampler {
 
-		// helper to add the last computed value to the sums, applying the given scale
-		private void add_last(int sum0, int sum1, int sum2, int scale /* = 1 */){
-			sum0 += m_last.data[0] * scale;
-			sum1 += m_last.data[1] * scale;
-			sum2 += m_last.data[2] * scale;
+		abstract int getOutput();
+
+		abstract int getFirstOutput();
+
+		abstract boolean isMixTo1();
+
+		/**
+		 * add_last - helper to add the last computed
+		 * value to the sums, applying the given scale
+		 */
+		private void add_last(int[] sum0, int[] sum1, int[] sum2, int scale /* = 1 */) {
+			sum0[0] += m_last.data[0] * scale;
+			sum1[0] += m_last.data[1] * scale;
+			sum2[0] += m_last.data[2] * scale;
 		}
 
-		// helper to clock a new value and then add it to the sums, applying the given scale
-//		private void clock_and_add(int sum0, int sum1, int sum2, int scale /* = 1 */);
+		/**
+		 * ssg_resampler - constructor
+		 */
+		// template<typename OutputType, int FirstOutput, boolean MixTo1>
+		protected ssg_resampler(ssg_engine ssg) {
+			m_ssg = ssg;
+			m_sampindex = 0;
+			m_resampler = this::resample_nop;
 
-		// helper to write the sums to the appropriate outputs, applying the given
-		// divisor to the final result
-//		private void write_to_output(OutputType output, int sum0, int sum1, int sum2, int divisor /* = 1 */);
-
-		//-------------------------------------------------
-		//  add_last - helper to add the last computed
-		//  value to the sums, applying the given scale
-		//-------------------------------------------------
-		//template<typename OutputType, int FirstOutput, boolean MixTo1>
-		public ssg_resampler(ssg_engine ssg) {
-			sum0 += m_last.data[0] * scale;
-			sum1 += m_last.data[1] * scale;
-			sum2 += m_last.data[2] * scale;
+			m_last.clear();
 		}
 
-		//-------------------------------------------------
-		//  clock_and_add - helper to clock a new value
-		//  and then add it to the sums, applying the
-		//  given scale
-		//-------------------------------------------------
+		/**
+		 * clock_and_add - helper to clock a new value
+		 * and then add it to the sums, applying the
+		 * given scale
+		 */
 		//template<typename OutputType, int FirstOutput, boolean MixTo1>
-		public void clock_and_add(int sum0, int sum1, int sum2, int scale) {
+		private void clock_and_add(int[] sum0, int[] sum1, int[] sum2, int scale /* = 1 */) {
 			m_ssg.clock();
 			m_ssg.output(m_last);
 			add_last(sum0, sum1, sum2, scale);
 		}
 
-		//-------------------------------------------------
-		//  write_to_output - helper to write the sums to
-		//  the appropriate outputs, applying the given
-		//  divisor to the final result
-		//-------------------------------------------------
+		/**
+		 * write_to_output - helper to write the sums to
+		 * the appropriate outputs, applying the given
+		 * divisor to the final result
+		 */
 		//	template<typename OutputType, int FirstOutput, boolean MixTo1>
-		public void write_to_output(OutputType output, int sum0, int sum1, int sum2, int divisor) {
-			if (MixTo1) {
+		private void write_to_output(ymfm_output output, int sum0, int sum1, int sum2, int divisor /* = 1 */) {
+			if (isMixTo1()) {
 				// mixing to one, apply a 2/3 factor to prevent overflow
-				output.data[FirstOutput] = (sum0 + sum1 + sum2) * 2 / (3 * divisor);
+				output.data[getFirstOutput()] = (sum0 + sum1 + sum2) * 2 / (3 * divisor);
 			} else {
 				// write three outputs in a row
-				output.data[FirstOutput + 0] = sum0 / divisor;
-				output.data[FirstOutput + 1] = sum1 / divisor;
-				output.data[FirstOutput + 2] = sum2 / divisor;
+				output.data[getFirstOutput() + 0] = sum0 / divisor;
+				output.data[getFirstOutput() + 1] = sum1 / divisor;
+				output.data[getFirstOutput() + 2] = sum2 / divisor;
 			}
 
 			// track the sample index here
 			m_sampindex++;
 		}
 
-		//-------------------------------------------------
-		//  ssg_resampler - constructor
-		//------------------------------------------------
-		//template<typename OutputType, int FirstOutput, boolean MixTo1>
-		public ssg_resampler(ssg_engine ssg) {
-			m_ssg = ssg;
-			m_sampindex = 0;
-			m_resampler = ssg_resampler.resample_nop;
-
-			m_last.clear();
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			state.save_restore(m_sampindex);
-			state.save_restore(m_last.data);
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
 		}
 
 		// get the current sample index
@@ -896,29 +961,38 @@ class opn {
 			return m_sampindex;
 		}
 
-		//-------------------------------------------------
-		//  configure - configure a new ratio
-		//-------------------------------------------------
-		public void configure(byte outsamples, byte srcsamples) {
+		/**
+		 * configure - configure a new ratio
+		 */
+		public void configure(int outsamples, int srcsamples) {
 			switch (outsamples * 10 + srcsamples) {
-				case 4 * 10 + 1:    /* 4:1 */
-					m_resampler =  this::resample_n_1 /*< 4 >*/; break;
-				case 2 * 10 + 1:    /* 2:1 */
-					m_resampler =  this::resample_n_1 /*< 2 >*/; break;
-				case 4 * 10 + 3:    /* 4:3 */
-					m_resampler =  this::resample_4_3; break;
-				case 1 * 10 + 1:    /* 1:1 */
-					m_resampler =  this::resample_n_1 /*< 1 >*/; break;
-				case 2 * 10 + 3:    /* 2:3 */
-					m_resampler =  this::resample_2_3; break;
-				case 1 * 10 + 3:    /* 1:3 */
-					m_resampler =  this::resample_1_n /*< 3 >*/; break;
-				case 2 * 10 + 9:    /* 2:9 */
-					m_resampler =  this::resample_2_9; break;
-				case 1 * 10 + 6:    /* 1:6 */
-					m_resampler =  this::resample_1_n/* < 6 >*/; break;
-				case 0 * 10 + 0:    /* 0:0 */
-					m_resampler =  this::resample_nop; break;
+				case 4 * 10 + 1:    // 4:1
+					m_resampler = this::resample_4_1 /* <4> */;
+					break;
+				case 2 * 10 + 1:    // 2:1
+					m_resampler = this::resample_2_1 /* <2> */;
+					break;
+				case 4 * 10 + 3:    // 4:3
+					m_resampler = this::resample_4_3;
+					break;
+				case 1 * 10 + 1:    // 1:1
+					m_resampler = this::resample_1_1 /* <1> */;
+					break;
+				case 2 * 10 + 3:    // 2:3
+					m_resampler = this::resample_2_3;
+					break;
+				case 1 * 10 + 3:    // 1:3
+					m_resampler = this::resample_1_3 /* <3> */;
+					break;
+				case 2 * 10 + 9:    // 2:9
+					m_resampler = this::resample_2_9;
+					break;
+				case 1 * 10 + 6:    // 1:6
+					m_resampler = this::resample_1_6 /* <6> */;
+					break;
+				case 0 * 10 + 0:    // 0:0
+					m_resampler = this::resample_nop;
+					break;
 				default:
 					assert (false);
 					break;
@@ -926,49 +1000,69 @@ class opn {
 		}
 
 		// resample
-		void resample(OutputType output, int numsamples) {
-			this.m_resampler.accept(output, numsamples);
+		void resample(ymfm_output output, int offset, int numsamples) {
+			this.m_resampler.accept(output, offset, numsamples);
 		}
 
-		//-------------------------------------------------
-		//  resample_n_1 - resample SSG output to the
-		//  target at a rate of 1 SSG sample to every
-		//  n output sample
-		//-------------------------------------------------
+		/**
+		 * resample_n_1 - resample SSG output to the
+		 * target at a rate of 1 SSG sample to every
+		 * n output sample
+		 */
 		//	template<int Multiplier>
-		private void resample_n_1(OutputType output, int numsamples) {
-			for (int samp = 0; samp < numsamples; samp++, output++) {
+		private void resample_n_1(ymfm_output output, int numsamples, int Multiplier) {
+			for (int samp = 0; samp < numsamples; samp++, output.inc()) {
 				if (m_sampindex % Multiplier == 0) {
 					m_ssg.clock();
 					m_ssg.output(m_last);
 				}
-				write_to_output(output, m_last.data[0], m_last.data[1], m_last.data[2]);
+				write_to_output(output, m_last.data[0], m_last.data[1], m_last.data[2], 1);
 			}
 		}
 
-		//-------------------------------------------------
-		//  resample_1_n - resample SSG output to the
-		//  target at a rate of n SSG samples to every
-		//  1 output sample
-		//-------------------------------------------------
+		private void resample_4_1(ymfm_output output, int offset, int numsamples) {
+			resample_n_1(output, numsamples, 4);
+		}
+
+		private void resample_2_1(ymfm_output output, int offset, int numsamples) {
+			resample_n_1(output, numsamples, 2);
+		}
+
+		private void resample_1_1(ymfm_output output, int offset, int numsamples) {
+			resample_n_1(output, numsamples, 1);
+		}
+
+		/**
+		 * resample_1_n - resample SSG output to the
+		 * target at a rate of n SSG samples to every
+		 * 1 output sample
+		 */
 		//	template<int Divisor>
-		private void resample_1_n(OutputType output, int numsamples) {
-			for (int samp = 0; samp < numsamples; samp++, output++) {
-				int sum0 = 0, sum1 = 0, sum2 = 0;
+		private void resample_1_n(ymfm_output output, int offset, int numsamples, int Divisor) {
+			for (int samp = 0; samp < numsamples; samp++, output.inc()) {
+				int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
 				for (int rep = 0; rep < Divisor; rep++)
-					clock_and_add(sum0, sum1, sum2);
-				write_to_output(output, sum0, sum1, sum2, Divisor);
+					clock_and_add(sum0, sum1, sum2, 1);
+				write_to_output(output, sum0[0], sum1[0], sum2[0], Divisor);
 			}
 		}
 
-		//-------------------------------------------------
-		//  resample_2_9 - resample SSG output to the
-		//  target at a rate of 9 SSG samples to every
-		//  2 output samples
-		//-------------------------------------------------
-		private void resample_2_9(OutputType output, int numsamples) {
-			for (int samp = 0; samp < numsamples; samp++, output++) {
-				int sum0 = 0, sum1 = 0, sum2 = 0;
+		private void resample_1_3(ymfm_output output, int offset, int numsamples) {
+			resample_1_n(output, numsamples, offset, 3);
+		}
+
+		private void resample_1_6(ymfm_output output, int offset, int numsamples) {
+			resample_1_n(output, numsamples, offset, 6);
+		}
+
+		/**
+		 * resample_2_9 - resample SSG output to the
+		 * target at a rate of 9 SSG samples to every
+		 * 2 output samples
+		 */
+		private void resample_2_9(ymfm_output output, int offset, int numsamples) {
+			for (int samp = 0; samp < numsamples; samp++, output.inc()) {
+				int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
 				if (bitfield(m_sampindex, 0) != 0)
 					add_last(sum0, sum1, sum2, 1);
 				clock_and_add(sum0, sum1, sum2, 2);
@@ -977,7 +1071,7 @@ class opn {
 				clock_and_add(sum0, sum1, sum2, 2);
 				if (bitfield(m_sampindex, 0) == 0)
 					clock_and_add(sum0, sum1, sum2, 1);
-				write_to_output(output, sum0, sum1, sum2, 9);
+				write_to_output(output, sum0[0], sum1[0], sum2[0], 9);
 			}
 		}
 
@@ -985,14 +1079,14 @@ class opn {
 		// to every 1 output sample
 //		private void resample_1_3(OutputType output, int numsamples);
 
-		//-------------------------------------------------
-		//  resample_2_3 - resample SSG output to the
-		//  target at a rate of 3 SSG samples to every
-		//  2 output samples
-		//-------------------------------------------------
-		private void resample_2_3(OutputType output, int numsamples) {
-			for (int samp = 0; samp < numsamples; samp++, output++) {
-				int sum0 = 0, sum1 = 0, sum2 = 0;
+		/**
+		 * resample_2_3 - resample SSG output to the
+		 * target at a rate of 3 SSG samples to every
+		 * 2 output samples
+		 */
+		private void resample_2_3(ymfm_output output, int offset, int numsamples) {
+			for (int samp = 0; samp < numsamples; samp++, output.inc()) {
+				int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
 				if (bitfield(m_sampindex, 0) == 0) {
 					clock_and_add(sum0, sum1, sum2, 2);
 					clock_and_add(sum0, sum1, sum2, 1);
@@ -1000,30 +1094,30 @@ class opn {
 					add_last(sum0, sum1, sum2, 1);
 					clock_and_add(sum0, sum1, sum2, 2);
 				}
-				write_to_output(output, sum0, sum1, sum2, 3);
+				write_to_output(output, sum0[0], sum1[0], sum2[0], 3);
 			}
 		}
 
-		//-------------------------------------------------
-		//  resample_4_3 - resample SSG output to the
-		//  target at a rate of 3 SSG samples to every
-		//  4 output samples
-		//-------------------------------------------------
-		private void resample_4_3(OutputType output, int numsamples) {
-			for (int samp = 0; samp < numsamples; samp++, output++) {
-				int sum0 = 0, sum1 = 0, sum2 = 0;
+		/**
+		 * resample_4_3 - resample SSG output to the
+		 * target at a rate of 3 SSG samples to every
+		 * 4 output samples
+		 */
+		private void resample_4_3(ymfm_output output, int offset, int numsamples) {
+			for (int samp = 0; samp < numsamples; samp++, output.inc()) {
+				int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
 				int step = bitfield(m_sampindex, 0, 2);
 				add_last(sum0, sum1, sum2, step);
 				if (step != 3)
 					clock_and_add(sum0, sum1, sum2, 3 - step);
-				write_to_output(output, sum0, sum1, sum2, 3);
+				write_to_output(output, sum0[0], sum1[0], sum2[0], 3);
 			}
 		}
 
-		//-------------------------------------------------
-		//  resample_nop - no-op resampler
-		//-------------------------------------------------
-		private void resample_nop(OutputType output, int numsamples) {
+		/**
+		 * resample_nop - no-op resampler
+		 */
+		private void resample_nop(ymfm_output output, int offset, int numsamples) {
 			// nothing to do except increment the sample index
 			m_sampindex += numsamples;
 		}
@@ -1033,10 +1127,16 @@ class opn {
 
 		// internal state
 		private ssg_engine m_ssg;
+		@Element(sequence = 0)
 		private int m_sampindex;
 		// resample_func
-		private BiConsumer<OutputType, Integer> m_resampler;
-		private ssg_engine.output_data m_last;
+		private TriConsumer<ymfm_output, Integer, Integer> m_resampler;
+		@Element(sequence = 1)
+		private ymfm_output m_last;
+	}
+
+	public interface TriConsumer<T, U, V> {
+		void accept(T var1, U var2, V var3);
 	}
 
 	// ======================> ym2203
@@ -1044,26 +1144,34 @@ class opn {
 	//*********************************************************
 	//  YM2203
 	//*********************************************************
+	@Serdes
 	static class ym2203 {
 
-//	using fm_engine = fm_engine_base<opn_registers>;
-        public static final int FM_OUTPUTS = fm_engine.OUTPUTS;
+		//	using fm_engine = fm_engine_base<opn_registers>;
+		public final int FM_OUTPUTS;
 		public static final int SSG_OUTPUTS = ssg_engine.OUTPUTS;
-		public static final int OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
-//	using output_data = ymfm_output<OUTPUTS>;
+		public final int OUTPUTS;
+        //	using output_data = ymfm_output<OUTPUTS>;
 
-		//-------------------------------------------------
-		//  ym2203 - constructor
-		//-------------------------------------------------
+		/**
+		 * ym2203 - constructor
+		 */
 		public ym2203(ymfm_interface intf) {
 			m_fidelity = OPN_FIDELITY_MAX;
 			m_address = 0;
-			m_fm = intf;
-			m_ssg = intf;
-			m_ssg_resampler = m_ssg;
+			m_fm = (opn_registers) intf;
+			m_ssg = new ssg_engine(intf);
+			m_ssg_resampler = new ssg_resampler(m_ssg) {
+				@Override int getOutput() { return OUTPUTS; }
+				@Override int getFirstOutput() { return 1; }
+				@Override boolean isMixTo1() { return false; }
+			};
+
+			FM_OUTPUTS = (int) m_fm.getParams().get("OUTPUTS");
+			OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
 
 			m_last_fm.clear();
-			update_prescale(m_fm.clock_prescale());
+			update_prescale(m_fm.fm_engine_base.clock_prescale());
 		}
 
 		// configuration
@@ -1073,30 +1181,42 @@ class opn {
 
 		void set_fidelity(opn_fidelity fidelity) {
 			m_fidelity = fidelity;
-			update_prescale(m_fm.clock_prescale());
+			update_prescale(m_fm.fm_engine_base.clock_prescale());
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the system
-		//-------------------------------------------------
+		/**
+		 * reset - reset the system
+		 */
 		public void reset() {
 			// reset the engines
-			m_fm.reset();
+			m_fm.fm_engine_base.reset();
 			m_ssg.reset();
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			state.save_restore(m_address);
-			state.save_restore(m_last_fm.data);
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
 
-			m_fm.save_restore(state);
-			m_ssg.save_restore(state);
-			m_ssg_resampler.save_restore(state);
+			m_fm.fm_engine_base.save(os);
+			m_ssg.save(os);
+			m_ssg_resampler.save(os);
 
-			update_prescale(m_fm.clock_prescale());
+			update_prescale(m_fm.fm_engine_base.clock_prescale());
+		}
+
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
+
+			m_fm.fm_engine_base.restore(is);
+			m_ssg.restore(is);
+			m_ssg_resampler.restore(is);
+
+			update_prescale(m_fm.fm_engine_base.clock_prescale());
 		}
 
 		// pass-through helpers
@@ -1113,29 +1233,29 @@ class opn {
 		}
 
 		public final int ssg_effective_clock(int input_clock) {
-			int scale = m_fm.clock_prescale() * 2 / 3;
+			int scale = m_fm.fm_engine_base.clock_prescale() * 2 / 3;
 			return input_clock * 2 / scale;
 		}
 
 		public void invalidate_caches() {
-			m_fm.invalidate_caches();
+			m_fm.fm_engine_base.invalidate_caches();
 		}
 
-		//-------------------------------------------------
-		//  read_status - read the status register
-		//-------------------------------------------------
+		/**
+		 * read_status - read the status register
+		 */
 		public int read_status() {
-			byte result = m_fm.status();
-			if (m_fm.intf().ymfm_is_busy())
-				result |= fm_engine.STATUS_BUSY;
+			int result = m_fm.fm_engine_base.status();
+			if (m_fm.fm_engine_base.intf().ymfm_is_busy())
+				result |= opn_registers.STATUS_BUSY;
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  read_data - read the data register
-		//-------------------------------------------------
+		/**
+		 * read_data - read the data register
+		 */
 		public int read_data() {
-			byte result = 0;
+			int result = 0;
 			if (m_address < 0x10) {
 				// 00-0F: Read from SSG
 				result = m_ssg.read(m_address & 0x0f);
@@ -1143,9 +1263,9 @@ class opn {
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  read - handle a read from the device
-		//-------------------------------------------------
+		/**
+		 * read - handle a read from the device
+		 */
 		public int read(int offset) {
 			int result = 0xff;
 			switch (offset & 1) {
@@ -1160,10 +1280,10 @@ class opn {
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  write_address - handle a write to the address
-		//  register
-		//-------------------------------------------------
+		/**
+		 * write_address - handle a write to the address
+		 * register
+		 */
 		public void write_address(int data) {
 			// just set the address
 			m_address = data;
@@ -1173,34 +1293,34 @@ class opn {
 				// 2D-2F: prescaler select
 				if (m_address == 0x2d)
 					update_prescale(6);
-				else if (m_address == 0x2e && m_fm.clock_prescale() == 6)
+				else if (m_address == 0x2e && m_fm.fm_engine_base.clock_prescale() == 6)
 					update_prescale(3);
 				else if (m_address == 0x2f)
 					update_prescale(2);
 			}
 		}
 
-		//-------------------------------------------------
-		//  write - handle a write to the register
-		//  interface
-		//-------------------------------------------------
+		/**
+		 * write - handle a write to the register
+		 * interface
+		 */
 		public void write_data(int data) {
 			if (m_address < 0x10) {
 				// 00-0F: write to SSG
 				m_ssg.write(m_address & 0x0f, data);
 			} else {
 				// 10-FF: write to FM
-				m_fm.write(m_address, data);
+				m_fm.fm_engine_base.write(m_address, data);
 			}
 
 			// mark busy for a bit
-			m_fm.intf().ymfm_set_busy_end(32 * m_fm.clock_prescale());
+			m_fm.fm_engine_base.intf().ymfm_set_busy_end(32 * m_fm.fm_engine_base.clock_prescale());
 		}
 
-		//-------------------------------------------------
-		//  write - handle a write to the register
-		//  interface
-		//-------------------------------------------------
+		/**
+		 * write - handle a write to the register
+		 * interface
+		 */
 		public void write(int offset, int data) {
 			switch (offset & 1) {
 				case 0: // address port
@@ -1213,20 +1333,20 @@ class opn {
 			}
 		}
 
-		//-------------------------------------------------
-		//  generate - generate one sample of sound
-		//-------------------------------------------------
-		public void generate(output_data output, int numsamples /* = 1 */) {
+		/**
+		 * generate - generate one sample of sound
+		 */
+		public void generate(ymfm_output output, int numsamples /* = 1 */) {
 			// FM output is just repeated the prescale number of times; note that
 			// 0 is a special 1.5 case
 			if (m_fm_samples_per_output != 0) {
-				for (int samp = 0; samp < numsamples; samp++, output++) {
+				for (int samp = 0; samp < numsamples; samp++, output.inc()) {
 					if ((m_ssg_resampler.sampindex() + samp) % m_fm_samples_per_output == 0)
 						clock_fm();
 					output.data[0] = m_last_fm.data[0];
 				}
 			} else {
-				for (int samp = 0; samp < numsamples; samp++, output++) {
+				for (int samp = 0; samp < numsamples; samp++, output.inc()) {
 					int step = (m_ssg_resampler.sampindex() + samp) % 3;
 					if (step == 0)
 						clock_fm();
@@ -1239,16 +1359,16 @@ class opn {
 			}
 
 			// resample the SSG as configured
-			m_ssg_resampler.resample(output - numsamples, numsamples);
+			m_ssg_resampler.resample(output, output.pos() - numsamples, numsamples);
 		}
 
-		//-------------------------------------------------
-		//  update_prescale - update the prescale value,
-		//  recomputing derived values
-		//-------------------------------------------------
+		/**
+		 * update_prescale - update the prescale value,
+		 * recomputing derived values
+		 */
 		protected void update_prescale(int prescale) {
 			// tell the FM engine
-			m_fm.set_clock_prescale(prescale);
+			m_fm.fm_engine_base.set_clock_prescale(prescale);
 			m_ssg.prescale_changed();
 
 			// Fidelity:   ---- minimum ----    ---- medium -----    ---- maximum-----
@@ -1276,7 +1396,7 @@ class opn {
 						m_ssg_resampler.configure(1, 6);
 						break;
 				}
-			} else if (m_fidelity == OPN_FIDELITY_MED) {
+			} else if (m_fidelity == opn_fidelity.OPN_FIDELITY_MED) {
 				switch (prescale) {
 					default:
 					case 6:
@@ -1316,15 +1436,15 @@ class opn {
 				m_ssg_resampler.configure(0, 0);
 		}
 
-		//-------------------------------------------------
-		//  clock_fm - clock FM state
-		//-------------------------------------------------
+		/**
+		 * clock_fm - clock FM state
+		 */
 		protected void clock_fm() {
 			// clock the system
-			m_fm.clock(fm_engine.ALL_CHANNELS);
+			m_fm.fm_engine_base.clock((int) m_fm.getParams().get("ALL_CHANNELS"));
 
 			// update the FM content; OPN is full 14-bit with no intermediate clipping
-			m_fm.output(m_last_fm.clear(), 0, 32767, fm_engine.ALL_CHANNELS);
+			m_fm.fm_engine_base.output(m_last_fm.clear(), 0, 32767, (int) m_fm.getParams().get("ALL_CHANNELS"));
 
 			// convert to 10.3 floating point value for the DAC and back
 			m_last_fm.roundtrip_fp();
@@ -1332,12 +1452,14 @@ class opn {
 
 		// internal state
 		protected opn_fidelity m_fidelity;            // configured fidelity
-		protected byte m_address;                  // address register
-		protected byte m_fm_samples_per_output;    // how many samples to repeat
-		protected fm_engine.output_data m_last_fm;   // last FM output
-		protected fm_engine m_fm;                     // core FM engine
+		@Element(sequence = 0)
+		protected int m_address;                  // address register
+		protected int m_fm_samples_per_output;    // how many samples to repeat
+		@Element(sequence = 1)
+		protected ymfm_output m_last_fm;   // last FM output
+		protected opn_registers m_fm;                     // core FM engine
 		protected ssg_engine m_ssg;                   // SSG engine
-		protected ssg_resampler<output_data, 1, false> m_ssg_resampler; // SSG resampler helper
+		protected ssg_resampler/*<output_data, 1, false>*/ m_ssg_resampler; // SSG resampler helper
 	}
 
 	//*********************************************************
@@ -1349,6 +1471,7 @@ class opn {
 	//*********************************************************
 	//  YM2608
 	//*********************************************************
+	@Serdes
 	static class ym2608 {
 
 		static final byte STATUS_ADPCM_B_EOS = 0x04;
@@ -1356,28 +1479,35 @@ class opn {
 		static final byte STATUS_ADPCM_B_ZERO = 0x10;
 		static final byte STATUS_ADPCM_B_PLAYING = 0x20;
 
-//	using fm_engine = fm_engine_base<opna_registers>;
-        public static final int FM_OUTPUTS = opna_registers.OUTPUTS;
+		//	using fm_engine = fm_engine_base<opna_registers>;
+		public final int FM_OUTPUTS;
 		public static final int SSG_OUTPUTS = 1;
-		public static final int OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
-//	using output_data = ymfm_output<OUTPUTS>;
+		public final int OUTPUTS;
+        //	using output_data = ymfm_output<OUTPUTS>;
 
-		//-------------------------------------------------
-		//  ym2608 - constructor
-		//-------------------------------------------------
+		/**
+		 * ym2608 - constructor
+		 */
 		public ym2608(ymfm_interface intf) {
 			m_fidelity = OPN_FIDELITY_MAX;
 			m_address = 0;
 			m_irq_enable = 0x1f;
 			m_flag_control = 0x1c;
-			m_fm = intf;
-			m_ssg = intf;
-			m_ssg_resampler = m_ssg;
-			m_adpcm_a = intf, 0;
-			m_adpcm_b = intf;
+			m_fm = (opna_registers) intf;
+			m_ssg = (ssg_engine) intf;
+			m_ssg_resampler = new ssg_resampler(m_ssg) {
+				@Override int getOutput() { return (int) m_fm.getParams().get("OUTPUT"); }
+				@Override int getFirstOutput() { return 0; }
+				@Override boolean isMixTo1() { return false; }
+			};
+			m_adpcm_a = new adpcm_a_engine(intf, 0);
+			m_adpcm_b = new adpcm_b_engine(intf, 0);
+
+			FM_OUTPUTS = (int) m_fm.getParams().get("OUTPUTS");
+			OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
 
 			m_last_fm.clear();
-			update_prescale(m_fm.clock_prescale());
+			update_prescale(m_fm.fm_engine_base.clock_prescale());
 		}
 
 		// configuration
@@ -1387,12 +1517,12 @@ class opn {
 
 		protected void set_fidelity(opn_fidelity fidelity) {
 			m_fidelity = fidelity;
-			update_prescale(m_fm.clock_prescale());
+			update_prescale(m_fm.fm_engine_base.clock_prescale());
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the system
-		//-------------------------------------------------
+		/**
+		 * reset - reset the system
+		 */
 		public void reset() {
 			// reset the engines
 			m_fm.reset();
@@ -1415,20 +1545,30 @@ class opn {
 			read_status_hi();
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			state.save_restore(m_address);
-			state.save_restore(m_irq_enable);
-			state.save_restore(m_flag_control);
-			state.save_restore(m_last_fm.data);
+		/**
+		 * save the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
 
-			m_fm.save_restore(state);
-			m_ssg.save_restore(state);
-			m_ssg_resampler.save_restore(state);
-			m_adpcm_a.save_restore(state);
-			m_adpcm_b.save_restore(state);
+			m_fm.save(os);
+			m_ssg.save(os);
+			m_ssg_resampler.save(os);
+			m_adpcm_a.save(os);
+			m_adpcm_b.save(os);
+		}
+
+		/**
+		 * restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
+
+			m_fm.restore(is);
+			m_ssg.restore(is);
+			m_ssg_resampler.restore(is);
+			m_adpcm_a.restore(is);
+			m_adpcm_b.restore(is);
 		}
 
 		// pass-through helpers
@@ -1445,29 +1585,29 @@ class opn {
 		}
 
 		public final int ssg_effective_clock(int input_clock) {
-			int scale = m_fm.clock_prescale() * 2 / 3;
+			int scale = m_fm.fm_engine_base.clock_prescale() * 2 / 3;
 			return input_clock / scale;
 		}
 
 		public void invalidate_caches() {
-			m_fm.invalidate_caches();
+			m_fm.fm_engine_base.invalidate_caches();
 		}
 
-		//-------------------------------------------------
-		//  read_status - read the status register
-		//-------------------------------------------------
+		/**
+		 * read_status - read the status register
+		 */
 		public int read_status() {
-			byte result = m_fm.status() & (fm_engine.STATUS_TIMERA | fm_engine.STATUS_TIMERB);
-			if (m_fm.intf().ymfm_is_busy())
-				result |= fm_engine.STATUS_BUSY;
+			int result = m_fm.fm_engine_base.status() & (opna_registers.STATUS_TIMERA | opna_registers.STATUS_TIMERB);
+			if (m_fm.fm_engine_base.intf().ymfm_is_busy())
+				result |= opna_registers.STATUS_BUSY;
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  read_data - read the data register
-		//-------------------------------------------------
+		/**
+		 * read_data - read the data register
+		 */
 		public int read_data() {
-			byte result = 0;
+			int result = 0;
 			if (m_address < 0x10) {
 				// 00-0F: Read from SSG
 				result = m_ssg.read(m_address & 0x0f);
@@ -1478,13 +1618,13 @@ class opn {
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  read_status_hi - read the extended status
-		//  register
-		//-------------------------------------------------
+		/**
+		 * read_status_hi - read the extended status
+		 * register
+		 */
 		public int read_status_hi() {
 			// fetch regular status
-			int status = m_fm.status() & ~(STATUS_ADPCM_B_EOS | STATUS_ADPCM_B_BRDY | STATUS_ADPCM_B_PLAYING);
+			int status = m_fm.fm_engine_base.status() & ~(STATUS_ADPCM_B_EOS | STATUS_ADPCM_B_BRDY | STATUS_ADPCM_B_PLAYING);
 
 			// fetch ADPCM-B status, and merge in the bits
 			int adpcm_status = m_adpcm_b.status();
@@ -1499,17 +1639,17 @@ class opn {
 			status &= ~(m_flag_control & 0x1f);
 
 			// update the status so that IRQs are propagated
-			m_fm.set_reset_status(status, ~status);
+			m_fm.fm_engine_base.set_reset_status(status, ~status);
 
 			// merge in the busy flag
-			if (m_fm.intf().ymfm_is_busy())
-				status |= fm_engine.STATUS_BUSY;
+			if (m_fm.fm_engine_base.intf().ymfm_is_busy())
+				status |= opna_registers.STATUS_BUSY;
 			return status;
 		}
 
-		//-------------------------------------------------
-		//  read_data_hi - read the upper data register
-		//-------------------------------------------------
+		/**
+		 * read_data_hi - read the upper data register
+		 */
 		public int read_data_hi() {
 			int result = 0;
 			if ((m_address & 0xff) < 0x10) {
@@ -1519,9 +1659,9 @@ class opn {
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  read - handle a read from the device
-		//-------------------------------------------------
+		/**
+		 * read - handle a read from the device
+		 */
 		public int read(int offset) {
 			int result = 0;
 			switch (offset & 3) {
@@ -1544,10 +1684,10 @@ class opn {
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  write_address - handle a write to the address
-		//  register
-		//-------------------------------------------------
+		/**
+		 * write_address - handle a write to the address
+		 * register
+		 */
 		public void write_address(byte data) {
 			// just set the address
 			m_address = data;
@@ -1557,16 +1697,16 @@ class opn {
 				// 2D-2F: prescaler select
 				if (m_address == 0x2d)
 					update_prescale(6);
-				else if (m_address == 0x2e && m_fm.clock_prescale() == 6)
+				else if (m_address == 0x2e && m_fm.fm_engine_base.clock_prescale() == 6)
 					update_prescale(3);
 				else if (m_address == 0x2f)
 					update_prescale(2);
 			}
 		}
 
-		//-------------------------------------------------
-		//  write - handle a write to the data register
-		//-------------------------------------------------
+		/**
+		 * write - handle a write to the data register
+		 */
 		public void write_data(byte data) {
 			// ignore if paired with upper address
 			if (bitfield(m_address, 8) != 0)
@@ -1581,29 +1721,29 @@ class opn {
 			} else if (m_address == 0x29) {
 				// 29: special IRQ mask register
 				m_irq_enable = data;
-				m_fm.set_irq_mask(m_irq_enable & ~m_flag_control & 0x1f);
+				m_fm.fm_engine_base.set_irq_mask(m_irq_enable & ~m_flag_control & 0x1f);
 			} else {
 				// 20-28, 2A-FF: write to FM
-				m_fm.write(m_address, data);
+				m_fm.fm_engine_base.write(m_address, data);
 			}
 
 			// mark busy for a bit
-			m_fm.intf().ymfm_set_busy_end(32 * m_fm.clock_prescale());
+			m_fm.fm_engine_base.intf().ymfm_set_busy_end(32 * m_fm.fm_engine_base.clock_prescale());
 		}
 
-		//-------------------------------------------------
-		//  write_address_hi - handle a write to the upper
-		//  address register
-		//-------------------------------------------------
+		/**
+		 * write_address_hi - handle a write to the upper
+		 * address register
+		 */
 		public void write_address_hi(byte data) {
 			// just set the address
 			m_address = 0x100 | data;
 		}
 
-		//-------------------------------------------------
-		//  write_data_hi - handle a write to the upper
-		//  data register
-		//-------------------------------------------------
+		/**
+		 * write_data_hi - handle a write to the upper
+		 * data register
+		 */
 		public void write_data_hi(byte data) {
 			// ignore if paired with upper address
 			if (bitfield(m_address, 8) == 0)
@@ -1615,24 +1755,24 @@ class opn {
 			} else if (m_address == 0x110) {
 				// 110: IRQ flag control
 				if (bitfield(data, 7) != 0)
-					m_fm.set_reset_status(0, 0xff);
+					m_fm.fm_engine_base.set_reset_status(0, 0xff);
 				else {
 					m_flag_control = data;
-					m_fm.set_irq_mask(m_irq_enable & ~m_flag_control & 0x1f);
+					m_fm.fm_engine_base.set_irq_mask(m_irq_enable & ~m_flag_control & 0x1f);
 				}
 			} else {
 				// 111-1FF: write to FM
-				m_fm.write(m_address, data);
+				m_fm.fm_engine_base.write(m_address, data);
 			}
 
 			// mark busy for a bit
-			m_fm.intf().ymfm_set_busy_end(32 * m_fm.clock_prescale());
+			m_fm.fm_engine_base.intf().ymfm_set_busy_end(32 * m_fm.fm_engine_base.clock_prescale());
 		}
 
-		//-------------------------------------------------
-		//  write - handle a write to the register
-		//  interface
-		//-------------------------------------------------
+		/**
+		 * write - handle a write to the register
+		 * interface
+		 */
 		public void write(int offset, byte data) {
 			switch (offset & 3) {
 				case 0: // address port
@@ -1653,21 +1793,21 @@ class opn {
 			}
 		}
 
-		//-------------------------------------------------
-		//  generate - generate one sample of sound
-		//-------------------------------------------------
-		public void generate(output_data output, int numsamples /* = 1 */) {
+		/**
+		 * generate - generate one sample of sound
+		 */
+		public void generate(ymfm_output output, int numsamples /* = 1 */) {
 			// FM output is just repeated the prescale number of times; note that
 			// 0 is a special 1.5 case
 			if (m_fm_samples_per_output != 0) {
-				for (int samp = 0; samp < numsamples; samp++, output++) {
+				for (int samp = 0; samp < numsamples; samp++, output.inc()) {
 					if ((m_ssg_resampler.sampindex() + samp) % m_fm_samples_per_output == 0)
 						clock_fm_and_adpcm();
 					output.data[0] = m_last_fm.data[0];
 					output.data[1] = m_last_fm.data[1];
 				}
 			} else {
-				for (int samp = 0; samp < numsamples; samp++, output++) {
+				for (int samp = 0; samp < numsamples; samp++, output.inc()) {
 					int step = (m_ssg_resampler.sampindex() + samp) % 3;
 					if (step == 0)
 						clock_fm_and_adpcm();
@@ -1682,16 +1822,16 @@ class opn {
 			}
 
 			// resample the SSG as configured
-			m_ssg_resampler.resample(output - numsamples, numsamples);
+			m_ssg_resampler.resample(output, output.pos() - numsamples, numsamples);
 		}
 
-		//-------------------------------------------------
-		//  update_prescale - update the prescale value,
-		//  recomputing derived values
-		//-------------------------------------------------
-		protected void update_prescale(byte prescale) {
+		/**
+		 * update_prescale - update the prescale value,
+		 * recomputing derived values
+		 */
+		protected void update_prescale(int prescale) {
 			// tell the FM engine
-			m_fm.set_clock_prescale(prescale);
+			m_fm.fm_engine_base.set_clock_prescale(prescale);
 			m_ssg.prescale_changed();
 
 			// Fidelity:   ---- minimum ----    ---- medium -----    ---- maximum-----
@@ -1719,7 +1859,7 @@ class opn {
 						m_ssg_resampler.configure(1, 6);
 						break;
 				}
-			} else if (m_fidelity == OPN_FIDELITY_MED) {
+			} else if (m_fidelity == opn_fidelity.OPN_FIDELITY_MED) {
 				switch (prescale) {
 					default:
 					case 6:
@@ -1759,15 +1899,15 @@ class opn {
 				m_ssg_resampler.configure(0, 0);
 		}
 
-		//-------------------------------------------------
-		//  clock_fm_and_adpcm - clock FM and ADPCM state
-		//-------------------------------------------------
+		/**
+		 * clock_fm_and_adpcm - clock FM and ADPCM state
+		 */
 		protected void clock_fm_and_adpcm() {
 			// top bit of the IRQ enable flags controls 3-channel vs 6-channel mode
 			int fmmask = bitfield(m_irq_enable, 7) != 0 ? 0x3f : 0x07;
 
 			// clock the system
-			int env_counter = m_fm.clock(opna_registers.ALL_CHANNELS);
+			int env_counter = m_fm.fm_engine_base.clock((int) m_fm.getParams().get("ALL_CHANNELS"));
 
 			// clock the ADPCM-A engine on every envelope cycle
 			// (channels 4 and 5 clock every 2 envelope clocks)
@@ -1778,7 +1918,7 @@ class opn {
 			m_adpcm_b.clock();
 
 			// update the FM content; OPNA is 13-bit with no intermediate clipping
-			m_fm.output(m_last_fm.clear(), 1, 32767, fmmask);
+			m_fm.fm_engine_base.output(m_last_fm.clear(), 1, 32767, fmmask);
 
 			// mix in the ADPCM and clamp
 			m_adpcm_a.output(m_last_fm, 0x3f);
@@ -1788,19 +1928,23 @@ class opn {
 
 		// internal state
 		protected opn_fidelity m_fidelity;            // configured fidelity
+		@Element(sequence = 0)
 		protected int m_address;                 // address register
 		protected byte m_fm_samples_per_output;    // how many samples to repeat
+		@Element(sequence = 1)
 		protected byte m_irq_enable;               // IRQ enable register
+		@Element(sequence = 2)
 		protected byte m_flag_control;             // flag control register
-		protected opna_registers.output_data m_last_fm;   // last FM output
+		@Element(sequence = 3)
+		protected ymfm_output m_last_fm;   // last FM output
 		protected opna_registers m_fm;                     // core FM engine
 		protected ssg_engine m_ssg;                   // SSG engine
-		protected ssg_resampler<output_data, 2, true> m_ssg_resampler; // SSG resampler helper
+		protected ssg_resampler/*<output_data, 2, true>*/ m_ssg_resampler; // SSG resampler helper
 		protected adpcm_a_engine m_adpcm_a;           // ADPCM-A engine
 		protected adpcm_b_engine m_adpcm_b;           // ADPCM-B engine
 	}
 
-    // ======================> ymf288
+	// ======================> ymf288
 
 	//*********************************************************
 	//  YMF288
@@ -1814,27 +1958,35 @@ class opn {
 	//   * SSG tone frequency is altered in some way? (explicitly DC for Tp 0-7, also double volume in some cases)
 	//   * I/O ports removed
 	//   * Shorter busy times
-    //   * All registers can be read
+	//   * All registers can be read
+	@Serdes
 	static class ymf288 {
 
-//	using fm_engine = fm_engine_base<opna_registers>;
-        public static final int FM_OUTPUTS = fm_engine.OUTPUTS;
+		//	using fm_engine = fm_engine_base<opna_registers>;
+		public final int FM_OUTPUTS;
 		public static final int SSG_OUTPUTS = 1;
-		public static final int OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
-//	using output_data = ymfm_output<OUTPUTS>;
+		public final int OUTPUTS;
+		//	using output_data = ymfm_output<OUTPUTS>;
 
-		//-------------------------------------------------
-		//  ymf288 - constructor
-		//-------------------------------------------------
+		/**
+		 * ymf288 - constructor
+		 */
 		public ymf288(ymfm_interface intf) {
 			m_fidelity = OPN_FIDELITY_MAX;
 			m_address = 0;
 			m_irq_enable = 0x03;
 			m_flag_control = 0x03;
-			m_fm = intf;
-			m_ssg = intf;
-			m_ssg_resampler = m_ssg;
-			m_adpcm_a = intf, 0;
+			m_fm = (opna_registers) intf;
+			m_ssg = (ssg_engine) intf;
+			m_ssg_resampler = new ssg_resampler(m_ssg) {
+				@Override int getOutput() { return (int) m_fm.getParams().get("OUTPUT"); }
+				@Override int getFirstOutput() { return 2; }
+				@Override boolean isMixTo1() { return true; }
+			};
+			m_adpcm_a = new adpcm_a_engine(intf, 0);
+
+			FM_OUTPUTS = (int) m_fm.getParams().get("OUTPUTS");
+			OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
 
 			m_last_fm.clear();
 			update_prescale();
@@ -1850,9 +2002,9 @@ class opn {
 			update_prescale();
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the system
-		//-------------------------------------------------
+		/**
+		 * reset - reset the system
+		 */
 		public void reset() {
 			// reset the engines
 			m_fm.reset();
@@ -1874,19 +2026,28 @@ class opn {
 			read_status_hi();
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			state.save_restore(m_address);
-			state.save_restore(m_irq_enable);
-			state.save_restore(m_flag_control);
-			state.save_restore(m_last_fm.data);
+		/**
+		 * save the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
 
-			m_fm.save_restore(state);
-			m_ssg.save_restore(state);
-			m_ssg_resampler.save_restore(state);
-			m_adpcm_a.save_restore(state);
+			m_fm.save(os);
+			m_ssg.save(os);
+			m_ssg_resampler.save(os);
+			m_adpcm_a.save(os);
+		}
+
+		/**
+		 * restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
+
+			m_fm.restore(is);
+			m_ssg.restore(is);
+			m_ssg_resampler.restore(is);
+			m_adpcm_a.restore(is);
 		}
 
 		// pass-through helpers
@@ -1907,22 +2068,22 @@ class opn {
 		}
 
 		public void invalidate_caches() {
-			m_fm.invalidate_caches();
+			m_fm.fm_engine_base.invalidate_caches();
 		}
 
-		//-------------------------------------------------
-		//  read_status - read the status register
-		//-------------------------------------------------
+		/**
+		 * read_status - read the status register
+		 */
 		public int read_status() {
-			byte result = m_fm.status() & (fm_engine.STATUS_TIMERA | fm_engine.STATUS_TIMERB);
-			if (m_fm.intf().ymfm_is_busy())
-				result |= fm_engine.STATUS_BUSY;
+			int result = m_fm.fm_engine_base.status() & (opna_registers.STATUS_TIMERA | opna_registers.STATUS_TIMERB);
+			if (m_fm.fm_engine_base.intf().ymfm_is_busy())
+				result |= opna_registers.STATUS_BUSY;
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  read_data - read the data register
-		//-------------------------------------------------
+		/**
+		 * read_data - read the data register
+		 */
 		public int read_data() {
 			int result = 0;
 			if (m_address < 0x0e) {
@@ -1936,34 +2097,34 @@ class opn {
 				result = 2;
 			} else if (ymf288_mode()) {
 				// registers are readable in YMF288 mode
-				result = m_fm.regs().read(m_address);
+				result = m_fm.fm_engine_base.regs().read(m_address);
 			}
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  read_status_hi - read the extended status
-		//  register
-		//-------------------------------------------------
+		/**
+		 * read_status_hi - read the extended status
+		 * register
+		 */
 		public int read_status_hi() {
 			// fetch regular status
-			byte status = m_fm.status() & (fm_engine.STATUS_TIMERA | fm_engine.STATUS_TIMERB);
+			int status = m_fm.fm_engine_base.status() & (opna_registers.STATUS_TIMERA | opna_registers.STATUS_TIMERB);
 
 			// turn off any bits that have been requested to be masked
 			status &= ~(m_flag_control & 0x03);
 
 			// update the status so that IRQs are propagated
-			m_fm.set_reset_status(status, ~status);
+			m_fm.fm_engine_base.set_reset_status(status, ~status);
 
 			// merge in the busy flag
-			if (m_fm.intf().ymfm_is_busy())
-				status |= fm_engine.STATUS_BUSY;
+			if (m_fm.fm_engine_base.intf().ymfm_is_busy())
+				status |= opna_registers.STATUS_BUSY;
 			return status;
 		}
 
-		//-------------------------------------------------
-		//  read - handle a read from the device
-		//-------------------------------------------------
+		/**
+		 * read - handle a read from the device
+		 */
 		public int read(int offset) {
 			int result = 0;
 			switch (offset & 3) {
@@ -1986,29 +2147,29 @@ class opn {
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  write_address - handle a write to the address
-		//  register
-		//-------------------------------------------------
+		/**
+		 * write_address - handle a write to the address
+		 * register
+		 */
 		public void write_address(byte data) {
 			// just set the address
 			m_address = data;
 
 			// in YMF288 mode, busy is signaled after address writes too
 			if (ymf288_mode())
-				m_fm.intf().ymfm_set_busy_end(16);
+				m_fm.fm_engine_base.intf().ymfm_set_busy_end(16);
 		}
 
-		//-------------------------------------------------
-		//  write - handle a write to the data register
-		//-------------------------------------------------
+		/**
+		 * write - handle a write to the data register
+		 */
 		public void write_data(byte data) {
 			// ignore if paired with upper address
 			if (bitfield(m_address, 8) != 0)
 				return;
 
 			// wait times are shorter in YMF288 mode
-			int busy_cycles = ymf288_mode() ? 16 : 32 * m_fm.clock_prescale();
+			int busy_cycles = ymf288_mode() ? 16 : 32 * m_fm.fm_engine_base.clock_prescale();
 			if (m_address < 0x0e) {
 				// 00-0D: write to SSG
 				m_ssg.write(m_address & 0x0f, data);
@@ -2017,69 +2178,69 @@ class opn {
 			} else if (m_address < 0x20) {
 				// 10-1F: write to ADPCM-A
 				m_adpcm_a.write(m_address & 0x0f, data);
-				busy_cycles = 32 * m_fm.clock_prescale();
+				busy_cycles = 32 * m_fm.fm_engine_base.clock_prescale();
 			} else if (m_address == 0x27) {
 				// 27: mode register; CSM isn't supported so disable it
 				data &= 0x7f;
-				m_fm.write(m_address, data);
+				m_fm.fm_engine_base.write(m_address, data);
 			} else if (m_address == 0x29) {
 				// 29: special IRQ mask register
 				m_irq_enable = data;
-				m_fm.set_irq_mask(m_irq_enable & ~m_flag_control & 0x03);
+				m_fm.fm_engine_base.set_irq_mask(m_irq_enable & ~m_flag_control & 0x03);
 			} else {
 				// 20-27, 2A-FF: write to FM
-				m_fm.write(m_address, data);
+				m_fm.fm_engine_base.write(m_address, data);
 			}
 
 			// mark busy for a bit
-			m_fm.intf().ymfm_set_busy_end(busy_cycles);
+			m_fm.fm_engine_base.intf().ymfm_set_busy_end(busy_cycles);
 		}
 
-		//-------------------------------------------------
-		//  write_address_hi - handle a write to the upper
-		//  address register
-		//-------------------------------------------------
+		/**
+		 * write_address_hi - handle a write to the upper
+		 * address register
+		 */
 		public void write_address_hi(byte data) {
 			// just set the address
 			m_address = 0x100 | data;
 
 			// in YMF288 mode, busy is signaled after address writes too
 			if (ymf288_mode())
-				m_fm.intf().ymfm_set_busy_end(16);
+				m_fm.fm_engine_base.intf().ymfm_set_busy_end(16);
 		}
 
-		//-------------------------------------------------
-		//  write_data_hi - handle a write to the upper
-		//  data register
-		//-------------------------------------------------
+		/**
+		 * write_data_hi - handle a write to the upper
+		 * data register
+		 */
 		public void write_data_hi(byte data) {
 			// ignore if paired with upper address
 			if (bitfield(m_address, 8) == 0)
 				return;
 
 			// wait times are shorter in YMF288 mode
-			int busy_cycles = ymf288_mode() ? 16 : 32 * m_fm.clock_prescale();
+			int busy_cycles = ymf288_mode() ? 16 : 32 * m_fm.fm_engine_base.clock_prescale();
 			if (m_address == 0x110) {
 				// 110: IRQ flag control
 				if (bitfield(data, 7) != 0)
-					m_fm.set_reset_status(0, 0xff);
+					m_fm.fm_engine_base.set_reset_status(0, 0xff);
 				else {
 					m_flag_control = data;
-					m_fm.set_irq_mask(m_irq_enable & ~m_flag_control & 0x03);
+					m_fm.fm_engine_base.set_irq_mask(m_irq_enable & ~m_flag_control & 0x03);
 				}
 			} else {
 				// 100-10F,111-1FF: write to FM
-				m_fm.write(m_address, data);
+				m_fm.fm_engine_base.write(m_address, data);
 			}
 
 			// mark busy for a bit
-			m_fm.intf().ymfm_set_busy_end(busy_cycles);
+			m_fm.fm_engine_base.intf().ymfm_set_busy_end(busy_cycles);
 		}
 
-		//-------------------------------------------------
-		//  write - handle a write to the register
-		//  interface
-		//-------------------------------------------------
+		/**
+		 * write - handle a write to the register
+		 * interface
+		 */
 		public void write(int offset, byte data) {
 			switch (offset & 3) {
 				case 0: // address port
@@ -2100,21 +2261,21 @@ class opn {
 			}
 		}
 
-		//-------------------------------------------------
-		//  generate - generate one sample of sound
-		//-------------------------------------------------
-		public void generate(output_data output, int numsamples /* = 1 */) {
+		/**
+		 * generate - generate one sample of sound
+		 */
+		public void generate(ymfm_output output, int numsamples /* = 1 */) {
 			// FM output is just repeated the prescale number of times; note that
 			// 0 is a special 1.5 case
 			if (m_fm_samples_per_output != 0) {
-				for (int samp = 0; samp < numsamples; samp++, output++) {
+				for (int samp = 0; samp < numsamples; samp++, output.inc()) {
 					if ((m_ssg_resampler.sampindex() + samp) % m_fm_samples_per_output == 0)
 						clock_fm_and_adpcm();
 					output.data[0] = m_last_fm.data[0];
 					output.data[1] = m_last_fm.data[1];
 				}
 			} else {
-				for (int samp = 0; samp < numsamples; samp++, output++) {
+				for (int samp = 0; samp < numsamples; samp++, output.inc()) {
 					int step = (m_ssg_resampler.sampindex() + samp) % 3;
 					if (step == 0)
 						clock_fm_and_adpcm();
@@ -2129,18 +2290,18 @@ class opn {
 			}
 
 			// resample the SSG as configured
-			m_ssg_resampler.resample(output - numsamples, numsamples);
+			m_ssg_resampler.resample(output, output.pos() - numsamples, numsamples);
 		}
 
 		// internal helpers
 		protected boolean ymf288_mode() {
-			return ((m_fm.regs().read(0x20) & 0x02) != 0);
+			return ((m_fm.fm_engine_base.regs().read(0x20) & 0x02) != 0);
 		}
 
-		//-------------------------------------------------
-		//  update_prescale - update the prescale value,
-		//  recomputing derived values
-		//-------------------------------------------------
+		/**
+		 * update_prescale - update the prescale value,
+		 * recomputing derived values
+		 */
 		protected void update_prescale() {
 			// Fidelity:   ---- minimum ----    ---- medium -----    ---- maximum-----
 			//              rate = clock/144     rate = clock/144     rate = clock/16
@@ -2163,15 +2324,15 @@ class opn {
 				m_ssg_resampler.configure(0, 0);
 		}
 
-		//-------------------------------------------------
-		//  clock_fm_and_adpcm - clock FM and ADPCM state
-		//-------------------------------------------------
+		/**
+		 * clock_fm_and_adpcm - clock FM and ADPCM state
+		 */
 		protected void clock_fm_and_adpcm() {
 			// top bit of the IRQ enable flags controls 3-channel vs 6-channel mode
 			int fmmask = bitfield(m_irq_enable, 7) != 0 ? 0x3f : 0x07;
 
 			// clock the system
-			int env_counter = m_fm.clock(fm_engine.ALL_CHANNELS);
+			int env_counter = m_fm.fm_engine_base.clock((int) m_fm.getParams().get("ALL_CHANNELS"));
 
 			// clock the ADPCM-A engine on every envelope cycle
 			// (channels 4 and 5 clock every 2 envelope clocks)
@@ -2179,7 +2340,7 @@ class opn {
 				m_adpcm_a.clock(bitfield(env_counter, 2) != 0 ? 0x0f : 0x3f);
 
 			// update the FM content; OPNA is 13-bit with no intermediate clipping
-			m_fm.output(m_last_fm.clear(), 1, 32767, fmmask);
+			m_fm.fm_engine_base.output(m_last_fm.clear(), 1, 32767, fmmask);
 
 			// mix in the ADPCM
 			m_adpcm_a.output(m_last_fm, 0x3f);
@@ -2187,46 +2348,58 @@ class opn {
 
 		// internal state
 		protected opn_fidelity m_fidelity;            // configured fidelity
+		@Element(sequence = 0)
 		protected int m_address;                 // address register
 		protected byte m_fm_samples_per_output;    // how many samples to repeat
+		@Element(sequence = 1)
 		protected byte m_irq_enable;               // IRQ enable register
+		@Element(sequence = 2)
 		protected byte m_flag_control;             // flag control register
-		protected opna_registers.output_data m_last_fm;   // last FM output
+		@Element(sequence = 3)
+		protected ymfm_output m_last_fm;   // last FM output
 		protected opna_registers m_fm;                     // core FM engine
 		protected ssg_engine m_ssg;                   // SSG engine
-		protected ssg_resampler<output_data, 2,true>m_ssg_resampler; // SSG resampler helper
+		protected ssg_resampler/* <output_data, 2,true> */ m_ssg_resampler; // SSG resampler helper
 		protected adpcm_a_engine m_adpcm_a;           // ADPCM-A engine
 	}
 
-    // ======================> ym2610/ym2610b
+	// ======================> ym2610/ym2610b
 
 	//*********************************************************
 	//  YM2610
 	//*********************************************************
+	@Serdes
 	static class ym2610 {
 
 		static final int EOS_FLAGS_MASK = 0xbf;
 
-//	using fm_engine = fm_engine_base<opna_registers>;
-        public static final int FM_OUTPUTS = fm_engine.OUTPUTS;
+		//	using fm_engine = fm_engine_base<opna_registers>;
+		public final int FM_OUTPUTS;
 		public static final int SSG_OUTPUTS = 1;
-		public static final int OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
-//	using output_data = ymfm_output<OUTPUTS>;
+		public final int OUTPUTS;
+        //	using output_data = ymfm_output<OUTPUTS>;
 
-		//-------------------------------------------------
-		//  ym2610 - constructor
-		//-------------------------------------------------
+		/**
+		 * ym2610 - constructor
+		 */
 		public ym2610(ymfm_interface intf, int channel_mask /* = 0x36 */) {
 			m_fidelity = OPN_FIDELITY_MAX;
 			m_address = 0;
 			m_fm_mask = channel_mask;
 			m_eos_status = 0x00;
 			m_flag_mask = EOS_FLAGS_MASK;
-			m_fm = intf;
-			m_ssg = intf;
-			m_ssg_resampler = m_ssg;
-			m_adpcm_a = intf, 8;
-			m_adpcm_b = intf, 8;
+			m_fm = (opna_registers) intf;
+			m_ssg = (ssg_engine) intf;
+			m_ssg_resampler = new ssg_resampler(m_ssg) {
+				@Override int getOutput() { return (int) m_fm.getParams().get("OUTPUT"); }
+				@Override int getFirstOutput() { return 2; }
+				@Override boolean isMixTo1() { return true; }
+			};
+			m_adpcm_a = new adpcm_a_engine(intf, 8);
+			m_adpcm_b = new adpcm_b_engine(intf, 8);
+
+			FM_OUTPUTS = (int) m_fm.getParams().get("OUTPUTS");
+			OUTPUTS = FM_OUTPUTS + SSG_OUTPUTS;
 
 			update_prescale();
 		}
@@ -2241,9 +2414,9 @@ class opn {
 			update_prescale();
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the system
-		//-------------------------------------------------
+		/**
+		 * reset - reset the system
+		 */
 		public void reset() {
 			// reset the engines
 			m_fm.reset();
@@ -2256,19 +2429,30 @@ class opn {
 			m_flag_mask = EOS_FLAGS_MASK;
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			state.save_restore(m_address);
-			state.save_restore(m_eos_status);
-			state.save_restore(m_flag_mask);
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
 
-			m_fm.save_restore(state);
-			m_ssg.save_restore(state);
-			m_ssg_resampler.save_restore(state);
-			m_adpcm_a.save_restore(state);
-			m_adpcm_b.save_restore(state);
+			m_fm.save(os);
+			m_ssg.save(os);
+			m_ssg_resampler.save(os);
+			m_adpcm_a.save(os);
+			m_adpcm_b.save(os);
+		}
+
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save_restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
+
+			m_fm.restore(is);
+			m_ssg.restore(is);
+			m_ssg_resampler.restore(is);
+			m_adpcm_a.restore(is);
+			m_adpcm_b.restore(is);
 		}
 
 		// pass-through helpers
@@ -2289,22 +2473,22 @@ class opn {
 		}
 
 		public void invalidate_caches() {
-			m_fm.invalidate_caches();
+			m_fm.fm_engine_base.invalidate_caches();
 		}
 
-		//-------------------------------------------------
-		//  read_status - read the status register
-		//-------------------------------------------------
+		/**
+		 * read_status - read the status register
+		 */
 		public int read_status() {
-			int result = m_fm.status() & (fm_engine.STATUS_TIMERA | fm_engine.STATUS_TIMERB);
-			if (m_fm.intf().ymfm_is_busy())
-				result |= fm_engine.STATUS_BUSY;
+			int result = m_fm.fm_engine_base.status() & (opna_registers.STATUS_TIMERA | opna_registers.STATUS_TIMERB);
+			if (m_fm.fm_engine_base.intf().ymfm_is_busy())
+				result |= opna_registers.STATUS_BUSY;
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  read_data - read the data register
-		//-------------------------------------------------
+		/**
+		 * read_data - read the data register
+		 */
 		public int read_data() {
 			int result = 0;
 			if (m_address < 0x0e) {
@@ -2320,25 +2504,25 @@ class opn {
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  read_status_hi - read the extended status
-		//  register
-		//-------------------------------------------------
+		/**
+		 * read_status_hi - read the extended status
+		 * register
+		 */
 		public int read_status_hi() {
 			return m_eos_status & m_flag_mask;
 		}
 
-		//-------------------------------------------------
-		//  read_data_hi - read the upper data register
-		//-------------------------------------------------
+		/**
+		 * read_data_hi - read the upper data register
+		 */
 		public int read_data_hi() {
 			int result = 0;
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  read - handle a read from the device
-		//-------------------------------------------------
+		/**
+		 * read - handle a read from the device
+		 */
 		public int read(int offset) {
 			int result = 0;
 			switch (offset & 3) {
@@ -2361,18 +2545,18 @@ class opn {
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  write_address - handle a write to the address
-		//  register
-		//-------------------------------------------------
+		/**
+		 * write_address - handle a write to the address
+		 * register
+		 */
 		public void write_address(int data) {
 			// just set the address
 			m_address = data;
 		}
 
-		//-------------------------------------------------
-		//  write - handle a write to the data register
-		//-------------------------------------------------
+		/**
+		 * write - handle a write to the data register
+		 */
 		public void write_data(int data) {
 			// ignore if paired with upper address
 			if (bitfield(m_address, 8) != 0)
@@ -2395,29 +2579,29 @@ class opn {
 				m_eos_status &= ~(data & EOS_FLAGS_MASK);
 			} else {
 				// 1D-FF: write to FM
-				m_fm.write(m_address, data);
+				m_fm.fm_engine_base.write(m_address, data);
 			}
 
 			// mark busy for a bit
-			m_fm.intf().ymfm_set_busy_end(32 * m_fm.clock_prescale());
+			m_fm.fm_engine_base.intf().ymfm_set_busy_end(32 * m_fm.fm_engine_base.clock_prescale());
 		}
 
-		//-------------------------------------------------
-		//  write_address_hi - handle a write to the upper
-		//  address register
-		//-------------------------------------------------
+		/**
+		 * write_address_hi - handle a write to the upper
+		 * address register
+		 */
 		void write_address_hi(byte data) {
 			// just set the address
 			m_address = 0x100 | data;
 		}
 
-		//-------------------------------------------------
-		//  write_data_hi - handle a write to the upper
-		//  data register
-		//-------------------------------------------------
+		/**
+		 * write_data_hi - handle a write to the upper
+		 * data register
+		 */
 		void write_data_hi(byte data) {
 			// ignore if paired with upper address
-			if (!bitfield(m_address, 8))
+			if (bitfield(m_address, 8) == 0)
 				return;
 
 			if (m_address < 0x130) {
@@ -2425,17 +2609,17 @@ class opn {
 				m_adpcm_a.write(m_address & 0x3f, data);
 			} else {
 				// 130-1FF: write to FM
-				m_fm.write(m_address, data);
+				m_fm.fm_engine_base.write(m_address, data);
 			}
 
 			// mark busy for a bit
-			m_fm.intf().ymfm_set_busy_end(32 * m_fm.clock_prescale());
+			m_fm.fm_engine_base.intf().ymfm_set_busy_end(32 * m_fm.fm_engine_base.clock_prescale());
 		}
 
-		//-------------------------------------------------
-		//  write - handle a write to the register
-		//  interface
-		//-------------------------------------------------
+		/**
+		 * write - handle a write to the register
+		 * interface
+		 */
 		void write(int offset, byte data) {
 			switch (offset & 3) {
 				case 0: // address port
@@ -2456,12 +2640,12 @@ class opn {
 			}
 		}
 
-		//-------------------------------------------------
-		//  generate - generate one sample of sound
-		//-------------------------------------------------
-		void generate(output_data output, int numsamples /* = 1 */) {
+		/**
+		 * generate - generate one sample of sound
+		 */
+		void generate(ymfm_output output, int numsamples /* = 1 */) {
 			// FM output is just repeated the prescale number of times
-			for (int samp = 0; samp < numsamples; samp++, output++) {
+			for (int samp = 0; samp < numsamples; samp++, output.inc()) {
 				if ((m_ssg_resampler.sampindex() + samp) % m_fm_samples_per_output == 0)
 					clock_fm_and_adpcm();
 				output.data[0] = m_last_fm.data[0];
@@ -2469,13 +2653,13 @@ class opn {
 			}
 
 			// resample the SSG as configured
-			m_ssg_resampler.resample(output - numsamples, numsamples);
+			m_ssg_resampler.resample(output, output.pos() - numsamples, numsamples);
 		}
 
-		//-------------------------------------------------
-		//  update_prescale - update the prescale value,
-		//  recomputing derived values
-		//-------------------------------------------------
+		/**
+		 * update_prescale - update the prescale value,
+		 * recomputing derived values
+		 */
 		protected void update_prescale() {
 			// Fidelity:   ---- minimum ----    ---- medium -----    ---- maximum-----
 			//              rate = clock/144     rate = clock/144     rate = clock/16
@@ -2484,7 +2668,7 @@ class opn {
 
 			// compute the number of FM samples per output sample, and select the
 			// resampler function
-			if (m_fidelity == OPN_FIDELITY_MIN || m_fidelity == OPN_FIDELITY_MED) {
+			if (m_fidelity == opn_fidelity.OPN_FIDELITY_MIN || m_fidelity == opn_fidelity.OPN_FIDELITY_MED) {
 				m_fm_samples_per_output = 1;
 				m_ssg_resampler.configure(2, 9);
 			} else {
@@ -2498,12 +2682,12 @@ class opn {
 				m_ssg_resampler.configure(0, 0);
 		}
 
-		//-------------------------------------------------
-		//  clock_fm_and_adpcm - clock FM and ADPCM state
-		//-------------------------------------------------
+		/**
+		 * clock_fm_and_adpcm - clock FM and ADPCM state
+		 */
 		protected void clock_fm_and_adpcm() {
 			// clock the system
-			int env_counter = m_fm.clock(m_fm_mask);
+			int env_counter = m_fm.fm_engine_base.clock(m_fm_mask);
 
 			// clock the ADPCM-A engine on every envelope cycle
 			if (bitfield(env_counter, 0, 2) == 0)
@@ -2514,12 +2698,12 @@ class opn {
 
 			// we track the last ADPCM-B EOS value in bit 6 (which is hidden from callers);
 			// if it changed since the last sample, update the visible EOS state in bit 7
-			byte live_eos = ((m_adpcm_b.status() & adpcm_b_channel.STATUS_EOS) != 0) ? 0x40 : 0x00;
+			int live_eos = ((m_adpcm_b.status() & adpcm_b_channel.STATUS_EOS) != 0) ? 0x40 : 0x00;
 			if (((live_eos ^ m_eos_status) & 0x40) != 0)
 				m_eos_status = (m_eos_status & ~0xc0) | live_eos | (live_eos << 1);
 
 			// update the FM content; OPNB is 13-bit with no intermediate clipping
-			m_fm.output(m_last_fm.clear(), 1, 32767, m_fm_mask);
+			m_fm.fm_engine_base.output(m_last_fm.clear(), 1, 32767, m_fm_mask);
 
 			// mix in the ADPCM and clamp
 			m_adpcm_a.output(m_last_fm, 0x3f);
@@ -2529,15 +2713,18 @@ class opn {
 
 		// internal state
 		protected opn_fidelity m_fidelity;            // configured fidelity
+		@Element(sequence = 0)
 		protected int m_address;                 // address register
 		protected final int m_fm_mask;            // FM channel mask
 		protected int m_fm_samples_per_output;    // how many samples to repeat
+		@Element(sequence = 1)
 		protected int m_eos_status;               // end-of-sample signals
+		@Element(sequence = 2)
 		protected int m_flag_mask;                // flag mask control
-		protected fm_engine.output_data m_last_fm;   // last FM output
-		protected fm_engine m_fm;                     // core FM engine
+		protected ymfm_output m_last_fm;   // last FM output
+		protected opna_registers m_fm;                     // core FM engine
 		protected ssg_engine m_ssg;                   // core FM engine
-		protected ssg_resampler<output_data, 2,true>m_ssg_resampler; // SSG resampler helper
+		protected ssg_resampler/*<output_data, 2,true>*/m_ssg_resampler; // SSG resampler helper
 		protected adpcm_a_engine m_adpcm_a;           // ADPCM-A engine
 		protected adpcm_b_engine m_adpcm_b;           // ADPCM-B engine
 	}
@@ -2550,68 +2737,76 @@ class opn {
 		}
 	}
 
-    // ======================> ym2612
+	// ======================> ym2612
 
 	//*********************************************************
-	//  YM2612
+	// YM2612
 	//*********************************************************
+	@Serdes
 	static class ym2612 {
 
+		//	using fm_engine = fm_engine_base<opna_registers>;
+		public final int OUTPUTS;
+        //	using output_data = fm_engine.output_data;
 
-//	using fm_engine = fm_engine_base<opna_registers>;
-        public static final int OUTPUTS = fm_engine.OUTPUTS;
-//	using output_data = fm_engine.output_data;
-
-		//-------------------------------------------------
-		//  ym2612 - constructor
-		//-------------------------------------------------
+		/**
+		 * ym2612 - constructor
+		 */
 		public ym2612(ymfm_interface intf) {
 			m_address = 0;
 			m_dac_data = 0;
 			m_dac_enable = 0;
-			m_fm = intf;
+			m_fm = (opna_registers) intf;
+
+			OUTPUTS = (int) m_fm.getParams().get("OUTPUTS");
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the system
-		//-------------------------------------------------
+		/**
+		 * reset - reset the system
+		 */
 		public void reset() {
 			// reset the engines
 			m_fm.reset();
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
-			state.save_restore(m_address);
-			state.save_restore(m_dac_data);
-			state.save_restore(m_dac_enable);
-			m_fm.save_restore(state);
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
+			m_fm.save(os);
+		}
+
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
+			m_fm.restore(is);
 		}
 
 		// pass-through helpers
 		public final int sample_rate(int input_clock) {
-			return m_fm.sample_rate(input_clock);
+			return m_fm.fm_engine_base.sample_rate(input_clock);
 		}
 
 		public void invalidate_caches() {
-			m_fm.invalidate_caches();
+			m_fm.fm_engine_base.invalidate_caches();
 		}
 
-		//-------------------------------------------------
-		//  read_status - read the status register
-		//-------------------------------------------------
+		/**
+		 * read_status - read the status register
+		 */
 		public int read_status() {
-			int result = m_fm.status();
-			if (m_fm.intf().ymfm_is_busy())
-				result |= fm_engine.STATUS_BUSY;
+			int result = m_fm.fm_engine_base.status();
+			if (m_fm.fm_engine_base.intf().ymfm_is_busy())
+				result |= opna_registers.STATUS_BUSY;
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  read - handle a read from the device
-		//-------------------------------------------------
+		/**
+		 * read - handle a read from the device
+		 */
 		public int read(int offset) {
 			int result = 0;
 			switch (offset & 3) {
@@ -2628,22 +2823,22 @@ class opn {
 			return result;
 		}
 
-		//-------------------------------------------------
-		//  write_address - handle a write to the address
-		//  register
-		//-------------------------------------------------
+		/**
+		 * write_address - handle a write to the address
+		 * register
+		 */
 		public void write_address(byte data) {
 			// just set the address
 			m_address = data;
 		}
 
-		//-------------------------------------------------
-		//  write_data - handle a write to the data
-		//  register
-		//-------------------------------------------------
+		/**
+		 * write_data - handle a write to the data
+		 * register
+		 */
 		public void write_data(byte data) {
 			// ignore if paired with upper address
-			if (bitfield(m_address, 8)!= 0)
+			if (bitfield(m_address, 8) != 0)
 				return;
 
 			if (m_address == 0x2a) {
@@ -2657,42 +2852,42 @@ class opn {
 				m_dac_data = (m_dac_data & ~1) | bitfield(data, 3);
 			} else {
 				// 00-29, 2D-FF: write to FM
-				m_fm.write(m_address, data);
+				m_fm.fm_engine_base.write(m_address, data);
 			}
 
 			// mark busy for a bit
-			m_fm.intf().ymfm_set_busy_end(32 * m_fm.clock_prescale());
+			m_fm.fm_engine_base.intf().ymfm_set_busy_end(32 * m_fm.fm_engine_base.clock_prescale());
 		}
 
-		//-------------------------------------------------
-		//  write_address_hi - handle a write to the upper
-		//  address register
-		//-------------------------------------------------
+		/**
+		 * write_address_hi - handle a write to the upper
+		 * address register
+		 */
 		public void write_address_hi(byte data) {
 			// just set the address
 			m_address = 0x100 | data;
 		}
 
-		//-------------------------------------------------
-		//  write_data_hi - handle a write to the upper
-		//  data register
-		//-------------------------------------------------
+		/**
+		 * write_data_hi - handle a write to the upper
+		 * data register
+		 */
 		public void write_data_hi(byte data) {
 			// ignore if paired with upper address
 			if (bitfield(m_address, 8) == 0)
 				return;
 
 			// 100-1FF: write to FM
-			m_fm.write(m_address, data);
+			m_fm.fm_engine_base.write(m_address, data);
 
 			// mark busy for a bit
-			m_fm.intf().ymfm_set_busy_end(32 * m_fm.clock_prescale());
+			m_fm.fm_engine_base.intf().ymfm_set_busy_end(32 * m_fm.fm_engine_base.clock_prescale());
 		}
 
-		//-------------------------------------------------
-		//  write - handle a write to the register
-		//  interface
-		//-------------------------------------------------
+		/**
+		 * write - handle a write to the register
+		 * interface
+		 */
 		public void write(int offset, byte data) {
 			switch (offset & 3) {
 				case 0: // address port
@@ -2713,22 +2908,22 @@ class opn {
 			}
 		}
 
-		//-------------------------------------------------
-		//  generate - generate one sample of sound
-		//-------------------------------------------------
-		public void generate(output_data output, int numsamples /* = 1 */) {
-			for (int samp = 0; samp < numsamples; samp++, output++) {
+		/**
+		 * generate - generate one sample of sound
+		 */
+		public void generate(ymfm_output output, int numsamples /* = 1 */) {
+			for (int samp = 0; samp < numsamples; samp++, output.inc()) {
 				// clock the system
-				m_fm.clock(fm_engine.ALL_CHANNELS);
+				m_fm.fm_engine_base.clock((int) m_fm.getParams().get("ALL_CHANNELS"));
 
 				// sum individual channels to apply DAC discontinuity on each
 				output.clear();
-				output_data temp;
+				ymfm_output temp = new ymfm_output(m_fm.OUTPUTS);
 
 				// first do FM-only channels; OPN2 is 9-bit with intermediate clipping
-				int  last_fm_channel =m_dac_enable != 0 ? 5 : 6;
+				int last_fm_channel = m_dac_enable != 0 ? 5 : 6;
 				for (int chan = 0; chan < last_fm_channel; chan++) {
-					m_fm.output(temp.clear(), 5, 256, 1 << chan);
+					m_fm.fm_engine_base.output(temp.clear(), 5, 256, 1 << chan);
 					output.data[0] += dac_discontinuity(temp.data[0]);
 					output.data[1] += dac_discontinuity(temp.data[1]);
 				}
@@ -2736,9 +2931,9 @@ class opn {
 				// add in DAC
 				if (m_dac_enable != 0) {
 					// DAC enabled: start with DAC value then add the first 5 channels only
-					int dacval = dac_discontinuity(int(m_dac_data << 7) >> 7);
-					output.data[0] += m_fm.regs().ch_output_0(0x102) ? dacval : dac_discontinuity(0);
-					output.data[1] += m_fm.regs().ch_output_1(0x102) ? dacval : dac_discontinuity(0);
+					int dacval = dac_discontinuity((m_dac_data << 7) >> 7);
+					output.data[0] += m_fm.fm_engine_base.regs().ch_output_0(0x102) != 0 ? dacval : dac_discontinuity(0);
+					output.data[1] += m_fm.fm_engine_base.regs().ch_output_1(0x102) != 0 ? dacval : dac_discontinuity(0);
 				}
 
 				// output is technically multiplexed rather than mixed, but that requires
@@ -2756,13 +2951,16 @@ class opn {
 		}
 
 		// internal state
+		@Element(sequence = 0)
 		protected int m_address;              // address register
+		@Element(sequence = 1)
 		protected int m_dac_data;             // 9-bit DAC data
+		@Element(sequence = 2)
 		protected int m_dac_enable;            // DAC enabled?
-		protected fm_engine m_fm;                  // core FM engine
+		protected opna_registers m_fm;                  // core FM engine
 	}
 
-    // ======================> ym3438
+	// ======================> ym3438
 
 	static class ym3438 extends ym2612 {
 
@@ -2770,24 +2968,24 @@ class opn {
 			super(intf);
 		}
 
-		//-------------------------------------------------
-		//  generate - generate one sample of sound
-		//-------------------------------------------------
-		void generate(output_data output, int numsamples /* = 1 */) {
-			for (int samp = 0; samp < numsamples; samp++, output++) {
+		/**
+		 * generate - generate one sample of sound
+		 */
+		public void generate(ymfm_output output, int numsamples /* = 1 */) {
+			for (int samp = 0; samp < numsamples; samp++, output.inc()) {
 				// clock the system
-				m_fm.clock(fm_engine.ALL_CHANNELS);
+				m_fm.fm_engine_base.clock((int) m_fm.getParams().get("ALL_CHANNELS"));
 
 				// first do FM-only channels; OPN2C is 9-bit with intermediate clipping
 				if (m_dac_enable == 0) {
 					// DAC disabled: all 6 channels sum together
-					m_fm.output(output.clear(), 5, 256, fm_engine.ALL_CHANNELS);
+					m_fm.fm_engine_base.output(output.clear(), 5, 256, (int) m_fm.getParams().get("ALL_CHANNELS"));
 				} else {
 					// DAC enabled: start with DAC value then add the first 5 channels only
 					int dacval = (m_dac_data << 7) >> 7;
-					output.data[0] = m_fm.regs().ch_output_0(0x102) ? dacval : 0;
-					output.data[1] = m_fm.regs().ch_output_1(0x102) ? dacval : 0;
-					m_fm.output( * output, 5, 256, fm_engine.ALL_CHANNELS ^ (1 << 5));
+					output.data[0] = m_fm.fm_engine_base.regs().ch_output_0(0x102) != 0 ? dacval : 0;
+					output.data[1] = m_fm.fm_engine_base.regs().ch_output_1(0x102) != 0 ? dacval : 0;
+					m_fm.fm_engine_base.output(output, 5, 256, (int) m_fm.getParams().get("ALL_CHANNELS") ^ (1 << 5));
 				}
 
 				// YM3438 doesn't have the same DAC discontinuity, though its output is
@@ -2798,7 +2996,7 @@ class opn {
 		}
 	}
 
-    // ======================> ymf276
+	// ======================> ymf276
 
 	static class ymf276 extends ym2612 {
 
@@ -2806,24 +3004,24 @@ class opn {
 			super(intf);
 		}
 
-		//-------------------------------------------------
-		//  generate - generate one sample of sound
-		//-------------------------------------------------
-		public void generate(output_data output, int numsamples) {
-			for (int samp = 0; samp < numsamples; samp++, output++) {
+		/**
+		 * generate - generate one sample of sound
+		 */
+		public void generate(ymfm_output output, int numsamples) {
+			for (int samp = 0; samp < numsamples; samp++, output.inc()) {
 				// clock the system
-				m_fm.clock(fm_engine.ALL_CHANNELS);
+				m_fm.fm_engine_base.clock((int) m_fm.getParams().get("ALL_CHANNELS"));
 
 				// first do FM-only channels; OPN2L is 14-bit with intermediate clipping
 				if (m_dac_enable == 0) {
 					// DAC disabled: all 6 channels sum together
-					m_fm.output(output.clear(), 0, 8191, fm_engine.ALL_CHANNELS);
+					m_fm.fm_engine_base.output(output.clear(), 0, 8191, (int) m_fm.getParams().get("ALL_CHANNELS"));
 				} else {
 					// DAC enabled: start with DAC value then add the first 5 channels only
 					int dacval = (m_dac_data << 7) >> 7;
-					output.data[0] = m_fm.regs().ch_output_0(0x102) ? dacval : 0;
-					output.data[1] = m_fm.regs().ch_output_1(0x102) ? dacval : 0;
-					m_fm.output(output, 0, 8191, fm_engine.ALL_CHANNELS ^ (1 << 5));
+					output.data[0] = m_fm.fm_engine_base.regs().ch_output_0(0x102) != 0 ? dacval : 0;
+					output.data[1] = m_fm.fm_engine_base.regs().ch_output_1(0x102) != 0 ? dacval : 0;
+					m_fm.fm_engine_base.output(output, 0, 8191, (int) m_fm.getParams().get("ALL_CHANNELS") ^ (1 << 5));
 				}
 
 				// YMF276 is properly mixed; it shifts down 1 bit before clamping

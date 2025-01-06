@@ -30,11 +30,15 @@
 
 package vavi.sound.ymfm;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Arrays;
 
 import vavi.sound.ymfm.ymfm.ymfm_interface;
 import vavi.sound.ymfm.ymfm.ymfm_output;
-import vavi.sound.ymfm.ymfm.ymfm_saved_state;
+import vavi.util.serdes.Element;
+import vavi.util.serdes.Serdes;
 
 import static vavi.sound.ymfm.ymfm.access_class.ACCESS_IO;
 import static vavi.sound.ymfm.ymfm.bitfield;
@@ -101,6 +105,7 @@ class ssg {
 	//     08,09,0A ---x---- Mode: fixed(0) or variable(1) for channel A,B,C
 	//              ----xxxx Amplitude for channel A,B,C
 	//
+	@Serdes
 	static class ssg_registers {
 
 		// constants
@@ -113,18 +118,25 @@ class ssg {
 		public ssg_registers() {
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the register state
-		//-------------------------------------------------
+		/**
+		 * reset - reset the register state
+		 */
 		public void reset() {
 			Arrays.fill(m_regdata, 0, REGISTERS, 0);
 		};
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state){
-			state.save_restore(m_regdata);
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
+			Serdes.Util.serialize(this, os);
+		}
+
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			Serdes.Util.deserialize(is, this);
 		}
 
 		// direct read/write access
@@ -199,6 +211,7 @@ class ssg {
 		}
 
 		// internal state
+		@Element
 		private int[] m_regdata = new int[REGISTERS];         // register data
 	}
 
@@ -207,6 +220,7 @@ class ssg {
 	//*********************************************************
 	// SSG ENGINE
 	//*********************************************************
+	@Serdes
 	static class ssg_engine extends ymfm_interface {
 
 		public static final int OUTPUTS = ssg_registers.OUTPUTS;
@@ -214,11 +228,10 @@ class ssg {
 		public static final int CLOCK_DIVIDER = 8;
 
 		//	using output_data = ymfm_output<OUTPUTS>;
-		static class output_data extends ymfm_output { @Override int getNumOutputs() { return ssg_registers.OUTPUTS; }}
 
-		//-------------------------------------------------
-		//  ssg_engine - constructor
-		//-------------------------------------------------
+		/**
+		 * ssg_engine - constructor
+		 */
 		public ssg_engine(ymfm_interface intf) {
 			m_intf = intf;
 //			m_tone_count = {0, 0, 0};
@@ -235,9 +248,9 @@ class ssg {
 			m_override = override;
 		}
 
-		//-------------------------------------------------
-		//  reset - reset the engine state
-		//-------------------------------------------------
+		/**
+		 * reset - reset the engine state
+		 */
 		public void reset() {
 			// defer to the override if present
 			if (m_override != null) {
@@ -259,25 +272,31 @@ class ssg {
 			m_noise_state = 1;
 		}
 
-		//-------------------------------------------------
-		//  save_restore - save or restore the data
-		//-------------------------------------------------
-		public void save_restore(ymfm_saved_state state) {
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void save(OutputStream os) throws IOException {
 			// save register state
-			m_regs.save_restore(state);
+			m_regs.save(os);
 
 			// save engine state
-			state.save_restore(m_tone_count);
-			state.save_restore(m_tone_state);
-			state.save_restore(m_envelope_count);
-			state.save_restore(m_envelope_state);
-			state.save_restore(m_noise_count);
-			state.save_restore(m_noise_state);
+			Serdes.Util.serialize(this, os);
 		}
 
-		//-------------------------------------------------
-		//  clock - master clocking function
-		//-------------------------------------------------
+		/**
+		 * save_restore - save or restore the data
+		 */
+		public void restore(InputStream is) throws IOException {
+			// save register state
+			m_regs.restore(is);
+
+			// save engine state
+			Serdes.Util.deserialize(is, this);
+		}
+
+		/**
+		 * clock - master clocking function
+		 */
 		public void clock() {
 			// clock tones; tone period units are clock/16 but since we run at clock/8
 			// that works out for us to toggle the state (50% duty cycle) at twice the
@@ -317,10 +336,10 @@ class ssg {
 			5000, 6006, 7023, 8155, 9963, 11976, 14132, 16382
 		};
 
-		//-------------------------------------------------
-		//  output - output the current state
-		//-------------------------------------------------
-		public void output(output_data output) {
+		/**
+		 * output - output the current state
+		 */
+		public void output(ymfm_output output) {
 			// volume to amplitude table, taken from MAME's implementation but biased
 			// so that 0 == 0
 
@@ -366,9 +385,9 @@ class ssg {
 			}
 		}
 
-		//-------------------------------------------------
-		//  read - handle reads from the SSG registers
-		//-------------------------------------------------
+		/**
+		 * read - handle reads from the SSG registers
+		 */
 		public int read(int regnum) {
 			// defer to the override if present
 			if (m_override != null)
@@ -384,9 +403,9 @@ class ssg {
 			return m_regs.read(regnum);
 		}
 
-		//-------------------------------------------------
-		//  write - handle writes to the SSG registers
-		//-------------------------------------------------
+		/**
+		 * write - handle writes to the SSG registers
+		 */
 		public void write(int regnum, int data) {
 			// defer to the override if present
 			if (m_override != null) {
@@ -431,11 +450,17 @@ class ssg {
 
 		// internal state
 		private ymfm_interface m_intf;                   // reference to the interface
+		@Element(sequence = 0)
 		private int[] m_tone_count = new int[3];               // current tone counter
+		@Element(sequence = 1)
 		private int[] m_tone_state = new int[3];               // current tone state
+		@Element(sequence = 2)
 		private int m_envelope_count;              // envelope counter
+		@Element(sequence = 3)
 		private int m_envelope_state;              // envelope state
+		@Element(sequence = 4)
 		private int m_noise_count;                 // current noise counter
+		@Element(sequence = 5)
 		private int m_noise_state;                 // current noise state
 		private ssg_registers m_regs;                   // registers
 		private ssg_override m_override;               // override interface
