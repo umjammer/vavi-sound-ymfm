@@ -1,4 +1,25 @@
-# ymfm
+[![Release](https://jitpack.io/v/umjammer/vavi-sound-ymfm.svg)](https://jitpack.io/#umjammer/vavi-sound-ymfm)
+[![Java CI](https://github.com/umjammer/vavi-sound-ymfm/actions/workflows/maven.yml/badge.svg)](https://github.com/umjammer/vavi-sound-ymfm/actions/workflows/maven.yml)
+[![CodeQL](https://github.com/umjammer/vavi-sound-ymfm/actions/workflows/codeql.yml/badge.svg)](https://github.com/umjammer/vavi-sound-ymfm/actions/workflows/codeql.yml)
+![Java](https://img.shields.io/badge/Java-17-b07219)
+
+# vavi-sound-ymfm
+
+this is a fork of [ymfm]()
+
+## Install
+
+ * [maven](https://jitpack.io/#umjammer/vavi-sound-ymfm)
+
+## Usage
+
+## References
+
+## TODO
+
+----
+
+# [Original]()
 
 <div style='text-align:center;margin:auto'>
 <img src='https://aarongiles.com/img/icon-ymfm.png' width='128px'>
