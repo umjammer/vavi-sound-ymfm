@@ -38,3 +38,5 @@
 # VS Code stuff
 .vs/
 reference/
+tmp/
+local.properties
