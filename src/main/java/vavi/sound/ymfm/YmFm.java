@@ -34,19 +34,29 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.System.Logger;
+import java.lang.System.Logger.Level;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import vavi.io.LittleEndianDataOutputStream;
-import vavi.sound.ymfm.Fm.EngineBase;
+import vavi.sound.ymfm.Misc.Ym2149;
+import vavi.sound.ymfm.Opl.Ymf278b;
+import vavi.sound.ymfm.Opn.Ym2203;
+import vavi.sound.ymfm.Opn.Ym2608;
+import vavi.sound.ymfm.Opn.Ym2610;
 import vavi.util.serdes.Element;
 import vavi.util.serdes.Serdes;
 
 import static java.lang.System.getLogger;
+import static vavi.sound.ymfm.YmFm.AccessClass.PCM;
 
 
 public abstract class YmFm {
+
+    private static final Logger logger = getLogger(YmFm.class.getName());
 
     //*********************************************************
     //  DEBUGGING
@@ -785,5 +795,175 @@ public abstract class YmFm {
 
         // every 16 cycles it inverts sign
         return (lfo_raw_pm < 0) ? -adjust : adjust;
+    }
+
+    // --- practical use
+
+    // run this many dummy clocks of each chip before generating
+    static int EXTRA_CLOCKS = 0;
+
+    /**
+     * abstract base class for a Yamaha chip; we keep a list of these for processing
+     * as new commands come in
+     */
+    protected abstract static class VgmChipBase extends YmFm.Interface {
+
+        /** construction */
+        protected VgmChipBase(int clock, Class<? extends YmFm.Chip> type) {
+            m_type = type;
+        }
+
+        /** simple getters */
+        public final Class<? extends YmFm.Chip> type() {
+            return m_type;
+        }
+
+        public abstract int sample_rate();
+
+        /** required methods for derived classes to implement */
+        public abstract void write(int reg, int data);
+
+        public abstract void generate(long output_start, long output_step, int[] buffer);
+
+        /** write data to the ADPCM-A buffer */
+        public void write_data(AccessClass type, int base, int length, byte[] src, int offset) {
+            int end = base + length;
+            if (end > m_data[type.ordinal()].data.length)
+                m_data[type.ordinal()].data = new int[end];
+            for (int i = 0; i < src.length; i++)
+                m_data[type.ordinal()].data[base + i] = src[i] & 0xff;
+        }
+
+        // seek within the PCM stream
+        public void seek_pcm(int pos) {
+            m_pcm_offset = pos;
+        }
+
+        public int read_pcm() {
+            var pcm = m_data[PCM.ordinal()];
+            return (m_pcm_offset < pcm.data.length) ? pcm.data[m_pcm_offset++] : 0;
+        }
+
+        // internal state
+        protected Class<? extends YmFm.Chip> m_type;
+        protected String m_name;
+        protected YmFm.Output[] m_data = new YmFm.Output[AccessClass.values().length];
+        protected int m_pcm_offset;
+    }
+
+    /**
+     * actual chip-specific implementation class; includes implementation of the
+     * YmFmInterface as needed for vgmplay purposes
+     */
+    public static class VgmChip extends VgmChipBase {
+
+        // construction
+        public VgmChip(int clock, Class<? extends YmFm.Chip> c) {
+            super(clock, c);
+            try {
+                m_chip = c.getDeclaredConstructor(Interface.class).newInstance(this);
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+            m_clock = clock;
+            m_clocks = 0;
+            m_step = 0x100000000L / m_chip.sample_rate(clock);
+            m_pos = 0;
+            m_output = m_chip.outputFactory();
+
+            m_chip.reset();
+
+            for (int clock_ = 0; clock_ < EXTRA_CLOCKS; clock_++)
+                m_chip.generate(m_output, 1);
+        }
+
+        /** */
+        public final void reset() {
+            m_chip.reset();
+        }
+
+        @Override
+        public final int sample_rate() {
+            return m_chip.sample_rate(m_clock);
+        }
+
+        /** Handles a register write: just queue for now */
+        @Override
+        public void write(int reg, int data) {
+            m_queue.add(new int[] {reg, data});
+        }
+
+        /** Generates one output sample of output */
+        @Override
+        public void generate(long output_start, long output_step, int[] buffer) {
+            int addr1 = 0xffff, addr2 = 0xffff;
+            int data1 = 0, data2 = 0;
+
+            // see if there is data to be written; if so, extract it and dequeue
+            if (!m_queue.isEmpty()) {
+                var front = m_queue.get(0);
+                addr1 = 0 + 2 * ((front[0] >> 8) & 3);
+                data1 = front[0] & 0xff;
+                addr2 = addr1 + ((m_type == Ym2149.class) ? 2 : 1);
+                data2 = front[1];
+                m_queue.remove(m_queue.get(0));
+            }
+
+            // write to the chip
+            if (addr1 != 0xffff) {
+                logger.log(Level.TRACE, "%10.5f: %s %03X=%02X".formatted((double) output_start / (double) (1L << 32), m_name, data1 + 0x100 * (addr1 / 2), data2));
+                m_chip.write(addr1, data1);
+                m_chip.write(addr2, data2);
+            }
+
+            // generate at the appropriate sample rate
+            for (; m_pos <= output_start; m_pos += m_step) {
+                m_chip.generate(m_output, 1);
+            }
+
+            int OUTPUTS = m_chip.getOutputs();
+//logger.log(Level.DEBUG, m_type + ", " + OUTPUTS + ", " + m_output.data.length);
+            int p = 0; // buffer
+            // add the final result to the buffer
+            if (m_type == Ym2203.class) {
+                int out0 = m_output.data[0];
+                int out1 = m_output.data[1 % OUTPUTS];
+                int out2 = m_output.data[2 % OUTPUTS];
+                int out3 = m_output.data[3 % OUTPUTS];
+                buffer[p++] += out0 + out1 + out2 + out3;
+                buffer[p++] += out0 + out1 + out2 + out3;
+            } else if (m_type == Ym2608.class || m_type == Ym2610.class) {
+                int out0 = m_output.data[0];
+                int out1 = m_output.data[1 % OUTPUTS];
+                int out2 = m_output.data[2 % OUTPUTS];
+                buffer[p++] += out0 + out2;
+                buffer[p++] += out1 + out2;
+            } else if (m_type == Ymf278b.class) {
+                buffer[p++] += m_output.data[4 % OUTPUTS];
+                buffer[p++] += m_output.data[5 % OUTPUTS];
+            } else if (OUTPUTS == 1) {
+                buffer[p++] += m_output.data[0];
+                buffer[p++] += m_output.data[0];
+            } else {
+                buffer[p++] += m_output.data[0];
+                buffer[p++] += m_output.data[1 % OUTPUTS];
+            }
+            m_clocks++;
+        }
+
+        /** Handles a read from the buffer */
+        public int ymfm_external_read(AccessClass type, int offset) {
+            var data = m_data[type.ordinal()];
+            return (offset < data.data.length) ? data.data[offset] : 0;
+        }
+
+        // internal state
+        protected YmFm.Chip m_chip;
+        protected int m_clock;
+        protected long m_clocks;
+        protected YmFm.Output m_output;
+        long m_step;
+        long m_pos;
+        protected List<int[]> m_queue = new ArrayList<>();
     }
 }
