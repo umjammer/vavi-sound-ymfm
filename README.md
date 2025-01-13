@@ -19,7 +19,7 @@ this is a fork of [ymfm](https://github.com/aaronsgiles/ymfm)
 | YM2151   | OPM                |   ✅️   | 1983: Sharp X1, X68000; MSX; synths: DX21, DX27, DX100                                |
 | YM2164   | OPP                |        | 1985: FB-01 MIDI Expander; IBM Music Feature Card; MSX; synths: Korg DS-8, 707        |
 | YM2203   | OPN                |   ✅    | 1984: NEC PC-88, PC-98, NEC PC-6001mkII SR, PC-6601 SR                                |
-| YM2608   | OPNA               |        | 1985: NEC PC-88, PC-98                                                                |
+| YM2608   | OPNA               |   🚫   | 1985: NEC PC-88, PC-98                                                                |
 | YM2610   | OPNB               |        | 1987: Neo Geo                                                                         |
 | YM26100B | OPNB2              |        |                                                                                       |
 | YM2612   | OPN2               |        | 1988: Sega Mega Drive/Genesis; FM Towns                                               |
@@ -47,6 +47,8 @@ this is a fork of [ymfm](https://github.com/aaronsgiles/ymfm)
 
 ## References
 
+ * https://blog.hiroaki.jp/blog/2021/07/11/s98player-using-ymfm/
+
 ## TODO
 
  * serialize ... [vavi-util-serdes](https://github.com/umjammer/vavi-util-serdes)
@@ -57,7 +59,7 @@ this is a fork of [ymfm](https://github.com/aaronsgiles/ymfm)
 # [Original](https://github.com/aaronsgiles/ymfm)
 
 <div style='text-align:center;margin:auto'>
-<img src='https://aarongiles.com/img/icon-ymfm.png' width='128px'>
+<img alt="yamaha logo" src='https://aarongiles.com/img/icon-ymfm.png' width='128px'>
 </div>
 
 [ymfm](https://github.com/aaronsgiles/ymfm) is a collection of BSD-licensed Yamaha FM sound cores (OPM, OPN, OPL, and others), written by [Aaron Giles](https://aarongiles.com)
