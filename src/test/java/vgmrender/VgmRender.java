@@ -1,8 +1,10 @@
 package vgmrender;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -150,9 +152,13 @@ public class VgmRender {
     static class VgmChip<T extends YmFm.Chip> extends VgmChipBase {
 
         // construction
-        public VgmChip(int clock, ChipType type, String name, Class<T> c) throws Exception {
+        public VgmChip(int clock, ChipType type, String name, Class<T> c) {
             super(clock, type, name);
-            m_chip = c.getDeclaredConstructor(YmFm.Interface.class).newInstance(this);
+            try {
+                m_chip = c.getDeclaredConstructor(YmFm.Interface.class).newInstance(this);
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
             m_clock = clock;
             m_clocks = 0;
             m_step = 0x100000000L / m_chip.sample_rate(clock);
@@ -174,6 +180,11 @@ public class VgmRender {
 //					nuked.OPN2_Clock (m_external, buffer);
 //			}
 //#endif
+        }
+
+        /** */
+        public final void reset() {
+            m_chip.reset();
         }
 
         @Override
@@ -205,7 +216,7 @@ public class VgmRender {
 
             // write to the chip
             if (addr1 != 0xffff) {
-                logger.log(Level.DEBUG, "%10.5f: %s %03X=%02X".formatted((double) output_start / (double) (1L << 32), m_name, data1 + 0x100 * (addr1 / 2), data2));
+                logger.log(Level.TRACE, "%10.5f: %s %03X=%02X".formatted((double) output_start / (double) (1L << 32), m_name, data1 + 0x100 * (addr1 / 2), data2));
                 m_chip.write(addr1, data1);
                 m_chip.write(addr2, data2);
             }
@@ -316,10 +327,10 @@ public class VgmRender {
 	//  supported chip type
 	//-------------------------------------------------
     //template<typename ChipType>
-    static <T extends YmFm.Chip> void add_chips(int clock, ChipType type, String chipname, Class<T> c) throws Exception {
+    static <T extends YmFm.Chip> void add_chips(int clock, ChipType type, String chipname, Class<T> c) {
         int clockval = clock & 0x3fff_ffff;
         int numchips = (clock & 0x4000_0000L) != 0 ? 2 : 1;
-        System.out.printf("Adding %s%s @ %dHz%n", (numchips == 2) ? "2 x " : "", chipname, clockval);
+        logger.log(Level.INFO, "Adding %s%s @ %dHz".formatted((numchips == 2) ? "2 x " : "", chipname, clockval));
         for (int index = 0; index < numchips; index++) {
             String name = "%s #%d".formatted(chipname, index);
             active_chips.add(new VgmChip(clockval, type, (numchips == 2) ? name : chipname, c));
@@ -328,9 +339,14 @@ public class VgmRender {
         if (type == ChipType.CHIP_YM2608) {
             Path rom = Path.of("ym2608_adpcm_rom.bin");
             if (rom == null)
-                logger.log(Level.WARNING, "YM2608 enabled but ym2608_adpcm_rom.bin not found%n");
+                logger.log(Level.WARNING, "YM2608 enabled but ym2608_adpcm_rom.bin not found");
             else {
-                byte[] temp = Files.readAllBytes(rom);
+                byte[] temp;
+                try {
+                    temp = Files.readAllBytes(rom);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
                 for (var chip : active_chips)
                     if (chip.type() == type)
                         chip.write_data(ADPCM_A, 0, temp.length, temp, 0);
@@ -343,7 +359,7 @@ public class VgmRender {
     //  chips for anything we encounter that we can
     //  support
     //-------------------------------------------------
-    static int parse_header(byte[] buffer) throws Exception {
+    static int parse_header(byte[] buffer) {
         // +00: already checked the ID
         int[] offset = new int[] {4};
 
@@ -742,7 +758,7 @@ public class VgmRender {
         // set the offset to the data start and go
         int offset = data_start;
         boolean done = false;
-        long output_step = 0x100000000L / output_rate;
+        long output_step = 0x1_0000_0000L / output_rate;
         long output_pos = 0;
         while (!done && offset < buffer.length) {
             int delay = 0;
