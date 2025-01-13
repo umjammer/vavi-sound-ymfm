@@ -795,7 +795,7 @@ public abstract class Opn {
          * operator_map - return an array of operator
          * indices for each channel; for OPN this is fixed
          */
-        //	template<>opn_registers_base<true>.
+        //template<>opn_registers_base<true>.
         @Override
         public final void operator_map(int[][] dest) {
             // Note that the channel index order is 0,2,1,3, so we bitswap the index.
@@ -880,7 +880,7 @@ public abstract class Opn {
 
     // ======================> opn_fidelity
 
-    protected enum Fidelity {
+    public enum Fidelity {
         MAX,
         MIN,
         MED;
@@ -1057,7 +1057,8 @@ public abstract class Opn {
          */
         //template<int Divisor>
         private void resample_1_n(YmFm.Output output, int offset, int numsamples, int Divisor) {
-            for (int samp = 0; samp < numsamples; samp++, output.inc()) {
+            // TODO offset
+            for (int samp = offset; samp < numsamples; samp++, output.inc()) {
                 int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
                 for (int rep = 0; rep < Divisor; rep++)
                     clock_and_add(sum0, sum1, sum2, 1);
@@ -1079,7 +1080,8 @@ public abstract class Opn {
          * 2 output samples
          */
         private void resample_2_9(YmFm.Output output, int offset, int numsamples) {
-            for (int samp = 0; samp < numsamples; samp++, output.inc()) {
+            // TODO offset
+            for (int samp = offset; samp < numsamples; samp++, output.inc()) {
                 int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
                 if (bitfield(m_sampindex, 0) != 0)
                     add_last(sum0, sum1, sum2, 1);
@@ -1103,7 +1105,8 @@ public abstract class Opn {
          * 2 output samples
          */
         private void resample_2_3(YmFm.Output output, int offset, int numsamples) {
-            for (int samp = 0; samp < numsamples; samp++, output.inc()) {
+            // TODO offset
+            for (int samp = offset; samp < numsamples; samp++, output.inc()) {
                 int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
                 if (bitfield(m_sampindex, 0) == 0) {
                     clock_and_add(sum0, sum1, sum2, 2);
@@ -1122,7 +1125,8 @@ public abstract class Opn {
          * 4 output samples
          */
         private void resample_4_3(YmFm.Output output, int offset, int numsamples) {
-            for (int samp = 0; samp < numsamples; samp++, output.inc()) {
+            // TODO offset
+            for (int samp = offset; samp < numsamples; samp++, output.inc()) {
                 int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
                 int step = bitfield(m_sampindex, 0, 2);
                 add_last(sum0, sum1, sum2, step);
@@ -1497,15 +1501,23 @@ public abstract class Opn {
         }
 
         // internal state
-        protected Fidelity m_fidelity;            // configured fidelity
+
+        /** configured fidelity */
+        protected Fidelity m_fidelity;
+        /** address register */
         @Element(sequence = 0)
-        protected int m_address;                  // address register
-        protected int m_fm_samples_per_output;    // how many samples to repeat
+        protected int m_address;
+        /** how many samples to repeat */
+        protected int m_fm_samples_per_output;
+        /** last FM output */
         @Element(sequence = 1)
-        protected YmFm.Output m_last_fm;   // last FM output
-        protected FmEngine m_fm;                     // core FM engine
-        protected Ssg.Engine m_ssg;                   // SSG engine
-        protected SsgResampler/*<output_data, 1, false>*/ m_ssg_resampler; // SSG resampler helper
+        protected YmFm.Output m_last_fm;
+        /** core FM engine */
+        protected FmEngine m_fm;
+        /** SSG engine */
+        protected Ssg.Engine m_ssg;
+        /** SSG resampler helper */
+        protected SsgResampler /* <output_data, 1, false> */ m_ssg_resampler;
     }
 
     //*********************************************************
@@ -1520,10 +1532,10 @@ public abstract class Opn {
     @Serdes
     public static class Ym2608 implements YmFm.Chip {
 
-        static final byte STATUS_ADPCM_B_EOS = 0x04;
-        static final byte STATUS_ADPCM_B_BRDY = 0x08;
-        static final byte STATUS_ADPCM_B_ZERO = 0x10;
-        static final byte STATUS_ADPCM_B_PLAYING = 0x20;
+        static final int STATUS_ADPCM_B_EOS = 0x04;
+        static final int STATUS_ADPCM_B_BRDY = 0x08;
+        static final int STATUS_ADPCM_B_ZERO = 0x10;
+        static final int STATUS_ADPCM_B_PLAYING = 0x20;
 
         protected static class FmEngine extends EngineBase<OpnaRegisters> {
 
@@ -1536,7 +1548,7 @@ public abstract class Opn {
         public static final int SSG_OUTPUTS = 1;
         private final int OUTPUTS;
 
-        //	using output_data = Output<OUTPUTS>;
+        //using output_data = Output<OUTPUTS>;
         @Override
         public YmFm.Output outputFactory() {
             return new YmFm.Output(OUTPUTS);
@@ -1585,11 +1597,11 @@ public abstract class Opn {
         }
 
         // configuration
-        protected void ssg_override(Ssg.Override intf) {
+        public void ssg_override(Ssg.Override intf) {
             m_ssg.override(intf);
         }
 
-        protected void set_fidelity(Opn.Fidelity fidelity) {
+        public void set_fidelity(Opn.Fidelity fidelity) {
             m_fidelity = fidelity;
             update_prescale(m_fm.clock_prescale());
         }
@@ -1662,19 +1674,19 @@ public abstract class Opn {
             }
         }
 
-        final int ssg_effective_clock(int input_clock) {
+        public final int ssg_effective_clock(int input_clock) {
             int scale = m_fm.clock_prescale() * 2 / 3;
             return input_clock / scale;
         }
 
-        void invalidate_caches() {
+        public void invalidate_caches() {
             m_fm.invalidate_caches();
         }
 
         /**
          * read_status - read the status register
          */
-        int read_status() {
+        public int read_status() {
             int result = m_fm.status() & (OpnaRegisters.STATUS_TIMERA | OpnaRegisters.STATUS_TIMERB);
             if (m_fm.intf().ymfm_is_busy())
                 result |= OpnaRegisters.STATUS_BUSY;
@@ -1684,7 +1696,7 @@ public abstract class Opn {
         /**
          * read_data - read the data register
          */
-        int read_data() {
+        public int read_data() {
             int result = 0;
             if (m_address < 0x10) {
                 // 00-0F: Read from SSG
@@ -1700,7 +1712,7 @@ public abstract class Opn {
          * read_status_hi - read the extended status
          * register
          */
-        int read_status_hi() {
+        public int read_status_hi() {
             // fetch regular status
             int status = m_fm.status() & ~(STATUS_ADPCM_B_EOS | STATUS_ADPCM_B_BRDY | STATUS_ADPCM_B_PLAYING);
 
@@ -1728,7 +1740,7 @@ public abstract class Opn {
         /**
          * read_data_hi - read the upper data register
          */
-        int read_data_hi() {
+        public int read_data_hi() {
             int result = 0;
             if ((m_address & 0xff) < 0x10) {
                 // 00-0F: Read from ADPCM-B
@@ -1767,7 +1779,7 @@ public abstract class Opn {
          * write_address - handle a write to the address
          * register
          */
-        void write_address(int data) {
+        public void write_address(int data) {
             // just set the address
             m_address = data;
 
@@ -1786,7 +1798,7 @@ public abstract class Opn {
         /**
          * write - handle a write to the data register
          */
-        void write_data(int data) {
+        public void write_data(int data) {
             // ignore if paired with upper address
             if (bitfield(m_address, 8) != 0)
                 return;
@@ -1814,7 +1826,7 @@ public abstract class Opn {
          * write_address_hi - handle a write to the upper
          * address register
          */
-        void write_address_hi(int data) {
+        public void write_address_hi(int data) {
             // just set the address
             m_address = 0x100 | data;
         }
@@ -1823,7 +1835,7 @@ public abstract class Opn {
          * write_data_hi - handle a write to the upper
          * data register
          */
-        void write_data_hi(int data) {
+        public void write_data_hi(int data) {
             // ignore if paired with upper address
             if (bitfield(m_address, 8) == 0)
                 return;

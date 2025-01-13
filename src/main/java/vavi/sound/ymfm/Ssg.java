@@ -52,7 +52,7 @@ abstract class Ssg {
 
     // this class describes a simple interface to allow the internal SSG to be
     // overridden with another implementation
-    protected interface Override {
+    public interface Override {
 
         void ssg_reset();
 

@@ -47,8 +47,12 @@ import vavi.sound.ymfm.Opl.Ymf278b;
 import vavi.sound.ymfm.Opn.Ym2203;
 import vavi.sound.ymfm.Opn.Ym2608;
 import vavi.sound.ymfm.Opn.Ym2610;
+import vavi.sound.ymfm.YmFm.AccessClass;
+import vavi.sound.ymfm.YmFm.Interface;
+import vavi.sound.ymfm.YmFm.VgmChipBase;
 import vavi.util.serdes.Element;
 import vavi.util.serdes.Serdes;
+import vavi.util.win32.WAVE.data;
 
 import static java.lang.System.getLogger;
 import static vavi.sound.ymfm.YmFm.AccessClass.PCM;
@@ -828,8 +832,14 @@ public abstract class YmFm {
         /** write data to the ADPCM-A buffer */
         public void write_data(AccessClass type, int base, int length, byte[] src, int offset) {
             int end = base + length;
-            if (end > m_data[type.ordinal()].data.length)
-                m_data[type.ordinal()].data = new int[end];
+            if (m_data[type.ordinal()] == null) {
+                m_data[type.ordinal()] = new Output(end);
+            } else if (end > m_data[type.ordinal()].data.length) {
+                int[] newData = new int[end];
+                for (int i = 0; i < m_data[type.ordinal()].data.length; i++)
+                    newData[i] = m_data[type.ordinal()].data[i];
+                m_data[type.ordinal()].data = newData;
+            }
             for (int i = 0; i < src.length; i++)
                 m_data[type.ordinal()].data[base + i] = src[i] & 0xff;
         }
@@ -867,7 +877,7 @@ public abstract class YmFm {
             }
             m_clock = clock;
             m_clocks = 0;
-            m_step = 0x100000000L / m_chip.sample_rate(clock);
+            m_step = 0x1_0000_0000L / m_chip.sample_rate(clock);
             m_pos = 0;
             m_output = m_chip.outputFactory();
 
