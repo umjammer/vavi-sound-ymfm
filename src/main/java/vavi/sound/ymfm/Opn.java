@@ -1289,7 +1289,7 @@ public abstract class Opn {
         }
 
         /**
-         * read_status - read the status register
+         * Reads the status register.
          */
         int read_status() {
             int result = m_fm.status();
@@ -1299,7 +1299,7 @@ public abstract class Opn {
         }
 
         /**
-         * read_data - read the data register
+         * Reads the data register.
          */
         int read_data() {
             int result = 0;
@@ -1311,7 +1311,7 @@ public abstract class Opn {
         }
 
         /**
-         * read - handle a read from the device
+         * Handles a read from the device.
          */
         @Override
         public int read(int offset) {
@@ -1329,8 +1329,7 @@ public abstract class Opn {
         }
 
         /**
-         * write_address - handle a write to the address
-         * register
+         * Handles a write to the address register.
          */
         void write_address(int data) {
             // just set the address
@@ -1349,8 +1348,7 @@ public abstract class Opn {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
         void write_data(int data) {
             if (m_address < 0x10) {
@@ -1366,8 +1364,7 @@ public abstract class Opn {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -1383,7 +1380,7 @@ public abstract class Opn {
         }
 
         /**
-         * generate - generate one sample of sound
+         * Generates one sample of sound.
          */
         @Override
         public void generate(YmFm.Output output, int numSamples /* = 1 */) {
@@ -1413,8 +1410,7 @@ public abstract class Opn {
         }
 
         /**
-         * update_prescale - update the prescale value,
-         * recomputing derived values
+         * Updates the prescale value, recomputing derived values.
          */
         protected void update_prescale(int prescale) {
             // tell the FM engine
@@ -1487,7 +1483,7 @@ public abstract class Opn {
         }
 
         /**
-         * clock_fm - clock FM state
+         * Clocks FM state.
          */
         protected void clock_fm() {
             // clock the system

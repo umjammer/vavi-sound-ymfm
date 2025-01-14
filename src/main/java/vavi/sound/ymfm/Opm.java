@@ -55,15 +55,15 @@ public abstract class Opm {
 
     private Opm() {}
 
-    //*********************************************************
-    //  REGISTER CLASSES
-    //*********************************************************
+    //
+    // REGISTER CLASSES
+    //
 
     // ======================> opm_registers
 
-    //*********************************************************
-    //  OPM REGISTERS
-    //*********************************************************
+    //
+    // OPM REGISTERS
+    //
 
     //
     // OPM register map:
@@ -160,7 +160,7 @@ public abstract class Opm {
         }
 
         /**
-         * //  opm_registers - constructor
+         * Constructor.
          */
         public Registers() {
             m_lfo_counter = 0;
@@ -198,7 +198,7 @@ public abstract class Opm {
         }
 
         /**
-         * //  reset - reset to initial state
+         * Resets to initial state.
          */
         @Override
         public void reset() {
@@ -210,7 +210,7 @@ public abstract class Opm {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         @Override
         public void save(OutputStream os) throws IOException {
@@ -218,21 +218,21 @@ public abstract class Opm {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         @Override
         public void restore(InputStream is) throws IOException {
             Serdes.Util.deserialize(is, this);
         }
 
-        // map channel number to register offset
+        /** map channel number to register offset */
         @Override
         public int channel_offset(int chnum) {
             assert (chnum < CHANNELS);
             return chnum;
         }
 
-        // map operator number to register offset
+        /** map operator number to register offset */
         @Override
         public int operator_offset(int opnum) {
             assert (opnum < OPERATORS);
@@ -259,8 +259,7 @@ public abstract class Opm {
         };
 
         /**
-         * operator_map - return an array of operator
-         * indices for each channel; for OPM this is fixed
+         * Returns an array of operator indices for each channel; for OPM this is fixed.
          */
         @Override
         public final void operator_map(int[][] dest) {
@@ -268,7 +267,7 @@ public abstract class Opm {
         }
 
         /**
-         * write - handle writes to the register array
+         * Handles writes to the register array.
          */
         @Override
         public boolean write(int index, int data, int[] channel, int[] opmask) {
@@ -291,9 +290,7 @@ public abstract class Opm {
         }
 
         /**
-         * clock_noise_and_lfo - clock the noise and LFO,
-         * handling clock division, depth, and waveform
-         * computations
+         * Clocks the noise and LFO, handling clock division, depth, and waveform computations.
          */
         @Override
         public int clock_noise_and_lfo() {
@@ -348,8 +345,7 @@ public abstract class Opm {
         }
 
         /**
-         * lfo_am_offset - return the AM offset from LFO
-         * for the given channel
+         * Returns the AM offset from LFO for the given channel.
          */
         @Override
         public final int lfo_am_offset(int choffs) {
@@ -370,15 +366,14 @@ public abstract class Opm {
             return m_lfo_am << (am_sensitivity - 1);
         }
 
-        // return the current noise state, gated by the noise clock
+        /** return the current noise state, gated by the noise clock */
         @Override
         public final int noise_state() {
             return m_noise_state;
         }
 
         /**
-         * cache_operator_data - fill the operator cache
-         * with prefetched data
+         * Fills the operator cache with prefetched data.
          */
         @Override
         public void cache_operator_data(int choffs, int opoffs, OpDataCache cache) {
@@ -420,7 +415,7 @@ public abstract class Opm {
             cache.eg_sustain |= (cache.eg_sustain + 1) & 0x10;
             cache.eg_sustain <<= 5;
 
-            // determine KSR adjustment for enevlope rates
+            // determine KSR adjustment for envelope rates
             int ksrval = keycode >> (op_ksr(opoffs) ^ 3);
             cache.eg_rate[EnvelopeState.EG_ATTACK.ordinal()] = effective_rate(op_attack_rate(opoffs) * 2, ksrval);
             cache.eg_rate[EnvelopeState.EG_DECAY.ordinal()] = effective_rate(op_decay_rate(opoffs) * 2, ksrval);
@@ -433,7 +428,7 @@ public abstract class Opm {
         };
 
         /**
-         * compute_phase_step - compute the phase step
+         * Computes the phase step.
          */
         @Override
         public int compute_phase_step(int choffs, int opoffs, final OpDataCache cache, int lfo_raw_pm) {
@@ -469,7 +464,7 @@ public abstract class Opm {
         }
 
         /**
-         * log_keyon - log a key-on event
+         * Logs a key-on event.
          */
         @Override
         public String log_keyon(int choffs, int opoffs) {
@@ -512,6 +507,7 @@ public abstract class Opm {
         }
 
         // system-wide registers
+
         public final int test() {
             return byte_(0x01, 0, 8);
         }
@@ -688,20 +684,22 @@ public abstract class Opm {
             return byte_(0xe0, 0, 4, opoffs);
         }
 
+        /** Returns a bitfield extracted from a byte */
         protected final int byte_(int offset, int start, int count) {
             return byte_(offset, start, count, 0);
         }
 
-        // return a bitfield extracted from a byte
+        /** Returns a bitfield extracted from a byte */
         protected final int byte_(int offset, int start, int count, int extra_offset /* = 0 */) {
             return bitfield(m_regdata[offset + extra_offset], start, count);
         }
 
+        /** Returns a bitfield extracted from a pair of bytes, MSBs listed first */
         protected final int word(int offset1, int start1, int count1, int offset2, int start2, int count2) {
             return word(offset1, start1, count1, offset2, start2, count2, 0);
         }
 
-        // return a bitfield extracted from a pair of bytes, MSBs listed first
+        /** Returns a bitfield extracted from a pair of bytes, MSBs listed first */
         protected final int word(int offset1, int start1, int count1, int offset2, int start2, int count2, int extra_offset /* = 0 */) {
             return (byte_(offset1, start1, count1, extra_offset) << count2) | byte_(offset2, start2, count2, extra_offset);
         }

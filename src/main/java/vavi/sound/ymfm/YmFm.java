@@ -822,6 +822,10 @@ public abstract class YmFm {
             return m_type;
         }
 
+        public final void setName(String name) {
+            m_name = name;
+        }
+
         public abstract int sample_rate();
 
         /** required methods for derived classes to implement */
@@ -840,8 +844,9 @@ public abstract class YmFm {
                     newData[i] = m_data[type.ordinal()].data[i];
                 m_data[type.ordinal()].data = newData;
             }
+logger.log(Level.DEBUG, "%s: d:%d <- s:%d, %d".formatted(type, base, offset, length));
             for (int i = 0; i < src.length; i++)
-                m_data[type.ordinal()].data[base + i] = src[i] & 0xff;
+                m_data[type.ordinal()].data[base + i] = src[i + offset] & 0xff;
         }
 
         // seek within the PCM stream
