@@ -42,7 +42,6 @@ import vavi.sound.ymfm.Fm.OpDataCache;
 import vavi.sound.ymfm.Fm.RegistersBase;
 import vavi.util.serdes.Element;
 import vavi.util.serdes.Serdes;
-import vavi.util.win32.WAVE.data;
 
 import static vavi.sound.ymfm.Opl.OplRegistersBase.opl_compute_phase_step;
 import static vavi.sound.ymfm.YmFm.AccessClass.IO;
@@ -60,16 +59,15 @@ public abstract class Opl {
 
     private Opl() {}
 
+    private static final byte[] fnum_to_atten = {0, 24, 32, 37, 40, 43, 45, 47, 48, 50, 51, 52, 53, 54, 55, 56};
+
     /**
-     * opl_key_scale_atten - converts an
-     * OPL concatenated block (3 bits) and fnum
+     * Converts an OPL concatenated block (3 bits) and fnum
      * (10 bits) into an attenuation offset; values
      * here are for 6dB/octave, in 0.75dB units
      * (matching total level LSB)
      */
-    static final byte[] fnum_to_atten = {0, 24, 32, 37, 40, 43, 45, 47, 48, 50, 51, 52, 53, 54, 55, 56};
-
-    static int opl_key_scale_atten(int block, int fnum_4msb) {
+    private static int opl_key_scale_atten(int block, int fnum_4msb) {
         // this table uses the top 4 bits of FNUM and are the maximal values
         // (for when block == 7). Values for other blocks can be computed by
         // subtracting 8 for each block below 7.
@@ -77,15 +75,13 @@ public abstract class Opl {
         return Math.max(0, result);
     }
 
-    //*********************************************************
-    //  REGISTER CLASSES
-    //*********************************************************
+    //
+    // REGISTER CLASSES
+    //
 
-    // ======================> OplRegistersBase
-
-    //*********************************************************
-    //  OPL REGISTERS
-    //*********************************************************
+    //
+    // OPL REGISTERS
+    //
 
     //
     // OPL/OPL2/OPL3/OPL4 register map:
@@ -149,32 +145,34 @@ public abstract class Opl {
     //        E0-F5 ------xx Wave select (0-3) [OPL2 only]
     //              -----xxx Wave select (0-7) [OPL3+ only]
     //
-    abstract static class OplRegistersBase extends RegistersBase {
 
-        final int revision;
+    /** OplRegistersBase */
+    protected abstract static class OplRegistersBase extends RegistersBase {
 
-        final boolean IsOpl2;
-        final boolean IsOpl2Plus;
-        final boolean IsOpl3Plus;
-        final boolean IsOpl4Plus;
+        protected final int revision;
+
+        protected final boolean IsOpl2;
+        protected final boolean IsOpl2Plus;
+        protected final boolean IsOpl3Plus;
+        protected final boolean IsOpl4Plus;
 
         // constants
-        public final int OUTPUTS;
-        public final int CHANNELS;
-        public final int ALL_CHANNELS;
-        public final int OPERATORS;
-        public final int WAVEFORMS;
-        public final int REGISTERS;
-        public static final int REG_MODE = 0x04;
-        public final int DEFAULT_PRESCALE;
-        public static final int EG_CLOCK_DIVIDER = 1;
-        public final int CSM_TRIGGER_MASK;
-        public final boolean DYNAMIC_OPS;
-        public final boolean MODULATOR_DELAY;
-        public static final int STATUS_TIMERA = 0x40;
-        public static final int STATUS_TIMERB = 0x20;
-        public static final int STATUS_BUSY = 0;
-        public static final int STATUS_IRQ = 0x80;
+        protected final int OUTPUTS;
+        protected final int CHANNELS;
+        protected final int ALL_CHANNELS;
+        protected final int OPERATORS;
+        protected final int WAVEFORMS;
+        protected final int REGISTERS;
+        protected static final int REG_MODE = 0x04;
+        protected final int DEFAULT_PRESCALE;
+        protected static final int EG_CLOCK_DIVIDER = 1;
+        protected final int CSM_TRIGGER_MASK;
+        protected final boolean DYNAMIC_OPS;
+        protected final boolean MODULATOR_DELAY;
+        protected static final int STATUS_TIMERA = 0x40;
+        protected static final int STATUS_TIMERB = 0x20;
+        protected static final int STATUS_BUSY = 0;
+        protected static final int STATUS_IRQ = 0x80;
 
         /**
          * constructor
@@ -260,7 +258,7 @@ public abstract class Opl {
         }
 
         /**
-         * reset - reset to initial state
+         * Resets to initial state.
          */
         @Override
         public void reset() {
@@ -268,7 +266,7 @@ public abstract class Opl {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         @Override
         public void save(OutputStream os) throws IOException {
@@ -276,35 +274,37 @@ public abstract class Opl {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         @Override
         public void restore(InputStream is) throws IOException {
             Serdes.Util.deserialize(is, this);
         }
 
-        // map channel number to register offset
+        /** Maps channel number to register offset */
         @Override
-        public int channel_offset(int chnum) {
-            assert (chnum < CHANNELS);
+        public int channel_offset(int chNum) {
+            assert (chNum < CHANNELS);
             if (!IsOpl3Plus)
-                return chnum;
+                return chNum;
             else
-                return (chnum % 9) + 0x100 * (chnum / 9);
+                return (chNum % 9) + 0x100 * (chNum / 9);
         }
 
-        // map operator number to register offset
+        /** Maps operator number to register offset */
         @Override
-        public int operator_offset(int opnum) {
-            assert (opnum < OPERATORS);
+        public int operator_offset(int opNum) {
+            assert (opNum < OPERATORS);
             if (!IsOpl3Plus)
-                return opnum + 2 * (opnum / 6);
+                return opNum + 2 * (opNum / 6);
             else
-                return (opnum % 18) + 2 * ((opnum % 18) / 6) + 0x100 * (opnum / 18);
+                return (opNum % 18) + 2 * ((opNum % 18) / 6) + 0x100 * (opNum / 18);
         }
 
-        // return an array of operator indices for each channel
-        // OPL/OPL2 has a fixed map, all 2 operators
+        /**
+         * An array of operator indices for each channel
+         * OPL/OPL2 has a fixed map, all 2 operators
+         */
         protected static final int[] s_fixed_map = {
                 operator_list(0, 3),  // Channel 0 operators
                 operator_list(1, 4),  // Channel 1 operators
@@ -318,7 +318,7 @@ public abstract class Opl {
         };
 
         /**
-         * operator_map - return an array of operator
+         * Return an array of operator
          * indices for each channel; for OPL this is fixed
          */
         @Override
@@ -351,16 +351,16 @@ public abstract class Opl {
             }
         }
 
-        // OPL4 apparently can read back FM registers?
+        /** OPL4 apparently can read back FM registers? */
         public final int read(int address) {
             return m_regdata[address];
         }
 
         /**
-         * write - handle writes to the register array
+         * Handles writes to the register array
          */
         @Override
-        public boolean write(int index, int data, int[] channel, int[] opmask) {
+        public boolean write(int index, int data, int[] channel, int[] opMask) {
             assert (index < REGISTERS);
 
             // writes to the mode register with high bit set ignore the low bits
@@ -372,7 +372,7 @@ public abstract class Opl {
             // handle writes to the rhythm keyons
             if (index == 0xbd) {
                 channel[0] = RHYTHM_CHANNEL;
-                opmask[0] = bitfield(data, 5) != 0 ? bitfield(data, 0, 5) : 0;
+                opMask[0] = bitfield(data, 5) != 0 ? bitfield(data, 0, 5) : 0;
                 return true;
             }
 
@@ -382,7 +382,7 @@ public abstract class Opl {
                 if (channel[0] < 9) {
                     if (IsOpl3Plus)
                         channel[0] += 9 * bitfield(index, 8);
-                    opmask[0] = bitfield(data, 5) != 0 ? 15 : 0;
+                    opMask[0] = bitfield(data, 5) != 0 ? 15 : 0;
                     return true;
                 }
             }
@@ -424,8 +424,7 @@ public abstract class Opl {
         }
 
         /**
-         * clock_noise_and_lfo - clock the noise and LFO,
-         * handling clock division, depth, and waveform
+         * Clocks the noise and LFO, handling clock division, depth, and waveform
          * computations
          */
         @Override
@@ -442,37 +441,37 @@ public abstract class Opl {
             return r;
         }
 
-        // reset the LFO
-        private void reset_lfo() {
+        /** Resets the LFO */
+        public void reset_lfo() {
             m_lfo_am_counter = m_lfo_pm_counter = 0;
         }
 
-        // return the AM offset from LFO for the given channel
-        // on OPL this is just a fixed value
+        /**
+         * Returns the AM offset from LFO for the given channel
+         * on OPL this is just a fixed value
+         */
         @Override
-        public final int lfo_am_offset(int choffs) {
+        public final int lfo_am_offset(int chOffs) {
             return m_lfo_am;
         }
 
-        // return LFO/noise states
+        /** Returns LFO/noise states */
         @Override
         public final int noise_state() {
             return m_noise_lfsr >> 23;
         }
 
         /**
-         * cache_operator_data - fill the operator cache
-         * with prefetched data; note that this code is
-         * also used by ymopna_registers, so it must
-         * handle upper channels cleanly
+         * Fills the operator cache with prefetched data; note that this code is
+         * also used by ymopna_registers, so it must handle upper channels cleanly
          */
         @Override
-        public void cache_operator_data(int choffs, int opoffs, OpDataCache cache) {
+        public void cache_operator_data(int chOffs, int opOffs, OpDataCache cache) {
             // set up the easy stuff
-            cache.waveform = m_waveform[op_waveform(opoffs) % WAVEFORMS];
+            cache.waveform = m_waveform[op_waveform(opOffs) % WAVEFORMS];
 
             // get frequency from the channel
-            int block_freq = cache.block_freq = ch_block_freq(choffs);
+            int block_freq = cache.block_freq = ch_block_freq(chOffs);
 
             // compute the keycode: block_freq is:
             //
@@ -493,41 +492,41 @@ public abstract class Opl {
 
             // multiple value, as an x.1 value (0 means 0.5)
             // replace the low bit with a table lookup to give 0,1,2,3,4,5,6,7,8,9,10,10,12,12,15,15
-            int multiple = op_multiple(opoffs);
+            int multiple = op_multiple(opOffs);
             cache.multiple = ((multiple & 0xe) | bitfield(0xc2aa, multiple)) * 2;
             if (cache.multiple == 0)
                 cache.multiple = 1;
 
             // phase step, or PHASE_STEP_DYNAMIC if PM is active; this depends on block_freq, detune,
             // and multiple, so compute it after we've done those
-            if (op_lfo_pm_enable(opoffs) == 0)
-                cache.phase_step = compute_phase_step(choffs, opoffs, cache, 0);
+            if (op_lfo_pm_enable(opOffs) == 0)
+                cache.phase_step = compute_phase_step(chOffs, opOffs, cache, 0);
             else
                 cache.phase_step = OpDataCache.PHASE_STEP_DYNAMIC;
 
             // total level, scaled by 8
-            cache.total_level = op_total_level(opoffs) << 3;
+            cache.total_level = op_total_level(opOffs) << 3;
 
             // pre-add key scale level
-            int ksl = op_ksl(opoffs);
+            int ksl = op_ksl(opOffs);
             if (ksl != 0)
                 cache.total_level += opl_key_scale_atten(bitfield(block_freq, 10, 3), bitfield(block_freq, 6, 4)) << ksl;
 
             // 4-bit sustain level, but 15 means 31 so effectively 5 bits
-            cache.eg_sustain = op_sustain_level(opoffs);
+            cache.eg_sustain = op_sustain_level(opOffs);
             cache.eg_sustain |= (cache.eg_sustain + 1) & 0x10;
             cache.eg_sustain <<= 5;
 
             // determine KSR adjustment for enevlope rates
-            int ksrval = keycode >> (2 * (op_ksr(opoffs) ^ 1));
-            cache.eg_rate[EG_ATTACK.ordinal()] = effective_rate(op_attack_rate(opoffs) * 4, ksrval);
-            cache.eg_rate[EG_DECAY.ordinal()] = effective_rate(op_decay_rate(opoffs) * 4, ksrval);
-            cache.eg_rate[EG_SUSTAIN.ordinal()] = op_eg_sustain(opoffs) != 0 ? 0 : effective_rate(op_release_rate(opoffs) * 4, ksrval);
-            cache.eg_rate[EG_RELEASE.ordinal()] = effective_rate(op_release_rate(opoffs) * 4, ksrval);
+            int ksrval = keycode >> (2 * (op_ksr(opOffs) ^ 1));
+            cache.eg_rate[EG_ATTACK.ordinal()] = effective_rate(op_attack_rate(opOffs) * 4, ksrval);
+            cache.eg_rate[EG_DECAY.ordinal()] = effective_rate(op_decay_rate(opOffs) * 4, ksrval);
+            cache.eg_rate[EG_SUSTAIN.ordinal()] = op_eg_sustain(opOffs) != 0 ? 0 : effective_rate(op_release_rate(opOffs) * 4, ksrval);
+            cache.eg_rate[EG_RELEASE.ordinal()] = effective_rate(op_release_rate(opOffs) * 4, ksrval);
             cache.eg_rate[EG_DEPRESS.ordinal()] = 0x3f;
         }
 
-        static int opl_compute_phase_step(int block_freq, int multiple, int lfo_raw_pm) {
+        protected static int opl_compute_phase_step(int block_freq, int multiple, int lfo_raw_pm) {
             // OPL phase calculation has no detuning, but uses FNUMs like
             // the OPN version, and computes PM a bit differently
 
@@ -550,52 +549,52 @@ public abstract class Opl {
         }
 
         /**
-         * compute_phase_step - compute the phase step
+         * Computes the phase step.
          */
         @Override
-        public int compute_phase_step(int choffs, int opoffs, final OpDataCache cache, int lfo_raw_pm) {
-            return opl_compute_phase_step(cache.block_freq, cache.multiple, op_lfo_pm_enable(opoffs) != 0 ? lfo_raw_pm : 0);
+        public int compute_phase_step(int chOffs, int opOffs, OpDataCache cache, int lfo_raw_pm) {
+            return opl_compute_phase_step(cache.block_freq, cache.multiple, op_lfo_pm_enable(opOffs) != 0 ? lfo_raw_pm : 0);
         }
 
         /**
-         * log_keyon - log a key-on event
+         * Logs a key-on event.
          */
         @Override
-        public String log_keyon(int choffs, int opoffs) {
-            int chnum = (choffs & 15) + 9 * bitfield(choffs, 8);
-            int opnum = (opoffs & 31) - 2 * ((opoffs & 31) / 8) + 18 * bitfield(opoffs, 8);
+        public String log_keyon(int chOffs, int opOffs) {
+            int chnum = (chOffs & 15) + 9 * bitfield(chOffs, 8);
+            int opnum = (opOffs & 31) - 2 * ((opOffs & 31) / 8) + 18 * bitfield(opOffs, 8);
 
             StringBuilder buffer = new StringBuilder();
 
             buffer.append("%2d.%02d freq=%04X fb=%d alg=%X mul=%X tl=%02X ksr=%d ns=%d ksl=%d adr=%X/%X/%X sl=%X sus=%d".formatted(
                     chnum, opnum,
-                    ch_block_freq(choffs),
-                    ch_feedback(choffs),
-                    ch_algorithm(choffs),
-                    op_multiple(opoffs),
-                    op_total_level(opoffs),
-                    op_ksr(opoffs),
+                    ch_block_freq(chOffs),
+                    ch_feedback(chOffs),
+                    ch_algorithm(chOffs),
+                    op_multiple(opOffs),
+                    op_total_level(opOffs),
+                    op_ksr(opOffs),
                     note_select(),
-                    op_ksl(opoffs),
-                    op_attack_rate(opoffs),
-                    op_decay_rate(opoffs),
-                    op_release_rate(opoffs),
-                    op_sustain_level(opoffs),
-                    op_eg_sustain(opoffs)));
+                    op_ksl(opOffs),
+                    op_attack_rate(opOffs),
+                    op_decay_rate(opOffs),
+                    op_release_rate(opOffs),
+                    op_sustain_level(opOffs),
+                    op_eg_sustain(opOffs)));
 
             if (OUTPUTS > 1)
                 buffer.append(" out=%c%c%c%c".formatted(
-                        ch_output_0(choffs) != 0 ? 'L' : '-',
-                        ch_output_1(choffs) != 0 ? 'R' : '-',
-                        ch_output_2(choffs) != 0 ? '0' : '-',
-                        ch_output_3(choffs) != 0 ? '1' : '-'));
-            if (op_lfo_am_enable(opoffs) != 0)
+                        ch_output_0(chOffs) != 0 ? 'L' : '-',
+                        ch_output_1(chOffs) != 0 ? 'R' : '-',
+                        ch_output_2(chOffs) != 0 ? '0' : '-',
+                        ch_output_3(chOffs) != 0 ? '1' : '-'));
+            if (op_lfo_am_enable(opOffs) != 0)
                 buffer.append(" am=%d".formatted(lfo_am_depth()));
-            if (op_lfo_pm_enable(opoffs) != 0)
+            if (op_lfo_pm_enable(opOffs) != 0)
                 buffer.append(" pm=%d".formatted(lfo_pm_depth()));
-            if (waveform_enable() != 0 && op_waveform(opoffs) != 0)
-                buffer.append(" wf=%d".formatted(op_waveform(opoffs)));
-            if (is_rhythm(choffs))
+            if (waveform_enable() != 0 && op_waveform(opOffs) != 0)
+                buffer.append(" wf=%d".formatted(op_waveform(opOffs)));
+            if (is_rhythm(chOffs))
                 buffer.append(" rhy=1");
             if (DYNAMIC_OPS) {
                 int[][] map = new int[1][];
@@ -608,6 +607,7 @@ public abstract class Opl {
         }
 
         // system-wide registers
+
         public final int test() {
             return byte_(0x01, 0, 8);
         }
@@ -616,10 +616,11 @@ public abstract class Opl {
             return IsOpl2 ? byte_(0x01, 5, 1) : (IsOpl3Plus ? 1 : 0);
         }
 
+        /** 8->10 bits */
         @Override
         public final int timer_a_value() {
             return byte_(0x02, 0, 8) * 4;
-        } // 8->10 bits
+        }
 
         @Override
         public final int timer_b_value() {
@@ -705,162 +706,170 @@ public abstract class Opl {
         }
 
         // per-channel registers
-        final int ch_block_freq(int choffs) {
-            return word(0xb0, 0, 5, 0xa0, 0, 8, choffs);
+
+        public final int ch_block_freq(int chOffs) {
+            return word(0xb0, 0, 5, 0xa0, 0, 8, chOffs);
         }
 
         @Override
-        public final int ch_feedback(int choffs) {
-            return byte_(0xc0, 1, 3, choffs);
+        public final int ch_feedback(int chOffs) {
+            return byte_(0xc0, 1, 3, chOffs);
         }
 
         @Override
-        public final int ch_algorithm(int choffs) {
-            return byte_(0xc0, 0, 1, choffs) | (IsOpl3Plus ? (8 | (byte_(0xc3, 0, 1, choffs) << 1)) : 0);
+        public final int ch_algorithm(int chOffs) {
+            return byte_(0xc0, 0, 1, chOffs) | (IsOpl3Plus ? (8 | (byte_(0xc3, 0, 1, chOffs) << 1)) : 0);
         }
 
         @Override
-        public final int ch_output_any(int choffs) {
-            return newflag() != 0 ? byte_(0xc0 + choffs, 4, 4) : 1;
+        public final int ch_output_any(int chOffs) {
+            return newflag() != 0 ? byte_(0xc0 + chOffs, 4, 4) : 1;
         }
 
         @Override
-        public final int ch_output_0(int choffs) {
-            return newflag() != 0 ? byte_(0xc0 + choffs, 4, 1) : 1;
+        public final int ch_output_0(int chOffs) {
+            return newflag() != 0 ? byte_(0xc0 + chOffs, 4, 1) : 1;
         }
 
         @Override
-        public final int ch_output_1(int choffs) {
-            return newflag() != 0 ? byte_(0xc0 + choffs, 5, 1) : (IsOpl3Plus ? 1 : 0);
+        public final int ch_output_1(int chOffs) {
+            return newflag() != 0 ? byte_(0xc0 + chOffs, 5, 1) : (IsOpl3Plus ? 1 : 0);
         }
 
         @Override
-        public final int ch_output_2(int choffs) {
-            return newflag() != 0 ? byte_(0xc0 + choffs, 6, 1) : 0;
+        public final int ch_output_2(int chOffs) {
+            return newflag() != 0 ? byte_(0xc0 + chOffs, 6, 1) : 0;
         }
 
         @Override
-        public final int ch_output_3(int choffs) {
-            return newflag() != 0 ? byte_(0xc0 + choffs, 7, 1) : 0;
+        public final int ch_output_3(int chOffs) {
+            return newflag() != 0 ? byte_(0xc0 + chOffs, 7, 1) : 0;
         }
 
         // per-operator registers
+
         @Override
-        public final int op_lfo_am_enable(int opoffs) {
-            return byte_(0x20, 7, 1, opoffs);
+        public final int op_lfo_am_enable(int opOffs) {
+            return byte_(0x20, 7, 1, opOffs);
         }
 
-        final int op_lfo_pm_enable(int opoffs) {
+        public final int op_lfo_pm_enable(int opoffs) {
             return byte_(0x20, 6, 1, opoffs);
         }
 
-        final int op_eg_sustain(int opoffs) {
+        public final int op_eg_sustain(int opoffs) {
             return byte_(0x20, 5, 1, opoffs);
         }
 
-        final int op_ksr(int opoffs) {
+        public final int op_ksr(int opoffs) {
             return byte_(0x20, 4, 1, opoffs);
         }
 
-        final int op_multiple(int opoffs) {
+        public final int op_multiple(int opoffs) {
             return byte_(0x20, 0, 4, opoffs);
         }
 
-        final int op_ksl(int opoffs) {
+        public final int op_ksl(int opoffs) {
             int temp = byte_(0x40, 6, 2, opoffs);
             return bitfield(temp, 1) | (bitfield(temp, 0) << 1);
         }
 
-        final int op_total_level(int opoffs) {
+        public final int op_total_level(int opoffs) {
             return byte_(0x40, 0, 6, opoffs);
         }
 
-        final int op_attack_rate(int opoffs) {
+        public final int op_attack_rate(int opoffs) {
             return byte_(0x60, 4, 4, opoffs);
         }
 
-        final int op_decay_rate(int opoffs) {
+        public final int op_decay_rate(int opoffs) {
             return byte_(0x60, 0, 4, opoffs);
         }
 
-        final int op_sustain_level(int opoffs) {
+        public final int op_sustain_level(int opoffs) {
             return byte_(0x80, 4, 4, opoffs);
         }
 
-        final int op_release_rate(int opoffs) {
+        public final int op_release_rate(int opoffs) {
             return byte_(0x80, 0, 4, opoffs);
         }
 
-        final int op_waveform(int opoffs) {
+        public final int op_waveform(int opoffs) {
             return IsOpl2Plus ? byte_(0xe0, 0, newflag() != 0 ? 3 : 2, opoffs) : 0;
         }
 
+        /** Returns a bitfield extracted from a byte */
         protected final int byte_(int offset, int start, int count) {
             return byte_(offset, start, count, 0);
         }
 
-        // return a bitfield extracted from a byte
+        /** Returns a bitfield extracted from a byte */
         protected final int byte_(int offset, int start, int count, int extra_offset /* = 0 */) {
             return bitfield(m_regdata[offset + extra_offset], start, count);
         }
 
-        // return a bitfield extracted from a pair of bytes, MSBs listed first
+        /** Returns a bitfield extracted from a pair of bytes, MSBs listed first */
         protected final int word(int offset1, int start1, int count1, int offset2, int start2, int count2, int extra_offset /* = 0 */) {
             return (byte_(offset1, start1, count1, extra_offset) << count2) | byte_(offset2, start2, count2, extra_offset);
         }
 
-        // helper to determine if the this channel is an active rhythm channel
+        /** Helper to determine if the this channel is an active rhythm channel */
         protected final boolean is_rhythm(int choffs) {
             return rhythm_enable() != 0 && (choffs >= 6 && choffs <= 8);
         }
 
         // internal state
+
+        /** LFO AM counter */
         @Element(sequence = 0)
-        protected int m_lfo_am_counter;            // LFO AM counter
+        protected int m_lfo_am_counter;
+        /** LFO PM counter */
         @Element(sequence = 1)
-        protected int m_lfo_pm_counter;            // LFO PM counter
+        protected int m_lfo_pm_counter;
+        /** noise LFSR state */
         @Element(sequence = 3)
-        protected int m_noise_lfsr;                // noise LFSR state
+        protected int m_noise_lfsr;
+        /** current LFO AM value */
         @Element(sequence = 2)
-        protected int m_lfo_am;                     // current LFO AM value
+        protected int m_lfo_am;
+        /** register data */
         @Element(sequence = 4)
-        protected int[] m_regdata;         // register data
-        protected int[][] m_waveform; // waveforms
+        protected final int[] m_regdata;
+        /** waveforms */
+        protected final int[][] m_waveform;
     }
 
-    static class OplRegisters extends OplRegistersBase {
+    protected static class OplRegisters extends OplRegistersBase {
 
         OplRegisters() {
             super(1);
         }
     }
 
-    static class Opl2Registers extends OplRegistersBase {
+    protected static class Opl2Registers extends OplRegistersBase {
 
         Opl2Registers() {
             super(2);
         }
     }
 
-    static class Opl3Registers extends OplRegistersBase {
+    protected static class Opl3Registers extends OplRegistersBase {
 
         Opl3Registers() {
             super(3);
         }
     }
 
-    static class Opl4Registers extends OplRegistersBase {
+    protected static class Opl4Registers extends OplRegistersBase {
 
         Opl4Registers() {
             super(4);
         }
     }
 
-    // ======================> opll_registers
-
-    //*********************************************************
-    //  OPLL SPECIFICS
-    //*********************************************************
+    //
+    // OPLL SPECIFICS
+    //
 
     //
     // OPLL register map:
@@ -905,8 +914,10 @@ public abstract class Opl {
     //        4E-5F xxxxxxxx Current instrument base address + operator slot (0/1)
     //        70-FF xxxxxxxx Data for instruments (1-16 plus 3 drums)
     //
+
+    /** opll_registers */
     @Serdes
-    static class OpllRegisters extends RegistersBase {
+    protected static class OpllRegisters extends RegistersBase {
 
         public static final int OUTPUTS = 2;
         public static final int CHANNELS = 9;
@@ -948,9 +959,9 @@ public abstract class Opl {
         }
 
         /**
-         * opll_registers - constructor
+         * Constructor.
          */
-        public OpllRegisters() {
+        protected OpllRegisters() {
             m_lfo_am_counter = 0;
             m_lfo_pm_counter = 0;
             m_noise_lfsr = 1;
@@ -972,7 +983,7 @@ public abstract class Opl {
         }
 
         /**
-         * reset - reset to initial state
+         * Resets to initial state.
          */
         @Override
         public void reset() {
@@ -980,7 +991,7 @@ public abstract class Opl {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         @Override
         public void save(OutputStream os) throws IOException {
@@ -988,28 +999,28 @@ public abstract class Opl {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         @Override
         public void restore(InputStream is) throws IOException {
             Serdes.Util.deserialize(is, this);
         }
 
-        // map channel number to register offset
+        /** Maps channel number to register offset */
         @Override
-        public int channel_offset(int chnum) {
-            assert (chnum < CHANNELS);
-            return chnum;
+        public int channel_offset(int chNum) {
+            assert (chNum < CHANNELS);
+            return chNum;
         }
 
-        // map operator number to register offset
+        /** Maps operator number to register offset */
         @Override
-        public int operator_offset(int opnum) {
-            assert (opnum < OPERATORS);
-            return opnum;
+        public int operator_offset(int opNum) {
+            assert (opNum < OPERATORS);
+            return opNum;
         }
 
-        // return an array of operator indices for each channel
+        /** An array of operator indices for each channel */
         protected static final int[] s_fixed_map = {
                 operator_list(0, 1),  // Channel 0 operators
                 operator_list(2, 3),  // Channel 1 operators
@@ -1023,27 +1034,27 @@ public abstract class Opl {
         };
 
         /**
-         * operator_map - return an array of operator
-         * indices for each channel; for OPLL this is fixed
+         * Returns an array of operator indices for each channel;
+         * for OPLL this is fixed
          */
         @Override
         public final void operator_map(int[][] dest) {
             dest[0] = s_fixed_map;
         }
 
-        // read a register value
+        /** Reads a register value */
         public final int read(int address) {
             return m_regdata[address];
         }
 
         /**
-         * write - handle writes to the register array;
+         * Handles writes to the register array;
          * note that this code is also used by
          * ymopl3_registers, so it must handle upper
          * channels cleanly
          */
         @Override
-        public boolean write(int index, int data, int[] channel, int[] opmask) {
+        public boolean write(int index, int data, int[] channel, int[] opMask) {
             // unclear the address is masked down to 6 bits or if writes above
             // the register top are ignored; assuming the latter for now
             if (index >= REGISTERS)
@@ -1055,7 +1066,7 @@ public abstract class Opl {
             // handle writes to the rhythm keyons
             if (index == 0x0e) {
                 channel[0] = RHYTHM_CHANNEL;
-                opmask[0] = bitfield(data, 5) != 0 ? bitfield(data, 0, 5) : 0;
+                opMask[0] = bitfield(data, 5) != 0 ? bitfield(data, 0, 5) : 0;
                 return true;
             }
 
@@ -1063,7 +1074,7 @@ public abstract class Opl {
             if ((index & 0xf0) == 0x20) {
                 channel[0] = index & 0x0f;
                 if (channel[0] < CHANNELS) {
-                    opmask[0] = bitfield(data, 4) != 0 ? 3 : 0;
+                    opMask[0] = bitfield(data, 4) != 0 ? 3 : 0;
                     return true;
                 }
             }
@@ -1071,8 +1082,7 @@ public abstract class Opl {
         }
 
         /**
-         * clock_noise_and_lfo - clock the noise and LFO,
-         * handling clock division, depth, and waveform
+         * Clocks the noise and LFO, handling clock division, depth, and waveform
          * computations
          */
         @Override
@@ -1090,45 +1100,45 @@ public abstract class Opl {
             return r;
         }
 
-        // reset the LFO
-        protected void reset_lfo() {
+        /** reset the LFO */
+        public void reset_lfo() {
             m_lfo_am_counter = m_lfo_pm_counter = 0;
         }
 
-        // return the AM offset from LFO for the given channel
-        // on OPL this is just a fixed value
+        /**
+         * Returns the AM offset from LFO for the given channel
+         * on OPL this is just a fixed value
+         */
         @Override
-        public final int lfo_am_offset(int choffs) {
+        public final int lfo_am_offset(int chOffs) {
             return m_lfo_am;
         }
 
-        // return LFO/noise states
+        /** Returns LFO/noise states */
         @Override
         public final int noise_state() {
             return m_noise_lfsr >> 23;
         }
 
         /**
-         * cache_operator_data - fill the operator cache
-         * with prefetched data; note that this code is
-         * also used by ymopna_registers, so it must
-         * //  handle upper channels cleanly
+         * Fills the operator cache with prefetched data; note that this code is
+         * also used by ymopna_registers, so it must handle upper channels cleanly
          */
         @Override
-        public void cache_operator_data(int choffs, int opoffs, OpDataCache cache) {
+        public void cache_operator_data(int chOffs, int opOffs, OpDataCache cache) {
             // first set up the instrument data
-            int instrument = ch_instrument(choffs);
-            if (rhythm_enable() != 0 && choffs >= 6)
-                m_chinst[choffs] = Arrays.copyOfRange(m_instdata, 8 * (15 + (choffs - 6)), m_instdata.length);
+            int instrument = ch_instrument(chOffs);
+            if (rhythm_enable() != 0 && chOffs >= 6)
+                m_chinst[chOffs] = Arrays.copyOfRange(m_instdata, 8 * (15 + (chOffs - 6)), m_instdata.length);
             else
-                m_chinst[choffs] = (instrument == 0) ? m_regdata : Arrays.copyOfRange(m_instdata, 8 * (instrument - 1), m_instdata.length);
-            m_opinst[opoffs] = Arrays.copyOfRange(m_chinst[choffs], bitfield(opoffs, 0), m_instdata.length);
+                m_chinst[chOffs] = (instrument == 0) ? m_regdata : Arrays.copyOfRange(m_instdata, 8 * (instrument - 1), m_instdata.length);
+            m_opinst[opOffs] = Arrays.copyOfRange(m_chinst[chOffs], bitfield(opOffs, 0), m_instdata.length);
 
             // set up the easy stuff
-            cache.waveform = m_waveform[op_waveform(opoffs) % WAVEFORMS];
+            cache.waveform = m_waveform[op_waveform(opOffs) % WAVEFORMS];
 
             // get frequency from the channel
-            int block_freq = cache.block_freq = ch_block_freq(choffs);
+            int block_freq = cache.block_freq = ch_block_freq(chOffs);
 
             // compute the keycode: block_freq is:
             //
@@ -1145,33 +1155,33 @@ public abstract class Opl {
 
             // multiple value, as an x.1 value (0 means 0.5)
             // replace the low bit with a table lookup to give 0,1,2,3,4,5,6,7,8,9,10,10,12,12,15,15
-            int multiple = op_multiple(opoffs);
+            int multiple = op_multiple(opOffs);
             cache.multiple = ((multiple & 0xe) | bitfield(0xc2aa, multiple)) * 2;
             if (cache.multiple == 0)
                 cache.multiple = 1;
 
             // phase step, or PHASE_STEP_DYNAMIC if PM is active; this depends on
             // block_freq, detune, and multiple, so compute it after we've done those
-            if (op_lfo_pm_enable(opoffs) == 0)
-                cache.phase_step = compute_phase_step(choffs, opoffs, cache, 0);
+            if (op_lfo_pm_enable(opOffs) == 0)
+                cache.phase_step = compute_phase_step(chOffs, opOffs, cache, 0);
             else
                 cache.phase_step = OpDataCache.PHASE_STEP_DYNAMIC;
 
             // total level, scaled by 8; for non-rhythm operator 0, this is the total
             // level from the instrument data; for other operators it is 4*volume
-            if (bitfield(opoffs, 0) == 1 || (rhythm_enable() != 0 && choffs >= 7))
-                cache.total_level = op_volume(opoffs) * 4;
+            if (bitfield(opOffs, 0) == 1 || (rhythm_enable() != 0 && chOffs >= 7))
+                cache.total_level = op_volume(opOffs) * 4;
             else
-                cache.total_level = ch_total_level(choffs);
+                cache.total_level = ch_total_level(chOffs);
             cache.total_level <<= 3;
 
             // pre-add key scale level
-            int ksl = op_ksl(opoffs);
+            int ksl = op_ksl(opOffs);
             if (ksl != 0)
                 cache.total_level += opl_key_scale_atten(bitfield(block_freq, 9, 3), bitfield(block_freq, 5, 4)) << ksl;
 
             // 4-bit sustain level, but 15 means 31 so effectively 5 bits
-            cache.eg_sustain = op_sustain_level(opoffs);
+            cache.eg_sustain = op_sustain_level(opOffs);
             cache.eg_sustain |= (cache.eg_sustain + 1) & 0x10;
             cache.eg_sustain <<= 5;
 
@@ -1194,79 +1204,80 @@ public abstract class Opl {
             final byte RS = 5 * 4;
 
             // determine KSR adjustment for envelope rates
-            int ksrval = keycode >> (2 * (op_ksr(opoffs) ^ 1));
+            int ksrval = keycode >> (2 * (op_ksr(opOffs) ^ 1));
             cache.eg_rate[EG_DEPRESS.ordinal()] = DP;
-            cache.eg_rate[EG_ATTACK.ordinal()] = effective_rate(op_attack_rate(opoffs) * 4, ksrval);
-            cache.eg_rate[EG_DECAY.ordinal()] = effective_rate(op_decay_rate(opoffs) * 4, ksrval);
-            if (op_eg_sustain(opoffs) != 0) {
+            cache.eg_rate[EG_ATTACK.ordinal()] = effective_rate(op_attack_rate(opOffs) * 4, ksrval);
+            cache.eg_rate[EG_DECAY.ordinal()] = effective_rate(op_decay_rate(opOffs) * 4, ksrval);
+            if (op_eg_sustain(opOffs) != 0) {
                 cache.eg_rate[EG_SUSTAIN.ordinal()] = 0;
-                cache.eg_rate[EG_RELEASE.ordinal()] = ch_sustain(choffs) != 0 ? RS : effective_rate(op_release_rate(opoffs) * 4, ksrval);
+                cache.eg_rate[EG_RELEASE.ordinal()] = ch_sustain(chOffs) != 0 ? RS : effective_rate(op_release_rate(opOffs) * 4, ksrval);
             } else {
-                cache.eg_rate[EG_SUSTAIN.ordinal()] = effective_rate(op_release_rate(opoffs) * 4, ksrval);
-                cache.eg_rate[EG_RELEASE.ordinal()] = ch_sustain(choffs) != 0 ? RS : RR;
+                cache.eg_rate[EG_SUSTAIN.ordinal()] = effective_rate(op_release_rate(opOffs) * 4, ksrval);
+                cache.eg_rate[EG_RELEASE.ordinal()] = ch_sustain(chOffs) != 0 ? RS : RR;
             }
         }
 
         /**
-         * compute_phase_step - compute the phase step
+         * Computes the phase step.
          */
         @Override
-        public int compute_phase_step(int choffs, int opoffs, final OpDataCache cache, int lfo_raw_pm) {
+        public int compute_phase_step(int chOffs, int opOffs, OpDataCache cache, int lfo_raw_pm) {
             // phase step computation is the same as OPL but the block_freq has one
             // more bit, which we shift in
-            return opl_compute_phase_step(cache.block_freq << 1, cache.multiple, op_lfo_pm_enable(opoffs) != 0 ? lfo_raw_pm : 0);
+            return opl_compute_phase_step(cache.block_freq << 1, cache.multiple, op_lfo_pm_enable(opOffs) != 0 ? lfo_raw_pm : 0);
         }
 
         /**
-         * log_keyon - log a key-on event
+         * Logs a key-on event.
          */
         @Override
-        public String log_keyon(int choffs, int opoffs) {
-            int chnum = choffs;
-            int opnum = opoffs;
+        public String log_keyon(int chOffs, int opOffs) {
+            int chnum = chOffs;
+            int opnum = opOffs;
 
             StringBuilder buffer = new StringBuilder();
 
             buffer.append("%d.%02d freq=%04X inst=%X fb=%d mul=%X".formatted(
                     chnum, opnum,
-                    ch_block_freq(choffs),
-                    ch_instrument(choffs),
-                    ch_feedback(choffs),
-                    op_multiple(opoffs)));
+                    ch_block_freq(chOffs),
+                    ch_instrument(chOffs),
+                    ch_feedback(chOffs),
+                    op_multiple(opOffs)));
 
-            if (bitfield(opoffs, 0) == 1 || (is_rhythm(choffs) && choffs >= 6))
-                buffer.append(" vol=%X".formatted(op_volume(opoffs)));
+            if (bitfield(opOffs, 0) == 1 || (is_rhythm(chOffs) && chOffs >= 6))
+                buffer.append(" vol=%X".formatted(op_volume(opOffs)));
             else
-                buffer.append(" tl=%02X".formatted(ch_total_level(choffs)));
+                buffer.append(" tl=%02X".formatted(ch_total_level(chOffs)));
 
             buffer.append(" ksr=%d ksl=%d adr=%X/%X/%X sl=%X sus=%d/%d".formatted(
-                    op_ksr(opoffs),
-                    op_ksl(opoffs),
-                    op_attack_rate(opoffs),
-                    op_decay_rate(opoffs),
-                    op_release_rate(opoffs),
-                    op_sustain_level(opoffs),
-                    op_eg_sustain(opoffs),
-                    ch_sustain(choffs)));
+                    op_ksr(opOffs),
+                    op_ksl(opOffs),
+                    op_attack_rate(opOffs),
+                    op_decay_rate(opOffs),
+                    op_release_rate(opOffs),
+                    op_sustain_level(opOffs),
+                    op_eg_sustain(opOffs),
+                    ch_sustain(chOffs)));
 
-            if (op_lfo_am_enable(opoffs) != 0)
+            if (op_lfo_am_enable(opOffs) != 0)
                 buffer.append(" am=1");
-            if (op_lfo_pm_enable(opoffs) != 0)
+            if (op_lfo_pm_enable(opOffs) != 0)
                 buffer.append(" pm=1");
-            if (op_waveform(opoffs) != 0)
+            if (op_waveform(opOffs) != 0)
                 buffer.append(" wf=1");
-            if (is_rhythm(choffs))
+            if (is_rhythm(chOffs))
                 buffer.append(" rhy=1");
 
             return buffer.toString();
         }
 
-        // set the instrument data
+        /** Set the instrument data */
         public void set_instrument_data(int[] data) {
             System.arraycopy(data, 0, m_instdata, 0, INSTDATA_SIZE);
         }
 
         // system-wide registers
+
         @Override
         public final int rhythm_enable() {
             return byte_(0x0e, 5, 1);
@@ -1340,6 +1351,7 @@ public abstract class Opl {
         }
 
         // per-channel registers
+
         public final int ch_block_freq(int choffs) {
             return word(0x20, 0, 4, 0x10, 0, 8, choffs);
         }
@@ -1353,12 +1365,12 @@ public abstract class Opl {
         }
 
         @Override
-        public final int ch_feedback(int choffs) {
-            return instchbyte_(0x03, 0, 3, choffs);
+        public final int ch_feedback(int chOffs) {
+            return instchbyte_(0x03, 0, 3, chOffs);
         }
 
         @Override
-        public final int ch_algorithm(int choffs) {
+        public final int ch_algorithm(int chOffs) {
             return 0;
         }
 
@@ -1367,34 +1379,35 @@ public abstract class Opl {
         }
 
         @Override
-        public final int ch_output_any(int choffs) {
+        public final int ch_output_any(int chOffs) {
             return 1;
         }
 
         @Override
-        public final int ch_output_0(int choffs) {
-            return !is_rhythm(choffs) ? 1 : 0;
+        public final int ch_output_0(int chOffs) {
+            return !is_rhythm(chOffs) ? 1 : 0;
         }
 
         @Override
-        public final int ch_output_1(int choffs) {
-            return is_rhythm(choffs) ? 1 : 0;
+        public final int ch_output_1(int chOffs) {
+            return is_rhythm(chOffs) ? 1 : 0;
         }
 
         @Override
-        public final int ch_output_2(int choffs) {
+        public final int ch_output_2(int chOffs) {
             return 0;
         }
 
         @Override
-        public final int ch_output_3(int choffs) {
+        public final int ch_output_3(int chOffs) {
             return 0;
         }
 
         // per-operator registers
+
         @Override
-        public final int op_lfo_am_enable(int opoffs) {
-            return instopbyte_(0x00, 7, 1, opoffs);
+        public final int op_lfo_am_enable(int opOffs) {
+            return instopbyte_(0x00, 7, 1, opOffs);
         }
 
         public final int op_lfo_pm_enable(int opoffs) {
@@ -1441,21 +1454,23 @@ public abstract class Opl {
             return byte_(0x30, 4 * bitfield(~opoffs, 0), 4, opoffs >> 1);
         }
 
+        /** Returns a bitfield extracted from a byte */
         private int byte_(int offset, int start, int count) {
             return byte_(offset, start, count, 0);
         }
 
-        // return a bitfield extracted from a byte
+        /** Returns a bitfield extracted from a byte */
         private int byte_(int offset, int start, int count, int extra_offset /* = 0 */) {
             return bitfield(m_regdata[offset + extra_offset], start, count);
         }
 
-        // return a bitfield extracted from a pair of bytes, MSBs listed first
+        /** Returns a bitfield extracted from a pair of bytes, MSBs listed first */
         private final int word(int offset1, int start1, int count1, int offset2, int start2, int count2, int extra_offset /* = 0 */) {
             return (byte_(offset1, start1, count1, extra_offset) << count2) | byte_(offset2, start2, count2, extra_offset);
         }
 
         // helpers to read from instrument channel/operator data
+
         private final int instchbyte_(int offset, int start, int count, int choffs) {
             return bitfield(m_chinst[choffs][offset], start, count);
         }
@@ -1470,34 +1485,45 @@ public abstract class Opl {
         }
 
         // internal state
+
+        /** LFO AM counter */
         @Element(sequence = 0)
-        private int m_lfo_am_counter;            // LFO AM counter
+        private int m_lfo_am_counter;
+        /** LFO PM counter */
         @Element(sequence = 1)
-        private int m_lfo_pm_counter;            // LFO PM counter
+        private int m_lfo_pm_counter;
+        /** noise LFSR state */
         @Element(sequence = 3)
-        private int m_noise_lfsr;                // noise LFSR state
+        private int m_noise_lfsr;
+        /** current LFO AM value */
         @Element(sequence = 2)
-        private int m_lfo_am;                     // current LFO AM value
-        private final int[][] m_chinst = new int[CHANNELS][];    // pointer to instrument data for each channel
-        private final int[][] m_opinst = new int[OPERATORS][];   // pointer to instrument data for each operator
+        private int m_lfo_am;
+        /** pointer to instrument data for each channel */
+        private final int[][] m_chinst = new int[CHANNELS][];
+        /** pointer to instrument data for each operator */
+        private final int[][] m_opinst = new int[OPERATORS][];
+        /** register data */
         @Element(sequence = 4)
-        private int[] m_regdata = new int[REGISTERS];         // register data
-        private int[] m_instdata = new int[INSTDATA_SIZE];    // instrument data
-        private int[][] m_waveform = new int[WAVEFORMS][WAVEFORM_LENGTH]; // waveforms
+        private final int[] m_regdata = new int[REGISTERS];
+        /** instrument data */
+        private final int[] m_instdata = new int[INSTDATA_SIZE];
+        /** waveforms */
+        private final int[][] m_waveform = new int[WAVEFORMS][WAVEFORM_LENGTH];
     }
 
-    //*********************************************************
-    //  OPL IMPLEMENTATION CLASSES
-    //*********************************************************
+    //
+    // OPL IMPLEMENTATION CLASSES
+    //
 
-    // ======================> Ym3526
-
-    //*********************************************************
+    //
     //  YM3526
-    //*********************************************************
+    //
+
+    /** Ym3526 */
     @Serdes
     public static class Ym3526 implements YmFm.Chip {
 
+        //using output_data = fm_engine.output_data;
         protected static class FmEngine extends EngineBase<OplRegisters> {
 
             public FmEngine(YmFm.Interface intf) {
@@ -1505,7 +1531,6 @@ public abstract class Opl {
             }
         }
 
-        //using output_data = fm_engine.output_data;
         //public static final int OUTPUTS = fm_engine.OUTPUTS;
         @Override
         public YmFm.Output outputFactory() {
@@ -1518,7 +1543,7 @@ public abstract class Opl {
         }
 
         /**
-         * Ym3526 - constructor
+         * Constructor.
          */
         public Ym3526(YmFm.Interface intf) {
             m_address = 0;
@@ -1526,7 +1551,7 @@ public abstract class Opl {
         }
 
         /**
-         * reset - reset the system
+         * Resets the system.
          */
         @Override
         public void reset() {
@@ -1535,7 +1560,7 @@ public abstract class Opl {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         @Override
         public void save(OutputStream os) throws IOException {
@@ -1544,7 +1569,7 @@ public abstract class Opl {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restore the data.
          */
         @Override
         public void restore(InputStream is) throws IOException {
@@ -1553,6 +1578,7 @@ public abstract class Opl {
         }
 
         // pass-through helpers
+
         @Override
         public final int sample_rate(int input_clock) {
             return m_fm.sample_rate(input_clock);
@@ -1563,14 +1589,14 @@ public abstract class Opl {
         }
 
         /**
-         * read_status - read the status register
+         * Reads the status register.
          */
         public int read_status() {
             return m_fm.status() | 0x06;
         }
 
         /**
-         * read - handle a read from the device
+         * Handles a read from the device.
          */
         @Override
         public int read(int offset) {
@@ -1587,8 +1613,7 @@ public abstract class Opl {
         }
 
         /**
-         * write_address - handle a write to the address
-         * register
+         * Handles a write to the address register.
          */
         public void write_address(int data) {
             // YM3526 doesn't expose a busy signal, and the datasheets don't indicate
@@ -1600,8 +1625,7 @@ public abstract class Opl {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
         public void write_data(int data) {
             // YM3526 doesn't expose a busy signal, and the datasheets don't indicate
@@ -1613,8 +1637,7 @@ public abstract class Opl {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -1630,7 +1653,7 @@ public abstract class Opl {
         }
 
         /**
-         * generate - generate samples of sound
+         * Generate samples of sound.
          */
         @Override
         public void generate(YmFm.Output output, int numSamples /* = 1 */) {
@@ -1648,18 +1671,22 @@ public abstract class Opl {
         }
 
         // internal state
+
+        /** address register */
         @Element
-        protected int m_address;               // address register
-        protected FmEngine m_fm;                  // core FM engine
+        protected int m_address;
+        /** core FM engine */
+        protected final FmEngine m_fm;
     }
 
-    // ======================> y8950
+    //
+    // Y8950
+    //
 
-    //*********************************************************
-    //  Y8950
-    //*********************************************************
+    /** y8950 */
     public static class Y8950 implements YmFm.Chip {
 
+        //using fm_engine = fm_engine_base<opl_registers>;
         protected static class FmEngine extends EngineBase<OplRegisters> {
 
             public FmEngine(YmFm.Interface intf) {
@@ -1667,7 +1694,6 @@ public abstract class Opl {
             }
         }
 
-        //using fm_engine = fm_engine_base<opl_registers>;
         //using output_data = fm_engine.output_data;
         @Override
         public YmFm.Output outputFactory() {
@@ -1675,7 +1701,7 @@ public abstract class Opl {
         }
 
         @Override
-        public final int getOutputs(){
+        public final int getOutputs() {
             return (int) m_fm.getRegisterType().getParams().get("OUTPUTS");
         }
 
@@ -1685,7 +1711,7 @@ public abstract class Opl {
         public static final byte ALL_IRQS = STATUS_ADPCM_B_BRDY | STATUS_ADPCM_B_EOS | OplRegisters.STATUS_TIMERA | OplRegisters.STATUS_TIMERB;
 
         /**
-         * y8950 - constructor
+         * Constructor.
          */
         public Y8950(YmFm.Interface intf) {
             m_address = 0;
@@ -1695,7 +1721,7 @@ public abstract class Opl {
         }
 
         /**
-         * reset - reset the system
+         * Resets the system.
          */
         @Override
         public void reset() {
@@ -1705,7 +1731,7 @@ public abstract class Opl {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         @Override
         public void save(OutputStream os) throws IOException {
@@ -1714,7 +1740,7 @@ public abstract class Opl {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         @Override
         public void restore(InputStream is) throws IOException {
@@ -1723,19 +1749,20 @@ public abstract class Opl {
         }
 
         // pass-through helpers
+
         @Override
         public final int sample_rate(int input_clock) {
             return m_fm.sample_rate(input_clock);
         }
 
-        void invalidate_caches() {
+        public void invalidate_caches() {
             m_fm.invalidate_caches();
         }
 
         /**
-         * read_status - read the status register
+         * Reads the status register.
          */
-        int read_status() {
+        public int read_status() {
             // start with current FM status, masking out bits we might set
             int status = m_fm.status() & ~(STATUS_ADPCM_B_EOS | STATUS_ADPCM_B_BRDY | STATUS_ADPCM_B_PLAYING);
 
@@ -1753,9 +1780,9 @@ public abstract class Opl {
         }
 
         /**
-         * read_data - read the data port
+         * Reads the data port.
          */
-        int read_data() {
+        public int read_data() {
             int result = 0xff;
             switch (m_address) {
                 case 0x05:  // keyboard in
@@ -1779,7 +1806,7 @@ public abstract class Opl {
         }
 
         /**
-         * read - handle a read from the device
+         * Handles a read from the device.
          */
         @Override
         public int read(int offset) {
@@ -1797,10 +1824,9 @@ public abstract class Opl {
         }
 
         /**
-         * write_address - handle a write to the address
-         * register
+         * Handles a write to the address register.
          */
-        void write_address(int data) {
+        public void write_address(int data) {
             // Y8950 doesn't expose a busy signal, but it does indicate that
             // address writes should be no faster than every 12 clocks
             m_fm.intf().ymfm_set_busy_end(12 * m_fm.clock_prescale());
@@ -1810,10 +1836,9 @@ public abstract class Opl {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
-        void write_data(int data) {
+        public void write_data(int data) {
             // Y8950 doesn't expose a busy signal, but it does indicate that
             // data writes should be no faster than every 12 clocks for
             // registers 00-1A, or every 84 clocks for other registers
@@ -1867,8 +1892,7 @@ public abstract class Opl {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handle a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -1884,7 +1908,7 @@ public abstract class Opl {
         }
 
         /**
-         * generate - generate samples of sound
+         * Generate samples of sound.
          */
         @Override
         public void generate(YmFm.Output output, int numSamples /* = 1 */) {
@@ -1907,23 +1931,28 @@ public abstract class Opl {
         }
 
         // internal state
+
+        /** address register */
         @Element(sequence = 0)
-        protected int m_address;               // address register
+        protected int m_address;
+        /** data direction register for I/O */
         @Element(sequence = 1)
-        protected int m_io_ddr;                // data direction register for I/O
-        protected FmEngine m_fm;                  // core FM engine
-        protected Adpcm.EngineB m_adpcm_b;        // ADPCM-B engine
+        protected int m_io_ddr;
+        /** core FM engine */
+        protected final FmEngine m_fm;
+        /** ADPCM-B engine */
+        protected final Adpcm.EngineB m_adpcm_b;
     }
 
-    //*********************************************************
-    //  OPL2 IMPLEMENTATION CLASSES
-    //*********************************************************
+    //
+    // OPL2 IMPLEMENTATION CLASSES
+    //
 
-    // ======================> ym3812
+    //
+    // YM3812
+    //
 
-    //*********************************************************
-    //  YM3812
-    //*********************************************************
+    /** ym3812 */
     @Serdes
     public static class Ym3812 implements YmFm.Chip {
 
@@ -1946,7 +1975,7 @@ public abstract class Opl {
         }
 
         /**
-         * ym3812 - constructor
+         * Constructor.
          */
         public Ym3812(YmFm.Interface intf) {
             m_address = 0;
@@ -1954,7 +1983,7 @@ public abstract class Opl {
         }
 
         /**
-         * reset - reset the system
+         * Resets the system.
          */
         @Override
         public void reset() {
@@ -1963,22 +1992,25 @@ public abstract class Opl {
         }
 
         /**
-         * save the data
+         * Saves the data.
          */
+        @Override
         public void save(OutputStream os) throws IOException {
             Serdes.Util.serialize(this, os);
             m_fm.save(os);
         }
 
         /**
-         * restore the data
+         * Restores the data.
          */
+        @Override
         public void restore(InputStream is) throws IOException {
             Serdes.Util.deserialize(is, this);
             m_fm.restore(is);
         }
 
         // pass-through helpers
+
         @Override
         public final int sample_rate(int input_clock) {
             return m_fm.sample_rate(input_clock);
@@ -1989,14 +2021,14 @@ public abstract class Opl {
         }
 
         /**
-         * read the status register
+         * Reads the status register.
          */
         public int read_status() {
             return m_fm.status() | 0x06;
         }
 
         /**
-         * handle a read from the device
+         * Handles a read from the device.
          */
         @Override
         public int read(int offset) {
@@ -2013,7 +2045,7 @@ public abstract class Opl {
         }
 
         /**
-         * handle a write to the address register
+         * Handles a write to the address register.
          */
         public void write_address(int data) {
             // YM3812 doesn't expose a busy signal, but it does indicate that
@@ -2025,7 +2057,7 @@ public abstract class Opl {
         }
 
         /**
-         * handle a write to the register interface
+         * Handles a write to the register interface.
          */
         public void write_data(int data) {
             // YM3812 doesn't expose a busy signal, but it does indicate that
@@ -2037,7 +2069,7 @@ public abstract class Opl {
         }
 
         /**
-         * handle a write to the register interface
+         * Handles a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -2053,7 +2085,7 @@ public abstract class Opl {
         }
 
         /**
-         * generate samples of sound
+         * Generate samples of sound.
          */
         @Override
         public void generate(YmFm.Output output, int numSamples /* = 1 */) {
@@ -2071,20 +2103,23 @@ public abstract class Opl {
         }
 
         // internal state
+
+        /** address register */
         @Element
-        protected int m_address;               // address register
-        protected FmEngine m_fm;                  // core FM engine
+        protected int m_address;
+        /** core FM engine */
+        protected final FmEngine m_fm;
     }
 
-    //*********************************************************
-    //  OPL3 IMPLEMENTATION CLASSES
-    //*********************************************************
+    //
+    // OPL3 IMPLEMENTATION CLASSES
+    //
 
-    // ======================> ymf262
+    //
+    // YMF262
+    //
 
-    //*********************************************************
-    //  YMF262
-    //*********************************************************
+    /** ymf262 */
     @Serdes
     public static class Ymf262 implements YmFm.Chip {
 
@@ -2107,7 +2142,7 @@ public abstract class Opl {
         }
 
         /**
-         * ymf262 - constructor
+         * Constructor.
          */
         public Ymf262(YmFm.Interface intf) {
             m_address = 0;
@@ -2115,7 +2150,7 @@ public abstract class Opl {
         }
 
         /**
-         * reset - reset the system
+         * Resets the system.
          */
         @Override
         public void reset() {
@@ -2124,7 +2159,7 @@ public abstract class Opl {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         @Override
         public void save(OutputStream os) throws IOException {
@@ -2133,7 +2168,7 @@ public abstract class Opl {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restore the data.
          */
         @Override
         public void restore(InputStream is) throws IOException {
@@ -2142,24 +2177,25 @@ public abstract class Opl {
         }
 
         // pass-through helpers
+
         @Override
         public final int sample_rate(int input_clock) {
             return m_fm.sample_rate(input_clock);
         }
 
-        void invalidate_caches() {
+        public void invalidate_caches() {
             m_fm.invalidate_caches();
         }
 
         /**
-         * read_status - read the status register
+         * Reads the status register.
          */
-        int read_status() {
+        public int read_status() {
             return m_fm.status();
         }
 
         /**
-         * read - handle a read from the device
+         * Handle a read from the device.
          */
         @Override
         public int read(int offset) {
@@ -2179,8 +2215,7 @@ public abstract class Opl {
         }
 
         /**
-         * write_address - handle a write to the address
-         * register
+         * Handles a write to the address register.
          */
         public void write_address(int data) {
             // YMF262 doesn't expose a busy signal, but it does indicate that
@@ -2192,8 +2227,7 @@ public abstract class Opl {
         }
 
         /**
-         * write_data - handle a write to the data
-         * register
+         * Handles a write to the data register.
          */
         public void write_data(int data) {
             // YMF262 doesn't expose a busy signal, but it does indicate that
@@ -2205,10 +2239,9 @@ public abstract class Opl {
         }
 
         /**
-         * write_address_hi - handle a write to the upper
-         * address register
+         * Handles a write to the upper address register.
          */
-        void write_address_hi(int data) {
+        public void write_address_hi(int data) {
             // YMF262 doesn't expose a busy signal, but it does indicate that
             // address writes should be no faster than every 32 clocks
             m_fm.intf().ymfm_set_busy_end(32 * m_fm.clock_prescale());
@@ -2223,8 +2256,7 @@ public abstract class Opl {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -2248,7 +2280,7 @@ public abstract class Opl {
         }
 
         /**
-         * generate - generate samples of sound
+         * Generate samples of sound.
          */
         @Override
         public void generate(YmFm.Output output, int numSamples /* = 1 */) {
@@ -2265,28 +2297,34 @@ public abstract class Opl {
         }
 
         // internal state
-        @Element
-        protected int m_address;              // address register
-        protected FmEngine m_fm;                  // core FM engine
+
+        /** address register@Element */
+        protected int m_address;
+        /** core FM engine */
+        protected final FmEngine m_fm;
     }
 
-    // ======================> ymf289b
-
-    //*********************************************************
+    //
     //  YMF289B
-    //*********************************************************
+    //
 
-    // YMF289B is a YMF262 with the following changes:
-    //   * "Power down" mode added
-    //   * Bulk register clear added
-    //   * Busy flag added to the status register
-    //   * Shorter busy times
-    //   * All registers can be read
-    //   * Only 2 outputs exposed
+    /**
+     * ymf289b
+     *
+     * YMF289B is a YMF262 with the following changes:
+     * <ul>
+     *  <li>"Power down" mode added</li>
+     *  <li>Bulk register clear added</li>
+     *  <li>Busy flag added to the status register</li>
+     *  <li>Shorter busy times</li>
+     *  <li>All registers can be read</li>
+     *  <li>Only 2 outputs exposed</li>
+     * </ul>
+     */
     @Serdes
     public static class Ymf289b implements YmFm.Chip {
 
-        static final byte STATUS_BUSY_FLAGS = 0x05;
+        protected static final byte STATUS_BUSY_FLAGS = 0x05;
 
         protected static class FmEngine extends EngineBase<Opl3Registers> {
 
@@ -2309,7 +2347,7 @@ public abstract class Opl {
         }
 
         /**
-         * ymf289b - constructor
+         * Constructor.
          */
         public Ymf289b(YmFm.Interface intf) {
             m_address = 0;
@@ -2317,7 +2355,7 @@ public abstract class Opl {
         }
 
         /**
-         * reset - reset the system
+         * Resets the system.
          */
         @Override
         public void reset() {
@@ -2326,22 +2364,25 @@ public abstract class Opl {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
+        @Override
         public void save(OutputStream os) throws IOException {
             Serdes.Util.serialize(this, os);
             m_fm.save(os);
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
+        @Override
         public void restore(InputStream is) throws IOException {
             Serdes.Util.deserialize(is, this);
             m_fm.restore(is);
         }
 
         // pass-through helpers
+
         @Override
         public final int sample_rate(int input_clock) {
             return m_fm.sample_rate(input_clock);
@@ -2352,7 +2393,7 @@ public abstract class Opl {
         }
 
         /**
-         * read_status - read the status register
+         * Reads the status register.
          */
         public int read_status() {
             int result = m_fm.status();
@@ -2364,7 +2405,7 @@ public abstract class Opl {
         }
 
         /**
-         * read_data - read the data register
+         * Reads the data register.
          */
         public int read_data() {
             int result = 0xff;
@@ -2376,7 +2417,7 @@ public abstract class Opl {
         }
 
         /**
-         * read - handle a read from the device
+         * Handles a read from the device.
          */
         @Override
         public int read(int offset) {
@@ -2399,8 +2440,7 @@ public abstract class Opl {
         }
 
         /**
-         * write_address - handle a write to the address
-         * register
+         * Handles a write to the address register.
          */
         public void write_address(int data) {
             m_address = data;
@@ -2410,8 +2450,7 @@ public abstract class Opl {
         }
 
         /**
-         * write_data - handle a write to the data
-         * register
+         * Handle a write to the data register.
          */
         public void write_data(int data) {
             // write to FM
@@ -2426,8 +2465,7 @@ public abstract class Opl {
         }
 
         /**
-         * write_address_hi - handle a write to the upper
-         * address register
+         * Handles a write to the upper address register.
          */
         public void write_address_hi(int data) {
             // just set the address
@@ -2443,8 +2481,7 @@ public abstract class Opl {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -2468,7 +2505,7 @@ public abstract class Opl {
         }
 
         /**
-         * generate - generate samples of sound
+         * Generates samples of sound.
          */
         @Override
         public void generate(YmFm.Output output, int numSamples /* = 1 */) {
@@ -2489,25 +2526,29 @@ public abstract class Opl {
         }
 
         // internal helpers
+
         protected boolean ymf289b_mode() {
             return ((m_fm.regs().read(0x105) & 0x04) != 0);
         }
 
         // internal state
+
+        /** address register */
         @Element
-        protected int m_address;              // address register
-        protected FmEngine m_fm;                  // core FM engine
+        protected int m_address;
+        /** core FM engine */
+        protected final FmEngine m_fm;
     }
 
-    //*********************************************************
-    //  OPL4 IMPLEMENTATION CLASSES
-    //*********************************************************
+    //
+    // OPL4 IMPLEMENTATION CLASSES
+    //
 
-    // ======================> ymf278b
-
-    //*********************************************************
+    //
     //  YMF278B
-    //*********************************************************
+    //
+
+    /** ymf278b */
     @Serdes
     public static class Ymf278b implements YmFm.Chip {
 
@@ -2519,8 +2560,8 @@ public abstract class Opl {
         // 768/684 = 192/171. So if we always clock the FM once, we'll have
         // 192/171 - 1 = 21/171 left. Thus we count 21 for each sample and when
         // it gets above 171, we tick an extra time.
-        static final int FM_EXTRA_SAMPLE_THRESH = 171;
-        static final int FM_EXTRA_SAMPLE_STEP = 192 - FM_EXTRA_SAMPLE_THRESH;
+        protected static final int FM_EXTRA_SAMPLE_THRESH = 171;
+        protected static final int FM_EXTRA_SAMPLE_STEP = 192 - FM_EXTRA_SAMPLE_THRESH;
 
         protected static class FmEngine extends EngineBase<Opl4Registers> {
 
@@ -2542,11 +2583,11 @@ public abstract class Opl {
             return OUTPUTS;
         }
 
-        public static final byte STATUS_BUSY = 0x01;
-        public static final byte STATUS_LD = 0x02;
+        protected static final byte STATUS_BUSY = 0x01;
+        protected static final byte STATUS_LD = 0x02;
 
         /**
-         * ymf278b - constructor
+         * Constructor.
          */
         public Ymf278b(YmFm.Interface intf) {
             m_address = 0;
@@ -2558,7 +2599,7 @@ public abstract class Opl {
         }
 
         /**
-         * reset - reset the system
+         * Resets the system.
          */
         @Override
         public void reset() {
@@ -2571,7 +2612,7 @@ public abstract class Opl {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         @Override
         public void save(OutputStream os) throws IOException {
@@ -2581,7 +2622,7 @@ public abstract class Opl {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         @Override
         public void restore(InputStream is) throws IOException {
@@ -2591,19 +2632,20 @@ public abstract class Opl {
         }
 
         // pass-through helpers
+
         @Override
         public final int sample_rate(int input_clock) {
             return input_clock / 768;
         }
 
-        void invalidate_caches() {
+        public void invalidate_caches() {
             m_fm.invalidate_caches();
         }
 
         /**
-         * read_status - read the status register
+         * Reads the status register.
          */
-        int read_status() {
+        public int read_status() {
             int result;
 
             // first status read after initialization returns a chip ID, which
@@ -2631,10 +2673,9 @@ public abstract class Opl {
         }
 
         /**
-         * write_data_pcm - handle a write to the PCM data
-         * register
+         * Handles a write to the PCM data register.
          */
-        int read_data_pcm() {
+        public int read_data_pcm() {
             // read from PCM
             if (bitfield(m_address, 9) != 0) {
                 int result = m_pcm.read(m_address & 0xff);
@@ -2647,7 +2688,7 @@ public abstract class Opl {
         }
 
         /**
-         * read - handle a read from the device
+         * Handle a read from the device.
          */
         @Override
         public int read(int offset) {
@@ -2669,19 +2710,17 @@ public abstract class Opl {
         }
 
         /**
-         * write_address - handle a write to the address
-         * register
+         * Handles a write to the address register.
          */
-        void write_address(int data) {
+        public void write_address(int data) {
             // just set the address
             m_address = data;
         }
 
         /**
-         * write_data - handle a write to the data
-         * register
+         * Handle a write to the data register.
          */
-        void write_data(int data) {
+        public void write_data(int data) {
             // write to FM
             if (bitfield(m_address, 9) == 0) {
                 int old = m_fm.regs().new2flag();
@@ -2698,10 +2737,9 @@ public abstract class Opl {
         }
 
         /**
-         * write_address_hi - handle a write to the upper
-         * address register
+         * Handle a write to the upper address register.
          */
-        void write_address_hi(int data) {
+       public void write_address_hi(int data) {
             // just set the address
             m_address = data | 0x100;
 
@@ -2709,22 +2747,20 @@ public abstract class Opl {
             // except for register 0x105; assuming YMF278B works the same way?
             if (m_fm.regs().newflag() == 0 && m_address != 0x105)
                 m_address &= 0xff;
-        }
+       }
 
         /**
-         * write_address_pcm - handle a write to the upper
-         * address register
+         * Handles a write to the upper address register.
          */
-        void write_address_pcm(int data) {
+        public void write_address_pcm(int data) {
             // just set the address
             m_address = data | 0x200;
         }
 
         /**
-         * write_data_pcm - handle a write to the PCM data
-         * register
+         * Handles a write to the PCM data register.
          */
-        void write_data_pcm(int data) {
+        public void write_data_pcm(int data) {
             // ignore data writes if new2 is not yet set
             if (m_fm.regs().new2flag() != 0)
                 return;
@@ -2745,8 +2781,7 @@ public abstract class Opl {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -2781,10 +2816,10 @@ public abstract class Opl {
             }
         }
 
-        static final int[] s_mix_scale = {0x7fa, 0x5a4, 0x3fd, 0x2d2, 0x1fe, 0x169, 0xff, 0};
+        private static final int[] s_mix_scale = {0x7fa, 0x5a4, 0x3fd, 0x2d2, 0x1fe, 0x169, 0xff, 0};
 
         /**
-         * generate - generate one sample of sound
+         * Generate one sample of sound.
          */
         @Override
         public void generate(YmFm.Output output, int numSamples /* = 1 */) {
@@ -2833,27 +2868,34 @@ public abstract class Opl {
         }
 
         // internal state
+
+        /** address register */
         @Element(sequence = 0)
-        protected int m_address;              // address register
+        protected int m_address;
+        /** FM resampling position */
         @Element(sequence = 1)
-        protected int m_fm_pos;               // FM resampling position
+        protected int m_fm_pos;
+        /** how many more samples until LD flag clears */
         @Element(sequence = 2)
-        protected int m_load_remaining;       // how many more samples until LD flag clears
+        protected int m_load_remaining;
+        /** flag to track which status ID to return */
         @Element(sequence = 3)
-        protected boolean m_next_status_id;           // flag to track which status ID to return
-        protected FmEngine m_fm;                  // core FM engine
-        protected Pcm.Engine m_pcm;                // core PCM engine
+        protected boolean m_next_status_id;
+        /** core FM engine */
+        protected final FmEngine m_fm;
+        /** core PCM engine */
+        protected final Pcm.Engine m_pcm;
     }
 
-    //*********************************************************
-    //  OPLL IMPLEMENTATION CLASSES
-    //*********************************************************
+    //
+    // OPLL IMPLEMENTATION CLASSES
+    //
 
-    // ======================> OpllBase
+    //
+    // OPLL BASE
+    //
 
-    //*********************************************************
-    //  OPLL BASE
-    //*********************************************************
+    /** opll_base */
     @Serdes
     static class OpllBase implements YmFm.Chip {
 
@@ -2876,7 +2918,7 @@ public abstract class Opl {
         }
 
         /**
-         * OpllBase - constructor
+         * Constructor.
          */
         public OpllBase(YmFm.Interface intf, int[] data) {
             m_address = 0;
@@ -2886,12 +2928,13 @@ public abstract class Opl {
         }
 
         // configuration
-        void set_instrument_data(int[] data) {
+
+        public void set_instrument_data(int[] data) {
             m_fm.regs().set_instrument_data(data);
         }
 
         /**
-         * reset - reset the system
+         * Reset the system.
          */
         @Override
         public void reset() {
@@ -2900,7 +2943,7 @@ public abstract class Opl {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         @Override
         public void save(OutputStream os) throws IOException {
@@ -2909,7 +2952,7 @@ public abstract class Opl {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         @Override
         public void restore(InputStream is) throws IOException {
@@ -2918,6 +2961,7 @@ public abstract class Opl {
         }
 
         // pass-through helpers
+
         @Override
         public final int sample_rate(int input_clock) {
             return m_fm.sample_rate(input_clock);
@@ -2927,8 +2971,8 @@ public abstract class Opl {
             m_fm.invalidate_caches();
         }
 
-        // read access -- doesn't really have any, but provide these for consistency
-        byte read_status() {
+        /** Doesn't really have any, but provide these for consistency */
+        public byte read_status() {
             return 0x00;
         }
 
@@ -2938,10 +2982,9 @@ public abstract class Opl {
         }
 
         /**
-         * write_address - handle a write to the address
-         * register
+         * Handles a write to the address register.
          */
-        void write_address(int data) {
+        public void write_address(int data) {
             // OPLL doesn't expose a busy signal, but datasheets are pretty consistent
             // in indicating that address writes should be no faster than every 12 clocks
             m_fm.intf().ymfm_set_busy_end(12);
@@ -2951,10 +2994,9 @@ public abstract class Opl {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
-        void write_data(int data) {
+        public void write_data(int data) {
             // OPLL doesn't expose a busy signal, but datasheets are pretty consistent
             // in indicating that address writes should be no faster than every 84 clocks
             m_fm.intf().ymfm_set_busy_end(84);
@@ -2964,8 +3006,7 @@ public abstract class Opl {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handle a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -2981,7 +3022,7 @@ public abstract class Opl {
         }
 
         /**
-         * generate - generate one sample of sound
+         * Generate one sample of sound.
          */
         @Override
         public void generate(YmFm.Output output, int numSamples /* = 1 */) {
@@ -3000,40 +3041,42 @@ public abstract class Opl {
         }
 
         // internal state
+
+        /** address register */
         @Element
-        protected int m_address;               // address register
-        protected FmEngine m_fm;                  // core FM engine
+        protected int m_address;
+        /** core FM engine */
+        protected final FmEngine m_fm;
     }
 
-    // ======================> ym2413
+    //
+    // YM2413
+    //
 
-    //*********************************************************
-    //  YM2413
-    //*********************************************************
-
+    /** ym2413 */
     public static class Ym2413 extends OpllBase implements YmFm.Chip {
 
-        // table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches
+        /** table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches */
         private static final int[] s_default_instruments = {
-                //April 2015 David Viens, tweaked May 19-21th 2015 Hubert Lamontagne
-                0x71, 0x61, 0x1E, 0x17, 0xEF, 0x7F, 0x00, 0x17, //Violin
-                0x13, 0x41, 0x1A, 0x0D, 0xF8, 0xF7, 0x23, 0x13, //Guitar
-                0x13, 0x01, 0x99, 0x00, 0xF2, 0xC4, 0x11, 0x23, //Piano
-                0x31, 0x61, 0x0E, 0x07, 0x98, 0x64, 0x70, 0x27, //Flute
-                0x22, 0x21, 0x1E, 0x06, 0xBF, 0x76, 0x00, 0x28, //Clarinet
-                0x31, 0x22, 0x16, 0x05, 0xE0, 0x71, 0x0F, 0x18, //Oboe
-                0x21, 0x61, 0x1D, 0x07, 0x82, 0x8F, 0x10, 0x07, //Trumpet
-                0x23, 0x21, 0x2D, 0x14, 0xFF, 0x7F, 0x00, 0x07, //Organ
-                0x41, 0x61, 0x1B, 0x06, 0x64, 0x65, 0x10, 0x17, //Horn
-                0x61, 0x61, 0x0B, 0x18, 0x85, 0xFF, 0x81, 0x07, //Synthesizer
-                0x13, 0x01, 0x83, 0x11, 0xFA, 0xE4, 0x10, 0x04, //Harpsichord
-                0x17, 0x81, 0x23, 0x07, 0xF8, 0xF8, 0x22, 0x12, //Vibraphone
-                0x61, 0x50, 0x0C, 0x05, 0xF2, 0xF5, 0x29, 0x42, //Synthesizer Bass
-                0x01, 0x01, 0x54, 0x03, 0xC3, 0x92, 0x03, 0x02, //Acoustic Bass
-                0x41, 0x41, 0x89, 0x03, 0xF1, 0xE5, 0x11, 0x13, //Electric Guitar
-                0x01, 0x01, 0x18, 0x0F, 0xDF, 0xF8, 0x6A, 0x6D, //rhythm 1
-                0x01, 0x01, 0x00, 0x00, 0xC8, 0xD8, 0xA7, 0x48, //rhythm 2
-                0x05, 0x01, 0x00, 0x00, 0xF8, 0xAA, 0x59, 0x55  //rhythm 3
+                // April 2015 David Viens, tweaked May 19-21th 2015 Hubert Lamontagne
+                0x71, 0x61, 0x1E, 0x17, 0xEF, 0x7F, 0x00, 0x17, // Violin
+                0x13, 0x41, 0x1A, 0x0D, 0xF8, 0xF7, 0x23, 0x13, // Guitar
+                0x13, 0x01, 0x99, 0x00, 0xF2, 0xC4, 0x11, 0x23, // Piano
+                0x31, 0x61, 0x0E, 0x07, 0x98, 0x64, 0x70, 0x27, // Flute
+                0x22, 0x21, 0x1E, 0x06, 0xBF, 0x76, 0x00, 0x28, // Clarinet
+                0x31, 0x22, 0x16, 0x05, 0xE0, 0x71, 0x0F, 0x18, // Oboe
+                0x21, 0x61, 0x1D, 0x07, 0x82, 0x8F, 0x10, 0x07, // Trumpet
+                0x23, 0x21, 0x2D, 0x14, 0xFF, 0x7F, 0x00, 0x07, // Organ
+                0x41, 0x61, 0x1B, 0x06, 0x64, 0x65, 0x10, 0x17, // Horn
+                0x61, 0x61, 0x0B, 0x18, 0x85, 0xFF, 0x81, 0x07, // Synthesizer
+                0x13, 0x01, 0x83, 0x11, 0xFA, 0xE4, 0x10, 0x04, // Harpsichord
+                0x17, 0x81, 0x23, 0x07, 0xF8, 0xF8, 0x22, 0x12, // Vibraphone
+                0x61, 0x50, 0x0C, 0x05, 0xF2, 0xF5, 0x29, 0x42, // Synthesizer Bass
+                0x01, 0x01, 0x54, 0x03, 0xC3, 0x92, 0x03, 0x02, // Acoustic Bass
+                0x41, 0x41, 0x89, 0x03, 0xF1, 0xE5, 0x11, 0x13, // Electric Guitar
+                0x01, 0x01, 0x18, 0x0F, 0xDF, 0xF8, 0x6A, 0x6D, // rhythm 1
+                0x01, 0x01, 0x00, 0x00, 0xC8, 0xD8, 0xA7, 0x48, // rhythm 2
+                0x05, 0x01, 0x00, 0x00, 0xF8, 0xAA, 0x59, 0x55  // rhythm 3
         };
 
         public Ym2413(YmFm.Interface intf) {
@@ -3041,43 +3084,43 @@ public abstract class Opl {
         }
 
         /**
-         * ym2413 - constructor
+         * Constructor.
          */
         public Ym2413(YmFm.Interface intf, int[] instrument_data /* = null */) {
             super(intf, (instrument_data != null) ? instrument_data : s_default_instruments);
         }
     }
 
-    // ======================> ym2413
-
-    //*********************************************************
+    //
     //  YM2423
-    //*********************************************************
+    //
+
+    /** ym2413 */
     public static class Ym2423 extends OpllBase implements YmFm.Chip {
 
-        // table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches
+        /** table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches */
         private static final int[] s_default_instruments = {
                 // May 4-6 2016 Hubert Lamontagne
                 // Doesn't seem to have any diff between opllx-x and opllx-y
                 // Drums seem identical to regular opll
-                0x61, 0x61, 0x1B, 0x07, 0x94, 0x5F, 0x10, 0x06, //1	Strings	Saw wave with vibrato Violin
-                0x93, 0xB1, 0x51, 0x04, 0xF3, 0xF2, 0x70, 0xFB, //2	Guitar	Jazz GuitarPiano
-                0x41, 0x21, 0x11, 0x85, 0xF2, 0xF2, 0x70, 0x75, //3	Electric Guitar	Same as OPLL No.15 Synth
-                0x93, 0xB2, 0x28, 0x07, 0xF3, 0xF2, 0x70, 0xB4, //4	Electric Piano 2	Slow attack, tremoloDing-a-ling
-                0x72, 0x31, 0x97, 0x05, 0x51, 0x6F, 0x60, 0x09, //5 	Flute	Same as OPLL No.4Clarinet
-                0x13, 0x30, 0x18, 0x06, 0xF7, 0xF4, 0x50, 0x85, //6	Marimba 	Also be used as steel drumXyophone
-                0x51, 0x31, 0x1C, 0x07, 0x51, 0x71, 0x20, 0x26, //7	Trumpet 	Same as OPLL No.7Trumpet
-                0x41, 0xF4, 0x1B, 0x07, 0x74, 0x34, 0x00, 0x06, //8	Harmonica Harmonica synth
-                0x50, 0x30, 0x4D, 0x03, 0x42, 0x65, 0x20, 0x06, //9	Tuba Tuba
-                0x40, 0x20, 0x10, 0x85, 0xF3, 0xF5, 0x20, 0x04, //10 	Synth Brass 2 Synth sweep
-                0x61, 0x61, 0x1B, 0x07, 0xC5, 0x96, 0xF3, 0xF6, //11 	Short Saw	Saw wave with short envelopeSynth hit
-                0xF9, 0xF1, 0xDC, 0x00, 0xF5, 0xF3, 0x77, 0xF2, //12 	Vibraphone	Bright vibraphoneVibes
-                0x60, 0xA2, 0x91, 0x03, 0x94, 0xC1, 0xF7, 0xF7, //13 	Electric Guitar 2	Clean guitar with feedbackHarmonic bass
-                0x30, 0x30, 0x17, 0x06, 0xF3, 0xF1, 0xB7, 0xFC, //14 	Synth Bass 2Snappy bass
-                0x31, 0x36, 0x0D, 0x05, 0xF2, 0xF4, 0x27, 0x9C, //15 	Sitar	Also be used as ShamisenBanjo
-                0x01, 0x01, 0x18, 0x0F, 0xDF, 0xF8, 0x6A, 0x6D, //rhythm 1
-                0x01, 0x01, 0x00, 0x00, 0xC8, 0xD8, 0xA7, 0x48, //rhythm 2
-                0x05, 0x01, 0x00, 0x00, 0xF8, 0xAA, 0x59, 0x55  //rhythm 3
+                0x61, 0x61, 0x1B, 0x07, 0x94, 0x5F, 0x10, 0x06, // 1	Strings	Saw wave with vibrato Violin
+                0x93, 0xB1, 0x51, 0x04, 0xF3, 0xF2, 0x70, 0xFB, // 2	Guitar	Jazz GuitarPiano
+                0x41, 0x21, 0x11, 0x85, 0xF2, 0xF2, 0x70, 0x75, // 3	Electric Guitar	Same as OPLL No.15 Synth
+                0x93, 0xB2, 0x28, 0x07, 0xF3, 0xF2, 0x70, 0xB4, // 4	Electric Piano 2	Slow attack, tremoloDing-a-ling
+                0x72, 0x31, 0x97, 0x05, 0x51, 0x6F, 0x60, 0x09, // 5 	Flute	Same as OPLL No.4Clarinet
+                0x13, 0x30, 0x18, 0x06, 0xF7, 0xF4, 0x50, 0x85, // 6	Marimba 	Also be used as steel drumXyophone
+                0x51, 0x31, 0x1C, 0x07, 0x51, 0x71, 0x20, 0x26, // 7	Trumpet 	Same as OPLL No.7Trumpet
+                0x41, 0xF4, 0x1B, 0x07, 0x74, 0x34, 0x00, 0x06, // 8	Harmonica Harmonica synth
+                0x50, 0x30, 0x4D, 0x03, 0x42, 0x65, 0x20, 0x06, // 9	Tuba Tuba
+                0x40, 0x20, 0x10, 0x85, 0xF3, 0xF5, 0x20, 0x04, // 10 	Synth Brass 2 Synth sweep
+                0x61, 0x61, 0x1B, 0x07, 0xC5, 0x96, 0xF3, 0xF6, // 11 	Short Saw	Saw wave with short envelopeSynth hit
+                0xF9, 0xF1, 0xDC, 0x00, 0xF5, 0xF3, 0x77, 0xF2, // 12 	Vibraphone	Bright vibraphoneVibes
+                0x60, 0xA2, 0x91, 0x03, 0x94, 0xC1, 0xF7, 0xF7, // 13 	Electric Guitar 2	Clean guitar with feedbackHarmonic bass
+                0x30, 0x30, 0x17, 0x06, 0xF3, 0xF1, 0xB7, 0xFC, // 14 	Synth Bass 2Snappy bass
+                0x31, 0x36, 0x0D, 0x05, 0xF2, 0xF4, 0x27, 0x9C, // 15 	Sitar	Also be used as ShamisenBanjo
+                0x01, 0x01, 0x18, 0x0F, 0xDF, 0xF8, 0x6A, 0x6D, // rhythm 1
+                0x01, 0x01, 0x00, 0x00, 0xC8, 0xD8, 0xA7, 0x48, // rhythm 2
+                0x05, 0x01, 0x00, 0x00, 0xF8, 0xAA, 0x59, 0x55  // rhythm 3
         };
 
         public Ym2423(YmFm.Interface intf) {
@@ -3085,21 +3128,21 @@ public abstract class Opl {
         }
 
         /**
-         * Ym2423 - constructor
+         * Constructor.
          */
         public Ym2423(YmFm.Interface intf, int[] instrument_data /*= null */) {
             super(intf, (instrument_data != null) ? instrument_data : s_default_instruments);
         }
     }
 
-    // ======================> ymf281
+    //
+    // YMF281
+    //
 
-    //*********************************************************
-    //  YMF281
-    //*********************************************************
+    /** ymf281 */
     public static class Ymf281 extends OpllBase implements YmFm.Chip {
 
-        // table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches
+        /** table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches */
         private static final int[] s_default_instruments = {
                 // May 14th 2015 Hubert Lamontagne
                 0x72, 0x21, 0x1A, 0x07, 0xF6, 0x64, 0x01, 0x16, // Clarinet ~~ Electric String 	Square wave with vibrato
@@ -3117,9 +3160,9 @@ public abstract class Opl {
                 0x35, 0x64, 0x00, 0x00, 0xFF, 0xF3, 0x77, 0xF5, // Vibrato Bell ~~ Chime 	Bell
                 0x11, 0x31, 0x00, 0x07, 0xDD, 0xF3, 0xFF, 0xFB, // Click Sine ~~ Tom Tom II 	Tom
                 0x3A, 0x21, 0x00, 0x07, 0x95, 0x84, 0x0F, 0xF5, // Noise and Tone ~~ Noise 	for S.E.
-                0x01, 0x01, 0x18, 0x0F, 0xDF, 0xF8, 0x6A, 0x6D, //rhythm 1
-                0x01, 0x01, 0x00, 0x00, 0xC8, 0xD8, 0xA7, 0x48, //rhythm 2
-                0x05, 0x01, 0x00, 0x00, 0xF8, 0xAA, 0x59, 0x55  //rhythm 3
+                0x01, 0x01, 0x18, 0x0F, 0xDF, 0xF8, 0x6A, 0x6D, // rhythm 1
+                0x01, 0x01, 0x00, 0x00, 0xC8, 0xD8, 0xA7, 0x48, // rhythm 2
+                0x05, 0x01, 0x00, 0x00, 0xF8, 0xAA, 0x59, 0x55  // rhythm 3
         };
 
         public Ymf281(YmFm.Interface intf) {
@@ -3127,21 +3170,21 @@ public abstract class Opl {
         }
 
         /**
-         * ymf281 - constructor
+         * Constructor.
          */
         public Ymf281(YmFm.Interface intf, int[] instrument_data /* = null */) {
             super(intf, (instrument_data != null) ? instrument_data : s_default_instruments);
         }
     }
 
-    // ======================> Ds1001
+    //
+    // DS1001
+    //
 
-    //*********************************************************
-    //  DS1001
-    //*********************************************************
+    /** Ds1001 */
     public static class Ds1001 extends OpllBase implements YmFm.Chip {
 
-        // table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches
+        /** table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches */
         private static final int[] s_default_instruments = {
                 // May 15th 2015 Hubert Lamontagne & David Viens
                 0x03, 0x21, 0x05, 0x06, 0xC8, 0x81, 0x42, 0x27, // Buzzy Bell
@@ -3159,25 +3202,25 @@ public abstract class Opl {
                 0x01, 0x02, 0xD3, 0x05, 0xF3, 0x92, 0x83, 0xF2, // Fretless
                 0x61, 0x63, 0x0C, 0x00, 0xA4, 0xFF, 0x30, 0x06, // Synth Bass
                 0x21, 0x62, 0x0D, 0x00, 0xA1, 0xFF, 0x50, 0x08, // Sweep
-                0x01, 0x01, 0x18, 0x0F, 0xDF, 0xF8, 0x6A, 0x6D, //rhythm 1
-                0x01, 0x01, 0x00, 0x00, 0xC8, 0xD8, 0xA7, 0x48, //rhythm 2
-                0x05, 0x01, 0x00, 0x00, 0xF8, 0xAA, 0x59, 0x55  //rhythm 3
+                0x01, 0x01, 0x18, 0x0F, 0xDF, 0xF8, 0x6A, 0x6D, // rhythm 1
+                0x01, 0x01, 0x00, 0x00, 0xC8, 0xD8, 0xA7, 0x48, // rhythm 2
+                0x05, 0x01, 0x00, 0x00, 0xF8, 0xAA, 0x59, 0x55  // rhythm 3
         };
 
         public Ds1001(YmFm.Interface intf) {
             this(intf, null);
         }
 
-        // constructor
+        /** Constructor */
         public Ds1001(YmFm.Interface intf, int[] instrument_data /*= null */) {
             super(intf, (instrument_data != null) ? instrument_data : s_default_instruments);
         }
     }
 
-//*********************************************************
-//  EXPLICIT INSTANTIATION
-//*********************************************************
+    //
+    // EXPLICIT INSTANTIATION
+    //
 
-//	template class OplRegistersBase<4>;
-//	template class EngineBase<OplRegistersBase<4>>;
+    //template class OplRegistersBase<4>;
+    //template class EngineBase<OplRegistersBase<4>>;
 }

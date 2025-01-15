@@ -42,17 +42,20 @@ public abstract class Misc {
 
     private Misc() {}
 
-    //*********************************************************
+    //
     // SSG IMPLEMENTATION CLASSES
-    //*********************************************************
+    //
 
-    // ======================> ym2149
-
-    //*********************************************************
+    //
     // YM2149
-    //*********************************************************
-    // ym2149 is just an SSG with no FM part, but we expose FM-like parts so that it
-    // integrates smoothly with everything else; they just don't do anything
+    //
+
+    /**
+     * ym2149
+     *
+     * ym2149 is just an SSG with no FM part, but we expose FM-like parts so that it
+     * integrates smoothly with everything else; they just don't do anything
+     */
     @Serdes
     public static class Ym2149 implements YmFm.Chip {
 
@@ -71,7 +74,7 @@ public abstract class Misc {
         }
 
         /**
-         * ym2149 - constructor
+         * Constructor.
          */
         public Ym2149(YmFm.Interface intf) {
             m_address = 0;
@@ -79,12 +82,13 @@ public abstract class Misc {
         }
 
         // configuration
+
         void ssg_override(Ssg.Override intf) {
             m_ssg.override(intf);
         }
 
         /**
-         * reset - reset the system
+         * Resets the system.
          */
         @Override
         public void reset() {
@@ -93,7 +97,7 @@ public abstract class Misc {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         @Override
         public void save(OutputStream os) throws IOException {
@@ -102,7 +106,7 @@ public abstract class Misc {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         @Override
         public void restore(InputStream is) throws IOException {
@@ -111,20 +115,21 @@ public abstract class Misc {
         }
 
         // pass-through helpers
+
         @Override
         public final int sample_rate(int input_clock) {
             return input_clock / Ssg.Engine.CLOCK_DIVIDER / 8;
         }
 
         /**
-         * read_data - read the data register
+         * Reads the data register.
          */
         int read_data() {
             return m_ssg.read(m_address & 0x0f);
         }
 
         /**
-         * read - handle a read from the device
+         * Handles a read from the device.
          */
         @Override
         public int read(int offset) {
@@ -144,8 +149,7 @@ public abstract class Misc {
         }
 
         /**
-         * write_address - handle a write to the address
-         * register
+         * Handles a write to the address register.
          */
         void write_address(int data) {
             // just set the address
@@ -153,16 +157,14 @@ public abstract class Misc {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handle a write to the register interface.
          */
         void write_data(int data) {
             m_ssg.write(m_address & 0x0f, data);
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handle a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -182,7 +184,7 @@ public abstract class Misc {
         }
 
         /**
-         * generate - generate samples of SSG sound
+         * Generate samples of SSG sound.
          */
         @Override
         public void generate(YmFm.Output output, int numSamples /* = 1 */) {
@@ -196,8 +198,11 @@ public abstract class Misc {
         }
 
         // internal state
+
+        /** address register */
         @Element
-        protected int m_address;               // address register
-        protected Ssg.Engine m_ssg;                // SSG engine
+        protected int m_address;
+        /** SSG engine */
+        protected final Ssg.Engine m_ssg;
     }
 }

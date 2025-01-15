@@ -57,10 +57,10 @@ class BuildAll {
 
             // generate
             YmFm.Output output = m_chip.outputFactory();
-            m_chip.generate(output, output.data.length);
+            m_chip.generate(new YmFm.Output[] {output}, output.data.length);
         }
 
-        private ChipType m_chip;
+        private final ChipType m_chip;
     }
 
     //-------------------------------------------------
@@ -70,40 +70,40 @@ class BuildAll {
         // just keep adding chip variants here as they are implemented
 
         // ymfm_misc.h:
-        ChipWrapper<Ym2149> test2149 = new ChipWrapper(Ym2149.class);
+        ChipWrapper<Ym2149> test2149 = new ChipWrapper<>(Ym2149.class);
 
         // ymfm_opl.h:
-        ChipWrapper<Ym3526> test3526 = new ChipWrapper(Ym3526.class);
-        ChipWrapper<Y8950> test8950 = new ChipWrapper(Y8950.class);
-        ChipWrapper<Ym3812> test3812 = new ChipWrapper(Ym3812.class);
-        ChipWrapper<Ymf262> test262 = new ChipWrapper(Ymf262.class);
-        ChipWrapper<Ymf289b> test289b = new ChipWrapper(Ymf289b.class);
-        ChipWrapper<Ymf278b> test278b = new ChipWrapper(Ymf278b.class);
-        ChipWrapper<Ym2413> test2413 = new ChipWrapper(Ym2413.class);
-        ChipWrapper<Ym2423> test2423 = new ChipWrapper(Ym2423.class);
-        ChipWrapper<Ymf281> test281 = new ChipWrapper(Ymf281.class);
-        ChipWrapper<Ds1001> test1001 = new ChipWrapper(Ds1001.class);
+        ChipWrapper<Ym3526> test3526 = new ChipWrapper<>(Ym3526.class);
+        ChipWrapper<Y8950> test8950 = new ChipWrapper<>(Y8950.class);
+        ChipWrapper<Ym3812> test3812 = new ChipWrapper<>(Ym3812.class);
+        ChipWrapper<Ymf262> test262 = new ChipWrapper<>(Ymf262.class);
+        ChipWrapper<Ymf289b> test289b = new ChipWrapper<>(Ymf289b.class);
+        ChipWrapper<Ymf278b> test278b = new ChipWrapper<>(Ymf278b.class);
+        ChipWrapper<Ym2413> test2413 = new ChipWrapper<>(Ym2413.class);
+        ChipWrapper<Ym2423> test2423 = new ChipWrapper<>(Ym2423.class);
+        ChipWrapper<Ymf281> test281 = new ChipWrapper<>(Ymf281.class);
+        ChipWrapper<Ds1001> test1001 = new ChipWrapper<>(Ds1001.class);
 
         // ymfm_opm.h:
-        ChipWrapper<Ym2151> test2151 = new ChipWrapper(Ym2151.class);
-        ChipWrapper<Ym2164> test2164 = new ChipWrapper(Ym2164.class);
+        ChipWrapper<Ym2151> test2151 = new ChipWrapper<>(Ym2151.class);
+        ChipWrapper<Ym2164> test2164 = new ChipWrapper<>(Ym2164.class);
 
         // ymfm_opn.h:
-        ChipWrapper<Ym2203> test2203 = new ChipWrapper(Ym2203.class);
-        ChipWrapper<Ym2608> test2608 = new ChipWrapper(Ym2608.class);
-        ChipWrapper<Ymf288> test288 = new ChipWrapper(Ymf288.class);
-        ChipWrapper<Ym2610> test2610 = new ChipWrapper(Ym2610.class);
-        ChipWrapper<Ym2610b> test2610b = new ChipWrapper(Ym2610b.class);
-        ChipWrapper<Ym2612> test2612 = new ChipWrapper(Ym2612.class);
-        ChipWrapper<Ym3438> test3438 = new ChipWrapper(Ym3438.class);
-        ChipWrapper<Ymf276> test276 = new ChipWrapper(Ymf276.class);
+        ChipWrapper<Ym2203> test2203 = new ChipWrapper<>(Ym2203.class);
+        ChipWrapper<Ym2608> test2608 = new ChipWrapper<>(Ym2608.class);
+        ChipWrapper<Ymf288> test288 = new ChipWrapper<>(Ymf288.class);
+        ChipWrapper<Ym2610> test2610 = new ChipWrapper<>(Ym2610.class);
+        ChipWrapper<Ym2610b> test2610b = new ChipWrapper<>(Ym2610b.class);
+        ChipWrapper<Ym2612> test2612 = new ChipWrapper<>(Ym2612.class);
+        ChipWrapper<Ym3438> test3438 = new ChipWrapper<>(Ym3438.class);
+        ChipWrapper<Ymf276> test276 = new ChipWrapper<>(Ymf276.class);
 
         // ymfm_opq.h:
-        ChipWrapper<Ym3806> test3806 = new ChipWrapper(Ym3806.class);
-        ChipWrapper<Ym3533> test3533 = new ChipWrapper(Ym3533.class);
+        ChipWrapper<Ym3806> test3806 = new ChipWrapper<>(Ym3806.class);
+        ChipWrapper<Ym3533> test3533 = new ChipWrapper<>(Ym3533.class);
 
         // ymfm_opz.h:
-        ChipWrapper<Ym2414> test2414 = new ChipWrapper(Ym2414.class);
+        ChipWrapper<Ym2414> test2414 = new ChipWrapper<>(Ym2414.class);
 
         System.out.println("Done");
     }

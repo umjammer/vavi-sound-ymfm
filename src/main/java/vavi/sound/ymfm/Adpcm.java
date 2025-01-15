@@ -49,17 +49,16 @@ import static vavi.sound.ymfm.YmFm.clamp;
 
 public abstract class Adpcm {
 
-    private Adpcm() {}
+    private Adpcm() {
+    }
 
-    //*********************************************************
+    //
     // INTERFACE CLASSES
-    //*********************************************************
+    //
 
-    //*********************************************************
+    //
     // ADPCM "A" REGISTERS
-    //*********************************************************
-
-    // ======================> RegistersA
+    //
 
     //
     // ADPCM-A register map:
@@ -77,6 +76,8 @@ public abstract class Adpcm {
     //        20-25 xxxxxxxx End address (low)
     //        28-2D xxxxxxxx End address (high)
     //
+
+    /** RegistersA */
     @Serdes
     protected static class RegistersA {
 
@@ -86,12 +87,12 @@ public abstract class Adpcm {
         public static final int REGISTERS = 0x30;
         public static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
 
-        // constructor
+        /** Constructor */
         RegistersA() {
         }
 
         /**
-         * reset - reset the register state
+         * Resets the register state.
          */
         public void reset() {
             Arrays.fill(m_regdata, 0, REGISTERS, 0);
@@ -103,31 +104,33 @@ public abstract class Adpcm {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         public void save(OutputStream os) throws IOException {
             Serdes.Util.serialize(this, os);
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         public void restore(InputStream is) throws IOException {
             Serdes.Util.deserialize(is, this);
         }
 
-        // map channel number to register offset
+        /** map channel number to register offset */
         public static int channel_offset(int chnum) {
             assert (chnum < CHANNELS);
             return chnum;
         }
 
         // direct read/write access
+
         public void write(int index, int data) {
             m_regdata[index] = data;
         }
 
         // system-wide registers
+
         public final int dump() {
             return bitfield(m_regdata[0x00], 7);
         }
@@ -145,6 +148,7 @@ public abstract class Adpcm {
         }
 
         // per-channel registers
+
         public final int ch_pan_left(int choffs) {
             return bitfield(m_regdata[choffs + 0x08], 7);
         }
@@ -166,6 +170,7 @@ public abstract class Adpcm {
         }
 
         // per-channel writes
+
         public void write_start(int choffs, int address) {
             write(choffs + 0x10, address);
             write(choffs + 0x18, address >> 8);
@@ -177,23 +182,25 @@ public abstract class Adpcm {
         }
 
         // internal state
+
+        /** register data */
         @Element
-        private int[] m_regdata = new int[REGISTERS];         // register data
+        private final int[] m_regdata = new int[REGISTERS];
     }
 
-    // ======================> ChannelA
-
-    //*********************************************************
+    //
     // ADPCM "A" CHANNEL
-    //*********************************************************
+    //
+
+    /** ChannelA */
     static class ChannelA {
 
         /**
-         * ChannelA - constructor
+         * Constructor.
          */
-        public ChannelA(Adpcm.EngineA owner, int choffs, int addrshift) {
-            m_choffs = choffs;
-            m_address_shift = addrshift;
+        public ChannelA(Adpcm.EngineA owner, int chOffs, int addrShift) {
+            m_choffs = chOffs;
+            m_address_shift = addrShift;
             m_playing = false;
             m_curnibble = 0;
             m_curbyte = 0;
@@ -205,7 +212,7 @@ public abstract class Adpcm {
         }
 
         /**
-         * reset - reset the channel state
+         * Resets the channel state.
          */
         public void reset() {
             m_playing = false;
@@ -217,23 +224,23 @@ public abstract class Adpcm {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         public void save(OutputStream os) throws IOException {
             Serdes.Util.serialize(this, os);
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         public void restore(InputStream is) throws IOException {
             Serdes.Util.deserialize(is, this);
         }
 
         /**
-         * keyonoff - signal key on/off
+         * Signals key on/off.
          */
-        public void keyonoff(boolean on) {
+        public void keyOnOff(boolean on) {
             // QUESTION: repeated key ons restart the sample?
             m_playing = on;
             if (m_playing) {
@@ -255,7 +262,7 @@ public abstract class Adpcm {
             }
         }
 
-        static final int[] s_steps = {
+        private static final int[] s_steps = {
                 16, 17, 19, 21, 23, 25, 28,
                 31, 34, 37, 41, 45, 50, 55,
                 60, 66, 73, 80, 88, 97, 107,
@@ -265,10 +272,10 @@ public abstract class Adpcm {
                 876, 963, 1060, 1166, 1282, 1411, 1552
         };
 
-        static final int[] s_step_inc = {-1, -1, -1, -1, 2, 5, 7, 9};
+        private static final int[] s_step_inc = {-1, -1, -1, -1, 2, 5, 7, 9};
 
         /**
-         * clock - master clocking function
+         * Masters clocking function.
          */
         public boolean clock() {
             // if not playing, just output 0
@@ -321,10 +328,9 @@ public abstract class Adpcm {
         }
 
         /**
-         * output - return the computed output value, with
-         * panning applied
+         * Returns the computed output value, with panning applied
          */
-        //	template<int NumOutputs>
+        //template<int NumOutputs>
         public final void output(YmFm.Output output) {
             // volume combines instrument and total levels
             int vol = (m_regs.ch_instrument_level(m_choffs) ^ 0x1f) + (m_regs.total_level() ^ 0x3f);
@@ -350,46 +356,57 @@ public abstract class Adpcm {
         }
 
         // internal state
-        private final int m_choffs;              // channel offset
-        private final int m_address_shift;       // address bits shift-left
+
+        /** channel offset */
+        private final int m_choffs;
+        /** address bits shift-left */
+        private final int m_address_shift;
+        /** currently playing? */
         @Element(sequence = 0)
-        private boolean m_playing;                   // currently playing?
+        private boolean m_playing;
+        /** index of the current nibble */
         @Element(sequence = 1)
-        private int m_curnibble;                 // index of the current nibble
+        private int m_curnibble;
+        /** current byte of data */
         @Element(sequence = 2)
-        private int m_curbyte;                   // current byte of data
+        private int m_curbyte;
+        /** current address */
         @Element(sequence = 3)
-        private int m_curaddress;                // current address
+        private int m_curaddress;
+        /** accumulator */
         @Element(sequence = 4)
-        private int m_accumulator;                // accumulator
+        private int m_accumulator;
+        /** index in the stepping table */
         @Element(sequence = 5)
-        private int m_step_index;                 // index in the stepping table
-        private Adpcm.RegistersA m_regs;            // reference to registers
-        private Adpcm.EngineA m_owner;              // reference to our owner
+        private int m_step_index;
+        /** reference to registers */
+        private final Adpcm.RegistersA m_regs;
+        /** reference to our owner */
+        private final Adpcm.EngineA m_owner;
     }
 
-    // ======================> EngineA
-
-    //*********************************************************
+    //
     // ADPCM "A" ENGINE
-    //*********************************************************
+    //
+
+    /** EngineA */
     protected static class EngineA {
 
         public static final int CHANNELS = RegistersA.CHANNELS;
 
         /**
-         * EngineA - constructor
+         * Constructor.
          */
-        public EngineA(YmFm.Interface intf, int addrshift) {
+        public EngineA(YmFm.Interface intf, int addrShift) {
             m_intf = intf;
 
             // create the channels
             for (int chnum = 0; chnum < CHANNELS; chnum++)
-                m_channel[chnum] = new ChannelA(this, chnum, addrshift);
+                m_channel[chnum] = new ChannelA(this, chnum, addrShift);
         }
 
         /**
-         * reset - reset the engine state
+         * Resets the engine state.
          */
         public void reset() {
             // reset register state
@@ -401,7 +418,7 @@ public abstract class Adpcm {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         public void save(OutputStream os) throws IOException {
             // save register state
@@ -413,7 +430,7 @@ public abstract class Adpcm {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         public void restore(InputStream is) throws IOException {
             // save register state
@@ -425,7 +442,7 @@ public abstract class Adpcm {
         }
 
         /**
-         * clock - master clocking function
+         * Master clocking function.
          */
         public int clock(int chanmask) {
             // clock each channel, setting a bit in result if it finished
@@ -440,9 +457,9 @@ public abstract class Adpcm {
         }
 
         /**
-         * update - master update function
+         * Master update function.
          */
-        //	template<int NumOutputs>
+        //template<int NumOutputs>
         public void output(YmFm.Output output, int chanmask) {
             // mask out some channels for debug purposes
             chanmask &= Debug.GLOBAL_ADPCM_A_CHANNEL_MASK;
@@ -453,52 +470,54 @@ public abstract class Adpcm {
                     m_channel[chnum].output(output);
         }
 
-//	template void EngineA.output<1>(Output<1> output, int chanmask);
-//	template void EngineA.output<2>(Output<2> output, int chanmask);
+        //template void EngineA.output<1>(Output<1> output, int chanMask);
+        //template void EngineA.output<2>(Output<2> output, int chanMask);
 
         /**
-         * write - handle writes to the ADPCM-A registers
+         * Handles writes to the ADPCM-A registers.
          */
-        public void write(int regnum, int data) {
+        public void write(int regNum, int data) {
             // store the raw value to the register array;
             // most writes are passive, consumed only when needed
-            m_regs.write(regnum, data);
+            m_regs.write(regNum, data);
 
             // actively handle writes to the control register
-            if (regnum == 0x00)
+            if (regNum == 0x00)
                 for (int chnum = 0; chnum < CHANNELS; chnum++)
                     if (bitfield(data, chnum) != 0)
-                        m_channel[chnum].keyonoff(bitfield(~data, 7) != 0);
+                        m_channel[chnum].keyOnOff(bitfield(~data, 7) != 0);
         }
 
-        // set the start/end address for a channel (for hardcoded YM2608 percussion)
-        public void set_start_end(int chnum, int start, int end) {
-            int choffs = RegistersA.channel_offset(chnum);
-            m_regs.write_start(choffs, start);
-            m_regs.write_end(choffs, end);
+        /** set the start/end address for a channel (for hardcoded YM2608 percussion) */
+        public void set_start_end(int chNum, int start, int end) {
+            int chOffs = RegistersA.channel_offset(chNum);
+            m_regs.write_start(chOffs, start);
+            m_regs.write_end(chOffs, end);
         }
 
-        // return a reference to our interface
+        /** return a reference to our interface */
         public YmFm.Interface intf() {
             return m_intf;
         }
 
-        // return a reference to our registers
+        /** return a reference to our registers */
         public Adpcm.RegistersA regs() {
             return m_regs;
         }
 
         // internal state
-        private YmFm.Interface m_intf;                                 // reference to the interface
-        private Adpcm.ChannelA[] m_channel = new Adpcm.ChannelA[CHANNELS]; // array of channels
-        private Adpcm.RegistersA m_regs = new Adpcm.RegistersA();                             // registers
+
+        /** reference to the interface */
+        private final YmFm.Interface m_intf;
+        /** array of channels */
+        private final Adpcm.ChannelA[] m_channel = new Adpcm.ChannelA[CHANNELS];
+        /** registers */
+        private final Adpcm.RegistersA m_regs = new Adpcm.RegistersA();
     }
 
-    // ======================> RegistersB
-
-    //*********************************************************
+    //
     // ADPCM "B" REGISTERS
-    //*********************************************************
+    //
 
     //
     // ADPCM-B register map:
@@ -534,18 +553,21 @@ public abstract class Adpcm {
     //           0f xx------ DAC data low [Y8950]
     //           10 -----xxx DAC data exponent [Y8950]
     //
+
+    /** RegistersB */
     @Serdes
     protected static class RegistersB {
 
         // constants
+
         public static final int REGISTERS = 0x11;
 
-        // constructor
+        /** Constructor. */
         public RegistersB() {
         }
 
         /**
-         * reset the register state
+         * Resets the register state.
          */
         public void reset() {
             Arrays.fill(m_regdata, 0, REGISTERS, 0);
@@ -555,25 +577,27 @@ public abstract class Adpcm {
         }
 
         /**
-         * save the data
+         * Saves the data.
          */
         public void save(OutputStream os) throws IOException {
             Serdes.Util.serialize(this, os);
         }
 
         /**
-         * restore the data
+         * Restores the data.
          */
         public void restore(InputStream is) throws IOException {
             Serdes.Util.deserialize(is, this);
         }
 
         // direct read/write access
+
         public void write(int index, int data) {
             m_regdata[index] = data;
         }
 
         // system-wide registers
+
         public final int execute() {
             return bitfield(m_regdata[0x00], 7);
         }
@@ -659,15 +683,17 @@ public abstract class Adpcm {
         }
 
         // internal state
+
+        /** register data */
         @Element
-        private final int[] m_regdata = new int[REGISTERS];         // register data
+        private final int[] m_regdata = new int[REGISTERS];
     }
 
-    // ======================> ChannelB
-
-    //*********************************************************
+    //
     // ADPCM "B" CHANNEL
-    //*********************************************************
+    //
+
+    /** ChannelB */
     static class ChannelB {
 
         static final int STEP_MIN = 127;
@@ -678,10 +704,10 @@ public abstract class Adpcm {
         public static final byte STATUS_PLAYING = 0x04;
 
         /**
-         * ChannelB - constructor
+         * Constructor.
          */
-        public ChannelB(Adpcm.EngineB owner, int addrshift) {
-            m_address_shift = addrshift;
+        public ChannelB(Adpcm.EngineB owner, int addrShift) {
+            m_address_shift = addrShift;
             m_status = STATUS_BRDY;
             m_curnibble = 0;
             m_curbyte = 0;
@@ -696,7 +722,7 @@ public abstract class Adpcm {
         }
 
         /**
-         * reset the channel state
+         * Resets the channel state.
          */
         public void reset() {
             m_status = STATUS_BRDY;
@@ -711,26 +737,26 @@ public abstract class Adpcm {
         }
 
         /**
-         * save the data
+         * Saves the data.
          */
         public void save(OutputStream os) throws IOException {
             Serdes.Util.serialize(this, os);
         }
 
         /**
-         * restore the data
+         * Restores the data.
          */
         public void restore(InputStream is) throws IOException {
             Serdes.Util.deserialize(is, this);
         }
 
-        // signal key on/off
-//		public void keyonoff(boolean on)
+//        /** Signal key on/off */
+//		public void keyOnOff(boolean on)
 
-        static final int[] s_step_scale = {57, 57, 57, 57, 77, 102, 128, 153};
+        private static final int[] s_step_scale = {57, 57, 57, 57, 77, 102, 128, 153};
 
         /**
-         * clock - master clocking function
+         * Master clocking function.
          */
         public void clock() {
             // only process if active and not recording (which we don't support)
@@ -810,8 +836,7 @@ public abstract class Adpcm {
         }
 
         /**
-         * output - return the computed output value, with
-         * panning applied
+         * Returns the computed output value, with panning applied.
          */
         //template<int NumOutputs>
         public final void output(YmFm.Output output, int rshift) {
@@ -832,13 +857,13 @@ public abstract class Adpcm {
                 output.data[1] += result;
         }
 
-        // return the status register
+        /** return the status register */
         public final int status() {
             return m_status;
         }
 
         /**
-         * read - handle special register reads
+         * Handles special register reads.
          */
         public int read(int regnum) {
             int result = 0;
@@ -874,12 +899,12 @@ public abstract class Adpcm {
         }
 
         /**
-         * write - handle special register writes
+         * Handles special register writes.
          */
-        public void write(int regnum, int value) {
+        public void write(int regNum, int value) {
             // register 0 can do a reset; also use writes here to reset the
             // dummy read counter
-            if (regnum == 0x00) {
+            if (regNum == 0x00) {
                 if (m_regs.execute() == 0) {
                     load_start();
 
@@ -910,7 +935,7 @@ public abstract class Adpcm {
             }
 
             // register 8 writes over the bus under some conditions
-            else if (regnum == 0x08) {
+            else if (regNum == 0x08) {
                 // if writing from the CPU during execute, clear the ready flag
                 if (m_regs.execute() != 0 && m_regs.record() == 0 && m_regs.external() == 0)
                     m_status &= ~STATUS_BRDY;
@@ -939,10 +964,9 @@ public abstract class Adpcm {
         }
 
         /**
-         * address_shift - compute the current address
-         * shift amount based on register settings
+         * Computes the current address shift amount based on register settings.
          */
-        private final int address_shift() {
+        private int address_shift() {
             // if a constant address shift, just provide that
             if (m_address_shift != 0)
                 return m_address_shift;
@@ -958,8 +982,7 @@ public abstract class Adpcm {
         }
 
         /**
-         * load_start - load the start address and
-         * initialize the state
+         * Loads the start address and initialize the state.
          */
         private void load_start() {
             m_status = (m_status & ~STATUS_EOS) | STATUS_PLAYING;
@@ -972,59 +995,72 @@ public abstract class Adpcm {
             m_adpcm_step = STEP_MIN;
         }
 
-        // limit checker; stops at the last byte of the chunk described by address_shift()
+        /** limit checker; stops at the last byte of the chunk described by address_shift() */
         private boolean at_limit() {
             return (m_curaddress == (((m_regs.limit() + 1) << address_shift()) - 1));
         }
 
-        // end checker; stops at the last byte of the chunk described by address_shift()
+        /** end checker; stops at the last byte of the chunk described by address_shift() */
         private boolean at_end() {
             return (m_curaddress == (((m_regs.end() + 1) << address_shift()) - 1));
         }
 
         // internal state
-        private final int m_address_shift; // address bits shift-left
+
+        /** address bits shift-left */
+        private final int m_address_shift;
+        /** currently playing? */
         @Element(sequence = 0)
-        private int m_status;              // currently playing?
+        private int m_status;
+        /** index of the current nibble */
         @Element(sequence = 1)
-        private int m_curnibble;           // index of the current nibble
+        private int m_curnibble;
+        /** current byte of data */
         @Element(sequence = 2)
-        private int m_curbyte;             // current byte of data
+        private int m_curbyte;
+        /** dummy read tracker */
         @Element(sequence = 3)
-        private int m_dummy_read;          // dummy read tracker
+        private int m_dummy_read;
+        /** current fractional position */
         @Element(sequence = 4)
-        private int m_position;            // current fractional position
+        private int m_position;
+        /** current address */
         @Element(sequence = 5)
-        private int m_curaddress;          // current address
+        private int m_curaddress;
+        /** accumulator */
         @Element(sequence = 6)
-        private int m_accumulator;          // accumulator
+        private int m_accumulator;
+        /** previous accumulator (for linear interp) */
         @Element(sequence = 7)
-        private int m_prev_accum;           // previous accumulator (for linear interp)
+        private int m_prev_accum;
+        /** next forecast */
         @Element(sequence = 8)
-        private int m_adpcm_step;           // next forecast
-        private Adpcm.RegistersB m_regs;      // reference to registers
-        private Adpcm.EngineB m_owner;        // reference to our owner
+        private int m_adpcm_step;
+        /** reference to registers */
+        private final Adpcm.RegistersB m_regs;
+        /** reference to our owner */
+        private final Adpcm.EngineB m_owner;
     }
 
-    // ======================> EngineB
-
-    //*********************************************************
+    //
     // ADPCM "B" ENGINE
-    //*********************************************************
+    //
+
+    /** EngineB */
     protected static class EngineB {
 
         /**
-         * EngineB - constructor
+         * Constructor.
          */
-        public EngineB(YmFm.Interface intf, int addrshift /* = 0 */) {
+        public EngineB(YmFm.Interface intf, int addrShift /* = 0 */) {
             m_intf = intf;
 
             // create the channel (only one supported for now, but leaving possibilities open)
-            m_channel = new Adpcm.ChannelB(this, addrshift);
+            m_channel = new Adpcm.ChannelB(this, addrShift);
         }
 
         /**
-         * reset - reset the engine state
+         * Resets the engine state.
          */
         public void reset() {
             // reset registers
@@ -1035,7 +1071,7 @@ public abstract class Adpcm {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         public void save(OutputStream os) throws IOException {
             // save our state
@@ -1046,7 +1082,7 @@ public abstract class Adpcm {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         public void restore(InputStream is) throws IOException {
             // save our state
@@ -1057,7 +1093,7 @@ public abstract class Adpcm {
         }
 
         /**
-         * clock - master clocking function
+         * Master clocking function.
          */
         public void clock() {
             // clock each channel, setting a bit in result if it finished
@@ -1065,52 +1101,56 @@ public abstract class Adpcm {
         }
 
         /**
-         * output - master output function
+         * Master output function.
          */
-        //	template<int NumOutputs>
-        public void output(YmFm.Output output, int rshift) {
+        //template<int NumOutputs>
+        public void output(YmFm.Output output, int rShift) {
             // compute the output of each channel
-            m_channel.output(output, rshift);
+            m_channel.output(output, rShift);
         }
 
-//	template void EngineB.output<1>(Output<1> output, int rshift);
-//	template void EngineB.output<2>(Output<2> output, int rshift);
+        //template void EngineB.output<1>(Output<1> output, int rShift);
+        //template void EngineB.output<2>(Output<2> output, int rShift);
 
-        // read from the ADPCM-B registers
-        public int read(int regnum) {
-            return m_channel.read(regnum);
+        /** read from the ADPCM-B registers */
+        public int read(int regNum) {
+            return m_channel.read(regNum);
         }
 
         /**
-         * write - handle writes to the ADPCM-B registers
+         * Handles writes to the ADPCM-B registers.
          */
-        public void write(int regnum, int data) {
+        public void write(int regNum, int data) {
             // store the raw value to the register array;
             // most writes are passive, consumed only when needed
-            m_regs.write(regnum, data);
+            m_regs.write(regNum, data);
 
             // let the channel handle any special writes
-            m_channel.write(regnum, data);
+            m_channel.write(regNum, data);
         }
 
-        // status
+        /** status */
         public final int status() {
             return m_channel.status();
         }
 
-        // return a reference to our interface
+        /** Returns a reference to our interface */
         public YmFm.Interface intf() {
             return m_intf;
         }
 
-        // return a reference to our registers
+        /** Returns a reference to our registers */
         public Adpcm.RegistersB regs() {
             return m_regs;
         }
 
         // internal state
-        private YmFm.Interface m_intf;                     // reference to our interface
-        private Adpcm.ChannelB m_channel; // channel pointer
-        private Adpcm.RegistersB m_regs = new Adpcm.RegistersB();                   // registers
+
+        /** reference to our interface */
+        private final YmFm.Interface m_intf;
+        /** channel pointer */
+        private final Adpcm.ChannelB m_channel;
+        /** registers */
+        private final Adpcm.RegistersB m_regs = new Adpcm.RegistersB();
     }
 }

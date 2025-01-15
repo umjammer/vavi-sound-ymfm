@@ -49,13 +49,12 @@ import static vavi.sound.ymfm.YmFm.bitfield;
 
 abstract class Opx {
 
-    private Opx() {}
+    private Opx() {
+    }
 
-    //*********************************************************
-    //  REGISTER CLASSES
-    //*********************************************************
-
-    // ======================> opx_registers
+    //
+    // REGISTER CLASSES
+    //
 
     //
     // OPX register map:
@@ -93,26 +92,28 @@ abstract class Opx {
     //        E0-EF xxxx---- CH2 level (0-15)
     //              ----xxxx CH3 level (0-15)
     //
+
+    /** opx_registers */
     static class Registers extends RegistersBase {
 
         // LFO waveforms are 256 entries long
         static final int LFO_WAVEFORM_LENGTH = 256;
 
         // constants
-        public static final int OUTPUTS = 8;
-        public static final int CHANNELS = 24;
-        public static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
-        public static final int OPERATORS = CHANNELS * 2;
-        public static final int WAVEFORMS = 8;
-        public static final int REGISTERS = 0x800;
-        public static final int DEFAULT_PRESCALE = 8;
-        public static final int EG_CLOCK_DIVIDER = 2;
-        public static final int CSM_TRIGGER_MASK = ALL_CHANNELS;
-        public static final int REG_MODE = 0x14;
-        public static final int STATUS_TIMERA = 0x01;
-        public static final int STATUS_TIMERB = 0x02;
-        public static final int STATUS_BUSY = 0x80;
-        public static final int STATUS_IRQ = 0;
+        protected static final int OUTPUTS = 8;
+        protected static final int CHANNELS = 24;
+        protected static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
+        protected static final int OPERATORS = CHANNELS * 2;
+        protected static final int WAVEFORMS = 8;
+        protected static final int REGISTERS = 0x800;
+        protected static final int DEFAULT_PRESCALE = 8;
+        protected static final int EG_CLOCK_DIVIDER = 2;
+        protected static final int CSM_TRIGGER_MASK = ALL_CHANNELS;
+        protected static final int REG_MODE = 0x14;
+        protected static final int STATUS_TIMERA = 0x01;
+        protected static final int STATUS_TIMERB = 0x02;
+        protected static final int STATUS_BUSY = 0x80;
+        protected static final int STATUS_IRQ = 0;
 
         {
             getParams().put("OUTPUTS", OUTPUTS);
@@ -132,86 +133,88 @@ abstract class Opx {
         }
 
         /**
-         * opz_registers - constructor
+         * Constructor.
          */
         public Registers() {
         }
 
-        // reset to initial state
+        /** Resets to initial state */
+        @Override
         public void reset() {
         }
 
-        // save/restore
+        /** Saves */
         @Override
         public void save(OutputStream os) {
         }
 
-        // save/restore
+        /** Restores */
         @Override
         public void restore(InputStream is) {
         }
 
-        // map channel number to register offset
+        /** Maps channel number to register offset */
         @Override
-        public int channel_offset(int chnum) {
-            assert (chnum < CHANNELS);
-            return chnum;
+        public int channel_offset(int chNum) {
+            assert (chNum < CHANNELS);
+            return chNum;
         }
 
-        // map operator number to register offset
+        /** Maps operator number to register offset */
         @Override
-        public int operator_offset(int opnum) {
-            assert (opnum < OPERATORS);
-            return opnum;
+        public int operator_offset(int opNum) {
+            assert (opNum < OPERATORS);
+            return opNum;
         }
 
-        // return an array of operator indices for each channel
+        /** Returns an array of operator indices for each channel */
         @Override
         public final void operator_map(int[][] dest) {
         }
 
-        // handle writes to the register array
+        // handle writes to the register array */
         @Override
-        public boolean write(int index, int data, int[] chan, int[] opmask) {
+        public boolean write(int index, int data, int[] chan, int[] opMask) {
             return false;
         }
 
-        // clock the noise and LFO, if present, returning LFO PM value
+        // clock the noise and LFO, if present, returning LFO PM value */
         @Override
         public int clock_noise_and_lfo() {
             return -1;
         }
 
-        // return the AM offset from LFO for the given channel
+        // return the AM offset from LFO for the given channel */
         @Override
-        public final int lfo_am_offset(int choffs) {
+        public final int lfo_am_offset(int chOffs) {
             return -1;
         }
 
-        // return the current noise state, gated by the noise clock
+        // return the current noise state, gated by the noise clock */
         @Override
         public final int noise_state() {
             return m_noise_state;
         }
 
-        // caching helpers
+        // caching helpers */
         @Override
-        public void cache_operator_data(int choffs, int opoffs, OpDataCache cache) {
+        public void cache_operator_data(int chOffs, int opOffs, OpDataCache cache) {
         }
 
-        // compute the phase step, given a PM value
+        // compute the phase step, given a PM value */
         @Override
-        public int compute_phase_step(int choffs, int opoffs, final OpDataCache cache, int lfo_raw_pm) {
+        public int compute_phase_step(int chOffs, int opOffs, OpDataCache cache, int lfo_raw_pm) {
             return -1;
         }
 
-        // log a key-on event
+        // log a key-on event */
         @Override
-        public String log_keyon(int choffs, int opoffs) {
+        public String log_keyon(int chOffs, int opOffs) {
             return null;
         }
 
         // system-wide registers
+
         public final int noise_frequency() {
             return byte_(0x0f, 0, 5);
         }
@@ -266,9 +269,10 @@ abstract class Opx {
             return byte_(0x14, 0, 1);
         }
 
+        /** fake */
         public final int lfo2_pm_depth() {
             return byte_(0x148, 0, 7);
-        } // fake
+        }
 
         public final int lfo2_rate() {
             return byte_(0x16, 0, 8);
@@ -286,9 +290,10 @@ abstract class Opx {
             return byte_(0x19, 0, 7);
         }
 
+        /** fake */
         public final int lfo_pm_depth() {
             return byte_(0x149, 0, 7);
-        } // fake
+        }
 
         public final int output_bits() {
             return byte_(0x1b, 6, 2);
@@ -311,32 +316,33 @@ abstract class Opx {
         }
 
         // per-channel registers
+
         public final int ch_volume(int choffs) {
             return byte_(0x00, 0, 8, choffs);
         }
 
         @Override
-        public final int ch_output_any(int choffs) {
-            return byte_(0x20, 7, 1, choffs) | byte_(0x30, 0, 1, choffs);
+        public final int ch_output_any(int chOffs) {
+            return byte_(0x20, 7, 1, chOffs) | byte_(0x30, 0, 1, chOffs);
         }
 
         @Override
-        public final int ch_output_0(int choffs) {
-            return byte_(0x30, 0, 1, choffs);
+        public final int ch_output_0(int chOffs) {
+            return byte_(0x30, 0, 1, chOffs);
         }
 
         @Override
-        public final int ch_output_1(int choffs) {
-            return byte_(0x20, 7, 1, choffs) | byte_(0x30, 0, 1, choffs);
+        public final int ch_output_1(int chOffs) {
+            return byte_(0x20, 7, 1, chOffs) | byte_(0x30, 0, 1, chOffs);
         }
 
         @Override
-        public final int ch_output_2(int choffs) {
+        public final int ch_output_2(int chOffs) {
             return 0;
         }
 
         @Override
-        public final int ch_output_3(int choffs) {
+        public final int ch_output_3(int chOffs) {
             return 0;
         }
 
@@ -345,13 +351,13 @@ abstract class Opx {
         }
 
         @Override
-        public final int ch_feedback(int choffs) {
-            return byte_(0x20, 3, 3, choffs);
+        public final int ch_feedback(int chOffs) {
+            return byte_(0x20, 3, 3, chOffs);
         }
 
         @Override
-        public final int ch_algorithm(int choffs) {
-            return byte_(0x20, 0, 3, choffs);
+        public final int ch_algorithm(int chOffs) {
+            return byte_(0x20, 0, 3, chOffs);
         }
 
         public final int ch_block_freq(int choffs) {
@@ -366,15 +372,18 @@ abstract class Opx {
             return byte_(0x38, 0, 2, choffs);
         }
 
+        /** fake */
         public final int ch_lfo2_pm_sens(int choffs) {
             return byte_(0x140, 4, 3, choffs);
-        } // fake
+        }
 
+        /** fake */
         public final int ch_lfo2_am_sens(int choffs) {
             return byte_(0x140, 0, 2, choffs);
-        } // fake
+        }
 
         // per-operator registers
+
         public final int op_detune(int opoffs) {
             return byte_(0x40, 4, 3, opoffs);
         }
@@ -391,13 +400,15 @@ abstract class Opx {
             return byte_(0x40, 0, 4, opoffs);
         }
 
+        /** fake */
         final int op_waveform(int opoffs) {
             return byte_(0x100, 4, 3, opoffs);
-        } // fake
+        }
 
+        /** fake */
         public final int op_fine(int opoffs) {
             return byte_(0x100, 0, 4, opoffs);
-        } // fake
+        }
 
         public final int op_total_level(int opoffs) {
             return byte_(0x60, 0, 7, opoffs);
@@ -416,8 +427,8 @@ abstract class Opx {
         }
 
         @Override
-        public final int op_lfo_am_enable(int opoffs) {
-            return byte_(0xa0, 7, 1, opoffs);
+        public final int op_lfo_am_enable(int opOffs) {
+            return byte_(0xa0, 7, 1, opOffs);
         }
 
         public final int op_decay_rate(int opoffs) {
@@ -432,13 +443,15 @@ abstract class Opx {
             return byte_(0xc0, 0, 5, opoffs);
         }
 
+        /** fake */
         public final int op_eg_shift(int opoffs) {
             return byte_(0x120, 6, 2, opoffs);
-        } // fake
+        }
 
+        /** fake */
         public final int op_reverb_rate(int opoffs) {
             return byte_(0x120, 0, 3, opoffs);
-        } // fake
+        }
 
         public final int op_sustain_level(int opoffs) {
             return byte_(0xe0, 4, 4, opoffs);
@@ -448,42 +461,55 @@ abstract class Opx {
             return byte_(0xe0, 0, 4, opoffs);
         }
 
-        // return a bitfield extracted from a byte
+        /** Returns a bitfield extracted from a byte */
         protected int byte_(int offset, int start, int count, int extra_offset /* = 0 */) {
             return bitfield(m_regdata[offset + extra_offset], start, count);
         }
 
+        /** Returns a bitfield extracted from a byte */
         protected int byte_(int offset, int start, int count) {
             return byte_(offset, start, count, 0);
         }
 
-        // return a bitfield extracted from a pair of bytes, MSBs listed first
+        /** Returns a bitfield extracted from a pair of bytes, MSBs listed first */
         protected int word(int offset1, int start1, int count1, int offset2, int start2, int count2, int extra_offset /* = 0 */) {
             return (byte_(offset1, start1, count1, extra_offset) << count2) | byte_(offset2, start2, count2, extra_offset);
         }
 
+        /** Returns a bitfield extracted from a pair of bytes, MSBs listed first */
         protected int word(int offset1, int start1, int count1, int offset2, int start2, int count2) {
             return word(offset1, start1, count1, offset2, start2, count2, 0);
         }
 
         // internal state
-        protected int[] m_lfo_counter = new int[2];            // LFO counter
-        protected int m_noise_lfsr;                // noise LFSR state
-        protected byte m_noise_counter;              // noise counter
-        protected byte m_noise_state;                // latched noise state
-        protected byte m_noise_lfo;                  // latched LFO noise value
-        protected byte[] m_lfo_am = new byte[2];                  // current LFO AM value
-        protected byte[] m_regdata = new byte[REGISTERS];         // register data
-        protected int[] m_phase_substep = new int[OPERATORS];  // phase substep for fixed frequency
-        protected int[][] m_lfo_waveform = new int[4][LFO_WAVEFORM_LENGTH]; // LFO waveforms; AM in low 8, PM in upper 8
-        protected int[][] m_waveform = new int[WAVEFORMS][WAVEFORM_LENGTH]; // waveforms
+
+        /** LFO counter */
+        protected int[] m_lfo_counter = new int[2];
+        /** noise LFSR state */
+        protected int m_noise_lfsr;
+        /** noise counter */
+        protected byte m_noise_counter;
+        /** latched noise state */
+        protected byte m_noise_state;
+        /** latched LFO noise value */
+        protected byte m_noise_lfo;
+        /** current LFO AM value */
+        protected byte[] m_lfo_am = new byte[2];
+        /** register data */
+        protected final byte[] m_regdata = new byte[REGISTERS];
+        /** phase substep for fixed frequency */
+        protected int[] m_phase_substep = new int[OPERATORS];
+        /** LFO waveforms; AM in low 8, PM in upper 8 */
+        protected int[][] m_lfo_waveform = new int[4][LFO_WAVEFORM_LENGTH];
+        /** waveforms */
+        protected int[][] m_waveform = new int[WAVEFORMS][WAVEFORM_LENGTH];
     }
 
-    // ======================> ym2414
+    //
+    // IMPLEMENTATION CLASSES
+    //
 
-    //*********************************************************
-    //  IMPLEMENTATION CLASSES
-    //*********************************************************
+    /** ym2414 */
     @Serdes
     public static class Ym2414 implements YmFm.Chip {
 
@@ -503,12 +529,12 @@ abstract class Opx {
         }
 
         @Override
-        public final int getOutputs(){
+        public final int getOutputs() {
             return OUTPUTS;
         }
 
         /**
-         * ym2414 - constructor
+         * Constructor.
          */
         public Ym2414(YmFm.Interface intf) {
             m_address = 0;
@@ -518,7 +544,7 @@ abstract class Opx {
         }
 
         /**
-         * reset - reset the system
+         * Reset the system.
          */
         @Override
         public void reset() {
@@ -527,22 +553,25 @@ abstract class Opx {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
+        @Override
         public void save(OutputStream os) throws IOException {
             m_fm.save(os);
             Serdes.Util.serialize(this, os);
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
+        @Override
         public void restore(InputStream is) throws IOException {
             m_fm.restore(is);
             Serdes.Util.deserialize(is, this);
         }
 
         // pass-through helpers
+
         @Override
         public int sample_rate(int input_clock) {
             return m_fm.sample_rate(input_clock);
@@ -553,7 +582,7 @@ abstract class Opx {
         }
 
         /**
-         * read_status - read the status register
+         * Reads the status register.
          */
         public int read_status() {
             int result = m_fm.status();
@@ -563,7 +592,7 @@ abstract class Opx {
         }
 
         /**
-         * read - handle a read from the device
+         * Handles a read from the device.
          */
         @Override
         public int read(int offset) {
@@ -581,8 +610,7 @@ abstract class Opx {
         }
 
         /**
-         * write_address - handle a write to the address
-         * register
+         * Handles a write to the address register.
          */
         public void write_address(int data) {
             // just set the address
@@ -590,8 +618,7 @@ abstract class Opx {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
         public void write_data(int data) {
             // write the FM register
@@ -662,8 +689,7 @@ abstract class Opx {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -679,7 +705,7 @@ abstract class Opx {
         }
 
         /**
-         * generate - generate one sample of sound
+         * Generates one sample of sound.
          */
         @Override
         public void generate(YmFm.Output output, int numSamples /* = 1 */) {
@@ -696,8 +722,11 @@ abstract class Opx {
         }
 
         // internal state
+
+        /** address register */
         @Element
-        protected int m_address;               // address register
-        protected FmEngine m_fm;                  // core FM engine
+        protected int m_address;
+        /** core FM engine */
+        protected final FmEngine m_fm;
     }
 }
