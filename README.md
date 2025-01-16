@@ -16,23 +16,23 @@ this is a fork of [ymfm](https://github.com/aaronsgiles/ymfm)
 | name     | common name        | status | comment                                                                               |
 |----------|--------------------|:------:|---------------------------------------------------------------------------------------|
 | YM2149   | SSG                |        | 1983: MSX; Atari ST                                                                   |
-| YM2151   | OPM                |   ✅️   | 1983: Sharp X1, X68000; MSX; synths: DX21, DX27, DX100                                |
+| YM2151   | OPM                |  ✅️*   | 1983: Sharp X1, X68000; MSX; synths: DX21, DX27, DX100                                |
 | YM2164   | OPP                |        | 1985: FB-01 MIDI Expander; IBM Music Feature Card; MSX; synths: Korg DS-8, 707        |
 | YM2203   | OPN                |   ✅    | 1984: NEC PC-88, PC-98, NEC PC-6001mkII SR, PC-6601 SR                                |
-| YM2608   | OPNA               |   🚫   | 1985: NEC PC-88, PC-98                                                                |
-| YM2610   | OPNB               |        | 1987: Neo Geo                                                                         |
+| YM2608   | OPNA               |   🚧   | 1985: NEC PC-88, PC-98                                                                |
+| YM2610   | OPNB               |   🚧   | 1987: Neo Geo                                                                         |
 | YM26100B | OPNB2              |        |                                                                                       |
 | YM2612   | OPN2               |        | 1988: Sega Mega Drive/Genesis; FM Towns                                               |
 | YM3438   | OPN2C              |        |                                                                                       |
 | YMF276   | OPN2L              |        |                                                                                       |
 | YMF288   | OPN3L              |        | 1995: NEC PC-98                                                                       |
-| YM3526   | OPL                |        | 1984: C64 SFX Sound Expander                                                          |
+| YM3526   | OPL                |   ✅    | 1984: C64 SFX Sound Expander                                                          |
 | Y8950    | MSX-Audio          |        | 1984: MSX                                                                             |
 | YM3812   | OPL2               |        | 1985: AdLib, Sound Blaster; synths: some Portasound keyboards                         |
 | YMF262   | OPL3               |        | 1988: Sound Blaster Pro 2.0, SB16                                                     |
 | YMF289B  | OPL3L              |        |                                                                                       |
 | YMF278B  | OPL4               |        | 1993: MSX Moonsound cartridge                                                         |
-| YM2413   | OPLL               |        | 1986: Sega Master System, Mark III; MSX; synths: Portasound PSS-140, PSS-170, PSS-270 |
+| YM2413   | OPLL               |   ✅    | 1986: Sega Master System, Mark III; MSX; synths: Portasound PSS-140, PSS-170, PSS-270 |
 | YM2423   | OPLL-X             |        |                                                                                       |
 | YMF281   | OPLLP              |        |                                                                                       |
 | DS1001   | Konami 053982/VRC7 |        | 1991: Famicom cartridge Lagrange Point                                                |
@@ -53,6 +53,10 @@ this is a fork of [ymfm](https://github.com/aaronsgiles/ymfm)
 
  * serialize ... [vavi-util-serdes](https://github.com/umjammer/vavi-util-serdes)
  * spi
+ * debug
+   * 2151 noise sound? taste is different from other impls
+   * 2608 ssg, adpcm not sound
+   * 2610 adpcm not correct
 
 ----
 

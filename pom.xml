@@ -51,12 +51,6 @@
 
   <dependencies>
     <dependency>
-      <groupId>com.github.umjammer</groupId> <!-- com.github.umjammer / vavi -->
-      <artifactId>vavi-sound</artifactId>
-      <version>1.0.20</version>
-    </dependency>
-
-    <dependency>
       <groupId>com.github.umjammer</groupId> <!-- vavi / com.github.umjammer -->
       <artifactId>vavi-util-serdes</artifactId>
       <version>1.0.7</version>
@@ -79,9 +73,23 @@
     </dependency>
 
     <dependency>
+      <groupId>com.github.umjammer</groupId> <!-- com.github.umjammer / vavi -->
+      <artifactId>vavi-sound</artifactId>
+      <version>1.0.20</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
       <groupId>com.github.umjammer</groupId> <!-- vavi / com.github.umjammer -->
       <artifactId>vavi-util-archive</artifactId>
       <version>1.1.7</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-jdk14</artifactId>
+      <version>1.7.36</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
