@@ -38,16 +38,11 @@ import java.util.Arrays;
 
 import vavi.sound.ymfm.YmFm.Debug;
 import vavi.sound.ymfm.YmFm.EnvelopeState;
-import vavi.sound.ymfm.YmFm.Output;
 import vavi.sound.ymfm.YmFm.Interface;
 import vavi.util.serdes.Element;
 import vavi.util.serdes.Serdes;
 
 import static vavi.sound.ymfm.YmFm.AccessClass.PCM;
-import static vavi.sound.ymfm.YmFm.attenuation_increment;
-import static vavi.sound.ymfm.YmFm.attenuation_to_volume;
-import static vavi.sound.ymfm.YmFm.bitfield;
-import static vavi.sound.ymfm.YmFm.clamp;
 import static vavi.sound.ymfm.YmFm.Debug.log_keyon;
 import static vavi.sound.ymfm.YmFm.EnvelopeState.EG_ATTACK;
 import static vavi.sound.ymfm.YmFm.EnvelopeState.EG_DECAY;
@@ -55,6 +50,10 @@ import static vavi.sound.ymfm.YmFm.EnvelopeState.EG_RELEASE;
 import static vavi.sound.ymfm.YmFm.EnvelopeState.EG_REVERB;
 import static vavi.sound.ymfm.YmFm.EnvelopeState.EG_STATES;
 import static vavi.sound.ymfm.YmFm.EnvelopeState.EG_SUSTAIN;
+import static vavi.sound.ymfm.YmFm.attenuation_increment;
+import static vavi.sound.ymfm.YmFm.attenuation_to_volume;
+import static vavi.sound.ymfm.YmFm.bitfield;
+import static vavi.sound.ymfm.YmFm.clamp;
 
 
 /*
@@ -98,34 +97,44 @@ Sample data:
 */
 abstract class Pcm {
 
-    private Pcm() {}
-
-    //*********************************************************
-    //  INTERFACE CLASSES
-    //*********************************************************
-
-    // ======================> pcm_cache
-
-    // this class holds data that is computed once at the start of clocking
-    // and remains static during subsequent sound generation
-    static class Cache {
-
-        int step;                    // sample position step, as a .16 value
-        int total_level;             // target total level, as a .10 value
-        int pan_left;                // left panning attenuation
-        int pan_right;               // right panning attenuation
-        int eg_sustain;              // sustain level, shifted up to envelope values
-        int[] eg_rate = new int[EG_STATES.ordinal()];       // envelope rate, including KSR
-        int lfo_step;                 // stepping value for LFO
-        int am_depth;                 // scale value for AM LFO
-        int pm_depth;                 // scale value for PM LFO
+    private Pcm() {
     }
 
-    // ======================> pcm_registers
+    //
+    // INTERFACE CLASSES
+    //
 
-    //*********************************************************
+    /**
+     * pcm_cache
+     * <p>
+     * this class holds data that is computed once at the start of clocking
+     * and remains static during subsequent sound generation
+     */
+    public static class Cache {
+
+        /** sample position step, as a .16 value */
+        int step;
+        /** target total level, as a .10 value */
+        int total_level;
+        /** left panning attenuation */
+        int pan_left;
+        /** right panning attenuation */
+        int pan_right;
+        /** sustain level, shifted up to envelope values */
+        int eg_sustain;
+        /** envelope rate, including KSR */
+        final int[] eg_rate = new int[EG_STATES.ordinal()];
+        /** stepping value for LFO */
+        int lfo_step;
+        /** scale value for AM LFO */
+        int am_depth;
+        /** scale value for PM LFO */
+        int pm_depth;
+    }
+
+    //
     // PCM REGISTERS
-    //*********************************************************
+    //
 
     //
     // PCM register map:
@@ -168,58 +177,65 @@ abstract class Pcm {
     //        C8-DF xxxx---- Rate correction
     //              ----xxxx Release rate
     //        E0-F7 -----xxx AM depth
+
+    /** pcm_registers */
     @Serdes
-    static class Registers {
+    public static class Registers {
 
         // constants
-        public static final int OUTPUTS = 4;
-        public static final int CHANNELS = 24;
-        public static final int REGISTERS = 0x100;
-        public static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
+        protected static final int OUTPUTS = 4;
+        protected static final int CHANNELS = 24;
+        protected static final int REGISTERS = 0x100;
+        protected static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
 
-        // constructor
+        /** Constructor */
         public Registers() {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         public void save(OutputStream os) throws IOException {
             Serdes.Util.serialize(this, os);
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         public void restore(InputStream is) throws IOException {
             Serdes.Util.deserialize(is, this);
         }
 
         /**
-         * reset - reset the register state
+         * Resets the register state.
          */
         public void reset() {
             Arrays.fill(m_regdata, 0, REGISTERS, (byte) 0);
             m_regdata[0xf8] = 0x1b;
         }
 
-        // determine the LFO stepping value; this how much to add to a running
-        // x.18 value for the LFO; steps were derived from frequencies in the
-        // manual and come out very close with these values
-        static final int[] s_lfo_steps = {1, 12, 19, 25, 31, 35, 37, 42};
-
-        // AM LFO depth values, derived from the manual; note each has at most
-        // 2 bits to make the "multiply" easy in hardware
-        static final int[] s_am_depth = {0, 0x14, 0x20, 0x28, 0x30, 0x40, 0x50, 0x80};
-
-        // PM LFO depth values; these are converted from the manual's cents values
-        // into f-numbers; the computations come out quite cleanly so pretty sure
-        // these are correct
-        static final int[] s_pm_depth = {0, 2, 3, 4, 6, 12, 24, 48};
+        /**
+         * determine the LFO stepping value; this how much to add to a running
+         * x.18 value for the LFO; steps were derived from frequencies in the
+         * manual and come out very close with these values
+         */
+        private static final int[] s_lfo_steps = {1, 12, 19, 25, 31, 35, 37, 42};
 
         /**
-         * cache_channel_data - update the cache with
-         * data from the registers
+         * AM LFO depth values, derived from the manual; note each has at most
+         * 2 bits to make the "multiply" easy in hardware
+         */
+        private static final int[] s_am_depth = {0, 0x14, 0x20, 0x28, 0x30, 0x40, 0x50, 0x80};
+
+        /**
+         * PM LFO depth values; these are converted from the manual's cents values
+         * into f-numbers; the computations come out quite cleanly so pretty sure
+         * these are correct
+         */
+        private static final int[] s_pm_depth = {0, 2, 3, 4, 6, 12, 24, 48};
+
+        /**
+         * Updates the cache with data from the registers.
          */
         public void cache_channel_data(int choffs, Cache cache) {
             // compute step from octave and fnumber; the math here implies
@@ -278,6 +294,7 @@ abstract class Pcm {
         }
 
         // direct read/write access
+
         public int read(int index) {
             return m_regdata[index];
         }
@@ -287,6 +304,7 @@ abstract class Pcm {
         }
 
         // system-wide registers
+
         public final int memory_access_mode() {
             return bitfield(m_regdata[0x02], 0);
         }
@@ -409,7 +427,7 @@ abstract class Pcm {
             return bitfield(m_regdata[choffs + 0xe0], 0, 3);
         }
 
-        // return the memory address and increment it
+        /** Returns the memory address and increment it */
         public int memory_address_autoinc() {
             int result = memory_address();
             int newval = result + 1;
@@ -420,10 +438,9 @@ abstract class Pcm {
         }
 
         /**
-         * effective_rate - return the effective rate,
-         * clamping and applying corrections as needed
+         * Returns the effective rate, clamping and applying corrections as needed.
          */
-        private int effective_rate(int raw, int correction) {
+        private static int effective_rate(int raw, int correction) {
             // raw rates of 0 and 15 just pin to min/max
             if (raw == 0)
                 return 0;
@@ -435,15 +452,17 @@ abstract class Pcm {
         }
 
         // internal state
+
+        /** register data */
         @Element
-        private int[] m_regdata = new int[REGISTERS];         // register data
+        private final int[] m_regdata = new int[REGISTERS];
     }
 
-    // ======================> pcm_channel
-
-    //*********************************************************
+    //
     // PCM CHANNEL
-    //*********************************************************
+    //
+
+    /** pcm_channel */
     static class Channel {
 
         static final int KEY_ON = 0x01;
@@ -453,10 +472,10 @@ abstract class Pcm {
         // "quiet" value, used to optimize when we can skip doing working
         static final int EG_QUIET = 0x200;
 
-        //	using output_data = Output<pcm_registers.OUTPUTS>;
+        //using output_data = Output<pcm_registers.OUTPUTS>;
 
         /**
-         * pcm_channel - constructor
+         * Constructor.
          */
         public Channel(Engine owner, int choffs) {
             m_choffs = choffs;
@@ -476,21 +495,21 @@ abstract class Pcm {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         public void save(OutputStream os) throws IOException {
             Serdes.Util.serialize(this, os);
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         public void restore(InputStream is) throws IOException {
             Serdes.Util.deserialize(is, this);
         }
 
         /**
-         * reset - reset the channel state
+         * Resets the channel state.
          */
         public void reset() {
             m_baseaddr = 0;
@@ -506,13 +525,13 @@ abstract class Pcm {
             m_key_state = 0;
         }
 
-        // return the channel offset
+        /** Returns the channel offset */
         public final int choffs() {
             return m_choffs;
         }
 
         /**
-         * prepare - prepare for clocking
+         * Prepares for clocking.
          */
         public boolean prepare() {
             // cache the data
@@ -539,7 +558,7 @@ abstract class Pcm {
         }
 
         /**
-         * clock - master clocking function
+         * Master clocking function.
          */
         public void clock(int env_counter) {
             // clock the LFO, which is an x.18 value incremented based on the
@@ -558,7 +577,7 @@ abstract class Pcm {
                 if (bitfield(lfo_shifted, 17) != 0)
                     lfo_value ^= 0x7f;
                 lfo_value -= 0x40;
-                step += (lfo_value * (int) (m_cache.pm_depth)) >> 7;
+                step += (lfo_value * m_cache.pm_depth) >> 7;
             }
 
             // advance the sample step and loop as needed
@@ -579,8 +598,7 @@ abstract class Pcm {
         }
 
         /**
-         * output - return the computed output value, with
-         * panning applied
+         * Returns the computed output value, with panning applied.
          */
         public final void output(YmFm.Output output) {
             // early out if the envelope is effectively off
@@ -616,15 +634,15 @@ abstract class Pcm {
         }
 
         /**
-         * keyonoff - signal key on/off
+         * Signals key on/off.
          */
-        public void keyonoff(boolean on) {
+        public void keyOnOff(boolean on) {
             // mark the key state as pending
             m_key_state |= KEY_PENDING | (on ? KEY_PENDING_ON : 0);
 
             // don't log masked channels
             if ((m_key_state & (KEY_PENDING_ON | KEY_ON)) == KEY_PENDING_ON && ((Debug.GLOBAL_PCM_CHANNEL_MASK >> m_choffs) & 1) != 0) {
-                log_keyon.log(Level.DEBUG, "KeyOn PCM-%02d: num=%3d oct=%2d fnum=%03X level=%02X%c ADSR=%X/%X/%X/%X SL=%X",
+                log_keyon.log(Level.DEBUG, "KeyOn PCM-%02d: num=%3d oct=%2d fnum=%03X level=%02X%c ADSR=%X/%X/%X/%X SL=%X".formatted(
                         m_choffs,
                         m_regs.ch_wave_table_num(m_choffs),
                         (byte) (m_regs.ch_octave(m_choffs) << 4) >> 4,
@@ -635,30 +653,29 @@ abstract class Pcm {
                         m_regs.ch_decay_rate(m_choffs),
                         m_regs.ch_sustain_rate(m_choffs),
                         m_regs.ch_release_rate(m_choffs),
-                        m_regs.ch_sustain_level(m_choffs));
+                        m_regs.ch_sustain_level(m_choffs)));
 
                 if (m_regs.ch_rate_correction(m_choffs) != 15)
-                    log_keyon.log(Level.DEBUG, " RC=%X", m_regs.ch_rate_correction(m_choffs));
+                    log_keyon.log(Level.DEBUG, " RC=%X".formatted(m_regs.ch_rate_correction(m_choffs)));
 
                 if (m_regs.ch_pseudo_reverb(m_choffs) != 0)
-                    log_keyon.log(Level.DEBUG, " %s", "REV");
+                    log_keyon.log(Level.DEBUG, " %s".formatted("REV"));
                 if (m_regs.ch_damp(m_choffs) != 0)
-                    log_keyon.log(Level.DEBUG, " %s", "DAMP");
+                    log_keyon.log(Level.DEBUG, " %s".formatted("DAMP"));
 
                 if (m_regs.ch_vibrato(m_choffs) != 0 || m_regs.ch_am_depth(m_choffs) != 0) {
                     if (m_regs.ch_vibrato(m_choffs) != 0)
-                        log_keyon.log(Level.DEBUG, " VIB=%d", m_regs.ch_vibrato(m_choffs));
+                        log_keyon.log(Level.DEBUG, " VIB=%d".formatted(m_regs.ch_vibrato(m_choffs)));
                     if (m_regs.ch_am_depth(m_choffs) != 0)
-                        log_keyon.log(Level.DEBUG, " AM=%d", m_regs.ch_am_depth(m_choffs));
-                    log_keyon.log(Level.DEBUG, " LFO=%d", m_regs.ch_lfo_speed(m_choffs));
+                        log_keyon.log(Level.DEBUG, " AM=%d".formatted(m_regs.ch_am_depth(m_choffs)));
+                    log_keyon.log(Level.DEBUG, " LFO=%d".formatted(m_regs.ch_lfo_speed(m_choffs)));
                 }
-                log_keyon.log(Level.DEBUG, "%s", "\n");
+                log_keyon.log(Level.DEBUG, "---");
             }
         }
 
         /**
-         * load_wavetable - load a wavetable by fetching
-         * its data from external memory
+         * Loads a waveTable by fetching its data from external memory.
          */
         public void load_wavetable() {
             // determine the address of the wave table header
@@ -702,7 +719,7 @@ abstract class Pcm {
         }
 
         /**
-         * start_attack - start the attack phase
+         * Starts the attack phase.
          */
         private void start_attack() {
             // don't change anything if already in attack state
@@ -723,7 +740,7 @@ abstract class Pcm {
         }
 
         /**
-         * start_release - start the release phase
+         * Start the release phase.
          */
         private void start_release() {
             // don't change anything if already in release or reverb state
@@ -733,7 +750,7 @@ abstract class Pcm {
         }
 
         /**
-         * clock_envelope - clock the envelope generator
+         * Clocks the envelope generator.
          */
         private void clock_envelope(int env_counter) {
             // handle attack->decay transitions
@@ -781,8 +798,7 @@ abstract class Pcm {
         }
 
         /**
-         * fetch_sample - fetch a sample at the current
-         * position
+         * Fetches a sample at the current position.
          */
         private final int fetch_sample() {
             int addr = m_baseaddr;
@@ -807,47 +823,62 @@ abstract class Pcm {
         }
 
         /**
-         * read_pcm - read a byte from the external PCM
-         * memory interface
+         * Reads a byte from the external PCM memory interface.
          */
         private int read_pcm(int address) {
             return m_owner.intf().ymfm_external_read(PCM, address);
         }
 
         // internal state
-        private final int m_choffs;              // channel offset
+
+        /** channel offset */
+        private final int m_choffs;
+        /** base address */
         @Element(sequence = 0)
-        private int m_baseaddr;                  // base address
+        private int m_baseaddr;
+        /** ending position */
         @Element(sequence = 1)
-        private int m_endpos;                    // ending position
+        private int m_endpos;
+        /** loop position */
         @Element(sequence = 2)
-        private int m_looppos;                   // loop position
+        private int m_looppos;
+        /** current position */
         @Element(sequence = 3)
-        private int m_curpos;                    // current position
+        private int m_curpos;
+        /** next position */
         @Element(sequence = 4)
-        private int m_nextpos;                   // next position
+        private int m_nextpos;
+        /** LFO counter */
         @Element(sequence = 5)
-        private int m_lfo_counter;               // LFO counter
+        private int m_lfo_counter;
+        /** envelope state */
         @Element(sequence = 6)
-        private EnvelopeState m_eg_state;            // envelope state
+        private EnvelopeState m_eg_state;
+        /** computed envelope attenuation */
         @Element(sequence = 7)
-        private int m_env_attenuation;           // computed envelope attenuation
+        private int m_env_attenuation;
+        /** total level with as 7.10 for interp */
         @Element(sequence = 8)
-        private int m_total_level;               // total level with as 7.10 for interp
+        private int m_total_level;
+        /** sample format */
         @Element(sequence = 9)
-        private int m_format;                     // sample format
+        private int m_format;
+        /** current key state */
         @Element(sequence = 10)
-        private int m_key_state;                  // current key state
-        private Pcm.Cache m_cache = new Pcm.Cache();                    // cached data
-        private Pcm.Registers m_regs;                // reference to registers
-        private Pcm.Engine m_owner;                  // reference to our owner
+        private int m_key_state;
+        /** cached data */
+        private final Pcm.Cache m_cache = new Pcm.Cache();
+        /** reference to registers */
+        private final Pcm.Registers m_regs;
+        /** reference to our owner */
+        private final Pcm.Engine m_owner;
     }
 
-    // ======================> pcm_engine
-
-    //*********************************************************
+    //
     // PCM ENGINE
-    //*********************************************************
+    //
+
+    /** pcm_engine */
     @Serdes
     protected static class Engine {
 
@@ -855,10 +886,10 @@ abstract class Pcm {
         public static final int CHANNELS = Pcm.Registers.CHANNELS;
         static final int ALL_CHANNELS = Pcm.Registers.ALL_CHANNELS;
 
-        //	using output_data = pcm_channel.output_data;
+        //using output_data = pcm_channel.output_data;
 
         /**
-         * pcm_engine - constructor
+         * Constructor.
          */
         public Engine(YmFm.Interface intf) {
             m_intf = intf;
@@ -871,7 +902,7 @@ abstract class Pcm {
         }
 
         /**
-         * reset - reset the engine state
+         * Resets the engine state.
          */
         public void reset() {
             // reset register state
@@ -883,7 +914,7 @@ abstract class Pcm {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         public void save(OutputStream os) throws IOException {
             // save our data
@@ -895,7 +926,7 @@ abstract class Pcm {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         public void restore(InputStream is) throws IOException {
             // save our data
@@ -907,7 +938,7 @@ abstract class Pcm {
         }
 
         /**
-         * clock - master clocking function
+         * Master clocking function.
          */
         public void clock(int chanmask) {
             // if something was modified, prepare
@@ -937,7 +968,7 @@ abstract class Pcm {
         }
 
         /**
-         * update - master update function
+         * Master update function.
          */
         public void output(YmFm.Output output, int chanmask) {
             // mask out some channels for debug purposes
@@ -950,7 +981,7 @@ abstract class Pcm {
         }
 
         /**
-         * read - handle reads from the PCM registers
+         * Handles reads from the PCM registers.
          */
         public int read(int regnum) {
             // handle reads from the data register
@@ -961,7 +992,7 @@ abstract class Pcm {
         }
 
         /**
-         * write - handle writes to the PCM registers
+         * Handles writes to the PCM registers.
          */
         public void write(int regnum, int data) {
             // handle reads to the data register
@@ -978,31 +1009,39 @@ abstract class Pcm {
 
             // however, process keyons immediately
             if (regnum >= 0x68 && regnum <= 0x7f)
-                m_channel[regnum - 0x68].keyonoff(bitfield(data, 7) != 0);
+                m_channel[regnum - 0x68].keyOnOff(bitfield(data, 7) != 0);
 
                 // and also wavetable writes
             else if (regnum >= 0x08 && regnum <= 0x1f)
                 m_channel[regnum - 0x08].load_wavetable();
         }
 
-        // return a reference to our interface
+        /** Returns a reference to our interface */
         public Interface intf() {
             return m_intf;
         }
 
-        // return a reference to our registers
+        /** Returns a reference to our registers */
         public Registers regs() {
             return m_regs;
         }
 
         // internal state
-        private Interface m_intf;                           // reference to the interface
+
+        /** reference to the interface */
+        private final Interface m_intf;
+        /** envelope counter */
         @Element
-        private int m_env_counter;                           // envelope counter
-        private int m_modified_channels;                     // bitmask of modified channels
-        private int m_active_channels;                       // bitmask of active channels
-        private int m_prepare_count;                         // counter to do periodic prepare sweeps
-        private Pcm.Channel[] m_channel = new Pcm.Channel[CHANNELS]; // array of channels
-        private Pcm.Registers m_regs = new Pcm.Registers();                             // registers
+        private int m_env_counter;
+        /** bitmask of modified channels */
+        private int m_modified_channels;
+        /** bitmask of active channels */
+        private int m_active_channels;
+        /** counter to do periodic prepare sweeps */
+        private int m_prepare_count;
+        /** array of channels */
+        private final Pcm.Channel[] m_channel = new Pcm.Channel[CHANNELS];
+        /** registers */
+        private final Pcm.Registers m_regs = new Pcm.Registers();
     }
 }

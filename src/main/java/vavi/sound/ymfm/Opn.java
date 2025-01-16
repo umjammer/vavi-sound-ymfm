@@ -35,12 +35,13 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.System.Logger.Level;
 import java.util.Arrays;
+import java.util.function.BiConsumer;
 
 import vavi.sound.ymfm.Adpcm.ChannelB;
 import vavi.sound.ymfm.Fm.EngineBase;
 import vavi.sound.ymfm.Fm.OpDataCache;
 import vavi.sound.ymfm.YmFm.EnvelopeState;
-import vavi.sound.ymfm.YmFm.TriConsumer;
+import vavi.sound.ymfm.YmFm.Output;
 import vavi.util.serdes.Element;
 import vavi.util.serdes.Serdes;
 
@@ -55,15 +56,13 @@ import static vavi.sound.ymfm.YmFm.opn_lfo_pm_phase_adjustment;
 
 public abstract class Opn {
 
-    //*********************************************************
-    //  REGISTER CLASSES
-    //*********************************************************
+    //
+    // REGISTER CLASSES
+    //
 
-    //*********************************************************
-    //  OPN/OPNA REGISTERS
-    //*********************************************************
-
-    // ======================> opn_registers_base
+    //
+    // OPN/OPNA REGISTERS
+    //
 
     //
     // OPN register map:
@@ -124,6 +123,8 @@ public abstract class Opn {
     //        B8-BB --xxxxxx Latched frequency number upper bits (from A4-A7)
     //        BC-BF --xxxxxx Latched frequency number upper bits (from AC-AF)
     //
+
+    /** opn_registers_base */
     @Serdes
     abstract static class RegistersBase extends Fm.RegistersBase {
 
@@ -149,7 +150,7 @@ public abstract class Opn {
         protected static final int STATUS_IRQ = 0;
 
         /**
-         * opn_registers_base - constructor
+         * Constructor.
          */
         protected RegistersBase(boolean IsOpnA) {
             this.IsOpnA = IsOpnA;
@@ -216,24 +217,24 @@ public abstract class Opn {
             Serdes.Util.deserialize(is, this);
         }
 
-        /** maps channel number to register offset. */
+        /** Maps channel number to register offset. */
         @Override
-        public final int channel_offset(int chnum) {
-            assert (chnum < CHANNELS);
+        public final int channel_offset(int chNum) {
+            assert (chNum < CHANNELS);
             if (!IsOpnA)
-                return chnum;
+                return chNum;
             else
-                return (chnum % 3) + 0x100 * (chnum / 3);
+                return (chNum % 3) + 0x100 * (chNum / 3);
         }
 
-        /** maps operator number to register offset. */
+        /** Maps operator number to register offset. */
         @Override
-        public final int operator_offset(int opnum) {
-            assert (opnum < OPERATORS);
+        public final int operator_offset(int opNum) {
+            assert (opNum < OPERATORS);
             if (!IsOpnA)
-                return opnum + opnum / 3;
+                return opNum + opNum / 3;
             else
-                return (opnum % 12) + ((opnum % 12) / 3) + 0x100 * (opnum / 12);
+                return (opNum % 12) + ((opNum % 12) / 3) + 0x100 * (opNum / 12);
         }
 
         /** Returns an array of operator indices for each channel */
@@ -248,7 +249,7 @@ public abstract class Opn {
          * Handles writes to the register array.
          */
         @Override
-        public boolean write(int index, int data, int[] channel, int[] opmask) {
+        public boolean write(int index, int data, int[] channel, int[] opMask) {
             assert (index < REGISTERS);
 
             // writes in the 0xa0-af/0x1a0-af region are handled as latched pairs
@@ -287,7 +288,7 @@ public abstract class Opn {
                     return false;
                 if (IsOpnA)
                     channel[0] += bitfield(data, 2, 1) * 3;
-                opmask[0] = bitfield(data, 4, 4);
+                opMask[0] = bitfield(data, 4, 4);
                 return true;
             }
             return false;
@@ -317,15 +318,15 @@ public abstract class Opn {
             // manual to clock dividers, based on the assumption of a 7-bit LFO value
             /*static final*/
             int[] lfo_max_count = {109, 78, 72, 68, 63, 45, 9, 6};
-            int subcount = m_lfo_counter++;
+            int subCount = m_lfo_counter++;
 
             // when we cross the divider count, add enough to zero it and cause an
             // increment at bit 8; the 7-bit value lives from bits 8-14
-            if (subcount >= lfo_max_count[lfo_rate()]) {
-                // note: to match the published values this should be 0x100 - subcount;
+            if (subCount >= lfo_max_count[lfo_rate()]) {
+                // note: to match the published values this should be 0x100 - subCount;
                 // however, tests on the hardware and nuked bear out an off-by-one
                 // error exists that causes the max LFO rate to be faster than published
-                m_lfo_counter += 0x101 - subcount;
+                m_lfo_counter += 0x101 - subCount;
             }
 
             // AM value is 7 bits, staring at bit 8; grab the low 6 directly
@@ -352,14 +353,13 @@ public abstract class Opn {
         }
 
         /**
-         * lfo_am_offset - return the AM offset from LFO
-         * for the given channel
+         * Returns the AM offset from LFO for the given channel.
          */
         @Override
-        public final int lfo_am_offset(int choffs) {
+        public final int lfo_am_offset(int chOffs) {
             // shift value for AM sensitivity is [7, 3, 1, 0],
             // mapping to values of [0, 1.4, 5.9, and 11.8dB]
-            int am_shift = (1 << (ch_lfo_am_sens(choffs) ^ 3)) - 1;
+            int am_shift = (1 << (ch_lfo_am_sens(chOffs) ^ 3)) - 1;
 
             // QUESTION: max sensitivity should give 11.8dB range, but this value
             // is directly added to an x.8 attenuation value, which will only give
@@ -381,21 +381,21 @@ public abstract class Opn {
          * Fills the operator cache with prefetched data.
          */
         @Override
-        public void cache_operator_data(int choffs, int opoffs, OpDataCache cache) {
+        public void cache_operator_data(int chOffs, int opOffs, OpDataCache cache) {
             // set up the easy stuff
             cache.waveform = m_waveform[0];
 
             // get frequency from the channel
-            int block_freq = cache.block_freq = ch_block_freq(choffs);
+            int block_freq = cache.block_freq = ch_block_freq(chOffs);
 
             // if multi-frequency mode is enabled and this is channel 2,
             // fetch one of the special frequencies
-            if (multi_freq() != 0 && choffs == 2) {
-                if (opoffs == 2)
+            if (multi_freq() != 0 && chOffs == 2) {
+                if (opOffs == 2)
                     block_freq = cache.block_freq = multi_block_freq(1);
-                else if (opoffs == 10)
+                else if (opOffs == 10)
                     block_freq = cache.block_freq = multi_block_freq(2);
-                else if (opoffs == 6)
+                else if (opOffs == 6)
                     block_freq = cache.block_freq = multi_block_freq(0);
             }
 
@@ -417,41 +417,41 @@ public abstract class Opn {
             keycode |= bitfield(0xfe80, bitfield(block_freq, 7, 4));
 
             // detune adjustment
-            cache.detune = detune_adjustment(op_detune(opoffs), keycode);
+            cache.detune = detune_adjustment(op_detune(opOffs), keycode);
 
             // multiple value, as an x.1 value (0 means 0.5)
-            cache.multiple = op_multiple(opoffs) * 2;
+            cache.multiple = op_multiple(opOffs) * 2;
             if (cache.multiple == 0)
                 cache.multiple = 1;
 
             // phase step, or PHASE_STEP_DYNAMIC if PM is active; this depends on
             // block_freq, detune, and multiple, so compute it after we've done those
-            if (!IsOpnA || lfo_enable() == 0 || ch_lfo_pm_sens(choffs) == 0)
-                cache.phase_step = compute_phase_step(choffs, opoffs, cache, 0);
+            if (!IsOpnA || lfo_enable() == 0 || ch_lfo_pm_sens(chOffs) == 0)
+                cache.phase_step = compute_phase_step(chOffs, opOffs, cache, 0);
             else
                 cache.phase_step = OpDataCache.PHASE_STEP_DYNAMIC;
 
             // total level, scaled by 8
-            cache.total_level = op_total_level(opoffs) << 3;
+            cache.total_level = op_total_level(opOffs) << 3;
 
             // 4-bit sustain level, but 15 means 31 so effectively 5 bits
-            cache.eg_sustain = op_sustain_level(opoffs);
+            cache.eg_sustain = op_sustain_level(opOffs);
             cache.eg_sustain |= (cache.eg_sustain + 1) & 0x10;
             cache.eg_sustain <<= 5;
 
             // determine KSR adjustment for enevlope rates
-            int ksrval = keycode >> (op_ksr(opoffs) ^ 3);
-            cache.eg_rate[EnvelopeState.EG_ATTACK.ordinal()] = effective_rate(op_attack_rate(opoffs) * 2, ksrval);
-            cache.eg_rate[EnvelopeState.EG_DECAY.ordinal()] = effective_rate(op_decay_rate(opoffs) * 2, ksrval);
-            cache.eg_rate[EnvelopeState.EG_SUSTAIN.ordinal()] = effective_rate(op_sustain_rate(opoffs) * 2, ksrval);
-            cache.eg_rate[EnvelopeState.EG_RELEASE.ordinal()] = effective_rate(op_release_rate(opoffs) * 4 + 2, ksrval);
+            int ksrval = keycode >> (op_ksr(opOffs) ^ 3);
+            cache.eg_rate[EnvelopeState.EG_ATTACK.ordinal()] = effective_rate(op_attack_rate(opOffs) * 2, ksrval);
+            cache.eg_rate[EnvelopeState.EG_DECAY.ordinal()] = effective_rate(op_decay_rate(opOffs) * 2, ksrval);
+            cache.eg_rate[EnvelopeState.EG_SUSTAIN.ordinal()] = effective_rate(op_sustain_rate(opOffs) * 2, ksrval);
+            cache.eg_rate[EnvelopeState.EG_RELEASE.ordinal()] = effective_rate(op_release_rate(opOffs) * 4 + 2, ksrval);
         }
 
         /**
-         * compute_phase_step - compute the phase step
+         * Computes the phase step.
          */
         @Override
-        public int compute_phase_step(int choffs, int opoffs, OpDataCache cache, int lfo_raw_pm) {
+        public int compute_phase_step(int chOffs, int opOffs, OpDataCache cache, int lfo_raw_pm) {
             // OPN phase calculation has only a single detune parameter
             // and uses FNUMs instead of keycodes
 
@@ -459,7 +459,7 @@ public abstract class Opn {
             int fnum = bitfield(cache.block_freq, 0, 11) << 1;
 
             // if there's a non-zero PM sensitivity, compute the adjustment
-            int pm_sensitivity = ch_lfo_pm_sens(choffs);
+            int pm_sensitivity = ch_lfo_pm_sens(chOffs);
             if (pm_sensitivity != 0) {
                 // apply the phase adjustment based on the upper 7 bits
                 // of FNUM and the PM depth parameters
@@ -485,20 +485,20 @@ public abstract class Opn {
         }
 
         /**
-         * log_keyon - log a key-on event
+         * Logs a key-on event.
          */
         @Override
-        public String log_keyon(int choffs, int opoffs) {
-            int chnum = (choffs & 3) + 3 * bitfield(choffs, 8);
-            int opnum = (opoffs & 15) - ((opoffs & 15) / 4) + 12 * bitfield(opoffs, 8);
+        public String log_keyon(int chOffs, int opOffs) {
+            int chnum = (chOffs & 3) + 3 * bitfield(chOffs, 8);
+            int opnum = (opOffs & 15) - ((opOffs & 15) / 4) + 12 * bitfield(opOffs, 8);
 
-            int block_freq = ch_block_freq(choffs);
-            if (multi_freq() != 0 && choffs == 2) {
-                if (opoffs == 2)
+            int block_freq = ch_block_freq(chOffs);
+            if (multi_freq() != 0 && chOffs == 2) {
+                if (opOffs == 2)
                     block_freq = multi_block_freq(1);
-                else if (opoffs == 10)
+                else if (opOffs == 10)
                     block_freq = multi_block_freq(2);
-                else if (opoffs == 6)
+                else if (opOffs == 6)
                     block_freq = multi_block_freq(0);
             }
 
@@ -507,39 +507,40 @@ public abstract class Opn {
             buffer.append("%d.%02d freq=%04X dt=%d fb=%d alg=%X mul=%X tl=%02X ksr=%d adsr=%02X/%02X/%02X/%X sl=%X".formatted(
                     chnum, opnum,
                     block_freq,
-                    op_detune(opoffs),
-                    ch_feedback(choffs),
-                    ch_algorithm(choffs),
-                    op_multiple(opoffs),
-                    op_total_level(opoffs),
-                    op_ksr(opoffs),
-                    op_attack_rate(opoffs),
-                    op_decay_rate(opoffs),
-                    op_sustain_rate(opoffs),
-                    op_release_rate(opoffs),
-                    op_sustain_level(opoffs)));
+                    op_detune(opOffs),
+                    ch_feedback(chOffs),
+                    ch_algorithm(chOffs),
+                    op_multiple(opOffs),
+                    op_total_level(opOffs),
+                    op_ksr(opOffs),
+                    op_attack_rate(opOffs),
+                    op_decay_rate(opOffs),
+                    op_sustain_rate(opOffs),
+                    op_release_rate(opOffs),
+                    op_sustain_level(opOffs)));
 
             if (OUTPUTS > 1)
                 buffer.append(" out=%c%c".formatted(
-                        ch_output_0(choffs) != 0 ? 'L' : '-',
-                        ch_output_1(choffs) != 0 ? 'R' : '-'));
-            if (op_ssg_eg_enable(opoffs) != 0)
-                buffer.append(" ssg=%X".formatted(op_ssg_eg_mode(opoffs)));
-            boolean am = (op_lfo_am_enable(opoffs) != 0 && ch_lfo_am_sens(choffs) != 0);
+                        ch_output_0(chOffs) != 0 ? 'L' : '-',
+                        ch_output_1(chOffs) != 0 ? 'R' : '-'));
+            if (op_ssg_eg_enable(opOffs) != 0)
+                buffer.append(" ssg=%X".formatted(op_ssg_eg_mode(opOffs)));
+            boolean am = (op_lfo_am_enable(opOffs) != 0 && ch_lfo_am_sens(chOffs) != 0);
             if (am)
-                buffer.append(" am=%d".formatted(ch_lfo_am_sens(choffs)));
-            boolean pm = (ch_lfo_pm_sens(choffs) != 0);
+                buffer.append(" am=%d".formatted(ch_lfo_am_sens(chOffs)));
+            boolean pm = (ch_lfo_pm_sens(chOffs) != 0);
             if (pm)
-                buffer.append(" pm=%d".formatted(ch_lfo_pm_sens(choffs)));
+                buffer.append(" pm=%d".formatted(ch_lfo_pm_sens(chOffs)));
             if (am || pm)
                 buffer.append(" lfo=%02X".formatted(lfo_rate()));
-            if (multi_freq() != 0 && choffs == 2)
+            if (multi_freq() != 0 && chOffs == 2)
                 buffer.append(" multi=1");
 
             return buffer.toString();
         }
 
         // system-wide registers
+
         public final int test() {
             return byte_(0x21, 0, 8);
         }
@@ -606,42 +607,43 @@ public abstract class Opn {
         }
 
         // per-channel registers
+
         public final int ch_block_freq(int choffs) {
             return word(0xa4, 0, 6, 0xa0, 0, 8, choffs);
         }
 
         @Override
-        public final int ch_feedback(int choffs) {
-            return byte_(0xb0, 3, 3, choffs);
+        public final int ch_feedback(int chOffs) {
+            return byte_(0xb0, 3, 3, chOffs);
         }
 
         @Override
-        public final int ch_algorithm(int choffs) {
-            return byte_(0xb0, 0, 3, choffs);
+        public final int ch_algorithm(int chOffs) {
+            return byte_(0xb0, 0, 3, chOffs);
         }
 
         @Override
-        public final int ch_output_any(int choffs) {
-            return IsOpnA ? byte_(0xb4, 6, 2, choffs) : 1;
+        public final int ch_output_any(int chOffs) {
+            return IsOpnA ? byte_(0xb4, 6, 2, chOffs) : 1;
         }
 
         @Override
-        public final int ch_output_0(int choffs) {
-            return IsOpnA ? byte_(0xb4, 7, 1, choffs) : 1;
+        public final int ch_output_0(int chOffs) {
+            return IsOpnA ? byte_(0xb4, 7, 1, chOffs) : 1;
         }
 
         @Override
-        public final int ch_output_1(int choffs) {
-            return IsOpnA ? byte_(0xb4, 6, 1, choffs) : 0;
+        public final int ch_output_1(int chOffs) {
+            return IsOpnA ? byte_(0xb4, 6, 1, chOffs) : 0;
         }
 
         @Override
-        public final int ch_output_2(int choffs) {
+        public final int ch_output_2(int chOffs) {
             return 0;
         }
 
         @Override
-        public final int ch_output_3(int choffs) {
+        public final int ch_output_3(int chOffs) {
             return 0;
         }
 
@@ -654,6 +656,7 @@ public abstract class Opn {
         }
 
         // per-operator registers
+
         public final int op_detune(int opoffs) {
             return byte_(0x30, 4, 3, opoffs);
         }
@@ -679,8 +682,8 @@ public abstract class Opn {
         }
 
         @Override
-        public final int op_lfo_am_enable(int opoffs) {
-            return IsOpnA ? byte_(0x60, 7, 1, opoffs) : 0;
+        public final int op_lfo_am_enable(int opOffs) {
+            return IsOpnA ? byte_(0x60, 7, 1, opOffs) : 0;
         }
 
         public final int op_sustain_rate(int opoffs) {
@@ -696,49 +699,56 @@ public abstract class Opn {
         }
 
         @Override
-        public final int op_ssg_eg_enable(int opoffs) {
-            return byte_(0x90, 3, 1, opoffs);
+        public final int op_ssg_eg_enable(int opOffs) {
+            return byte_(0x90, 3, 1, opOffs);
         }
 
         @Override
-        public final int op_ssg_eg_mode(int opoffs) {
-            return byte_(0x90, 0, 3, opoffs);
+        public final int op_ssg_eg_mode(int opOffs) {
+            return byte_(0x90, 0, 3, opOffs);
         }
 
+        /** Returns a bitfield extracted from a byte */
         protected final int byte_(int offset, int start, int count) {
             return byte_(offset, start, count, 0);
         }
 
-        // return a bitfield extracted from a byte
+        /** Returns a bitfield extracted from a byte */
         protected final int byte_(int offset, int start, int count, int extra_offset /* = 0 */) {
             return bitfield(m_regdata[offset + extra_offset], start, count);
         }
 
+        /** Returns a bitfield extracted from a pair of bytes, MSBs listed first */
         protected final int word(int offset1, int start1, int count1, int offset2, int start2, int count2) {
             return word(offset1, start1, count1, offset2, start2, count2, 0);
         }
 
-        // return a bitfield extracted from a pair of bytes, MSBs listed first
+        /** Returns a bitfield extracted from a pair of bytes, MSBs listed first */
         protected final int word(int offset1, int start1, int count1, int offset2, int start2, int count2, int extra_offset /* = 0 */) {
             return (byte_(offset1, start1, count1, extra_offset) << count2) | byte_(offset2, start2, count2, extra_offset);
         }
 
-        // for serdes
+        // internal state
+
+        // for serdes (DON'T REMOVE)
         boolean isOpnA(int seq) {
             return IsOpnA;
         }
 
-        // internal state
+        /** LFO counter */
         @Element(sequence = 0, condition = "isOpnA")
-        protected int m_lfo_counter;               // LFO counter
+        protected int m_lfo_counter;
+        /** current LFO AM value */
         @Element(sequence = 1, condition = "isOpnA")
-        protected int m_lfo_am;                     // current LFO AM value
+        protected int m_lfo_am;
+        /** register data */
         @Element(sequence = 2)
-        protected int[] m_regdata;         // register data
-        protected int[][] m_waveform = new int[WAVEFORMS][WAVEFORM_LENGTH]; // waveforms
+        protected final int[] m_regdata;
+        /** waveforms */
+        protected final int[][] m_waveform = new int[WAVEFORMS][WAVEFORM_LENGTH];
     }
 
-    // using opn_registers = opn_registers_base<false>;
+    //using opn_registers = opn_registers_base<false>;
     static class OpnRegisters extends RegistersBase {
 
         OpnRegisters() {
@@ -755,8 +765,8 @@ public abstract class Opn {
         }
 
         /**
-         * operator_map - return an array of operator
-         * indices for each channel; for OPN this is fixed
+         * Returns an array of operator
+         * indices for each channel; for OPN this is fixed.
          */
         //template<>opn_registers_base<false>.
         @Override
@@ -772,7 +782,7 @@ public abstract class Opn {
         }
     }
 
-    // using opna_registers = opn_registers_base<true>;
+    //using opna_registers = opn_registers_base<true>;
     static class OpnaRegisters extends RegistersBase {
 
         OpnaRegisters() {
@@ -792,7 +802,7 @@ public abstract class Opn {
         }
 
         /**
-         * operator_map - return an array of operator
+         * Returns an array of operator
          * indices for each channel; for OPN this is fixed
          */
         //template<>opn_registers_base<true>.
@@ -809,9 +819,9 @@ public abstract class Opn {
         }
     }
 
-    //*********************************************************
-    //  OPN IMPLEMENTATION CLASSES
-    //*********************************************************
+    //
+    // OPN IMPLEMENTATION CLASSES
+    //
 
     // A note about prescaling and sample rates.
     //
@@ -878,8 +888,7 @@ public abstract class Opn {
     //    OPN_FIEDLITY_MIN =  166kHz
     //    OPN_FIEDLITY_MED =  333kHz
 
-    // ======================> opn_fidelity
-
+    /** opn_fidelity */
     public enum Fidelity {
         MAX,
         MIN,
@@ -887,11 +896,11 @@ public abstract class Opn {
         static final int DEFAULT = MAX.ordinal();
     }
 
-    // ssg_resampler
+    //
+    // SSG RESAMPLER
+    //
 
-    /**
-     * SSG RESAMPLER
-     */
+    /** ssg_resampler */
     @Serdes
     protected abstract static class SsgResampler {
 
@@ -904,7 +913,7 @@ public abstract class Opn {
         abstract boolean isMixTo1();
 
         /**
-         * add_last - helper to add the last computed
+         * Helper to add the last computed
          * value to the sums, applying the given scale
          */
         private void add_last(int[] sum0, int[] sum1, int[] sum2, int scale /* = 1 */) {
@@ -914,12 +923,12 @@ public abstract class Opn {
         }
 
         /**
-         * ssg_resampler - constructor
+         * Constructor.
          */
         //template<typename OutputType, int FirstOutput, boolean MixTo1>
         protected SsgResampler(Ssg.Engine ssg) {
             m_ssg = ssg;
-            m_sampindex = 0;
+            m_sampleIndex = 0;
             m_resampler = this::resample_nop;
 
             m_last = m_ssg.outputFactory();
@@ -927,9 +936,8 @@ public abstract class Opn {
         }
 
         /**
-         * clock_and_add - helper to clock a new value
-         * and then add it to the sums, applying the
-         * given scale
+         * Helper to clock a new value and then add it to the sums,
+         * applying the given scale
          */
         //template<typename OutputType, int FirstOutput, boolean MixTo1>
         private void clock_and_add(int[] sum0, int[] sum1, int[] sum2, int scale /* = 1 */) {
@@ -939,9 +947,8 @@ public abstract class Opn {
         }
 
         /**
-         * write_to_output - helper to write the sums to
-         * the appropriate outputs, applying the given
-         * divisor to the final result
+         * helper to write the sums to the appropriate outputs,
+         * applying the given divisor to the final result
          */
         //template<typename OutputType, int FirstOutput, boolean MixTo1>
         private void write_to_output(YmFm.Output output, int sum0, int sum1, int sum2, int divisor /* = 1 */) {
@@ -957,56 +964,56 @@ public abstract class Opn {
             }
 
             // track the sample index here
-            m_sampindex++;
+            m_sampleIndex++;
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         public void save(OutputStream os) throws IOException {
             Serdes.Util.serialize(this, os);
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         public void restore(InputStream is) throws IOException {
             Serdes.Util.deserialize(is, this);
         }
 
-        // get the current sample index
-        final int sampindex() {
-            return m_sampindex;
+        /** get the current sample index */
+        public final int sampleIndex() {
+            return m_sampleIndex;
         }
 
         /**
-         * configure - configure a new ratio
+         * Configures a new ratio.
          */
-        public void configure(int outsamples, int srcsamples) {
-            switch (outsamples * 10 + srcsamples) {
+        public void configure(int outSamples, int srcSamples) {
+            switch (outSamples * 10 + srcSamples) {
                 case 4 * 10 + 1:    // 4:1
-                    m_resampler = this::resample_4_1 /* <4> */;
+                    m_resampler = this::_resample_4_1 /* <4> */;
                     break;
                 case 2 * 10 + 1:    // 2:1
-                    m_resampler = this::resample_2_1 /* <2> */;
+                    m_resampler = this::_resample_2_1 /* <2> */;
                     break;
                 case 4 * 10 + 3:    // 4:3
                     m_resampler = this::resample_4_3;
                     break;
                 case 1 * 10 + 1:    // 1:1
-                    m_resampler = this::resample_1_1 /* <1> */;
+                    m_resampler = this::_resample_1_1 /* <1> */;
                     break;
                 case 2 * 10 + 3:    // 2:3
                     m_resampler = this::resample_2_3;
                     break;
                 case 1 * 10 + 3:    // 1:3
-                    m_resampler = this::resample_1_3 /* <3> */;
+                    m_resampler = this::_resample_1_3 /* <3> */;
                     break;
                 case 2 * 10 + 9:    // 2:9
                     m_resampler = this::resample_2_9;
                     break;
                 case 1 * 10 + 6:    // 1:6
-                    m_resampler = this::resample_1_6 /* <6> */;
+                    m_resampler = this::_resample_1_6 /* <6> */;
                     break;
                 case 0 * 10 + 0:    // 0:0
                     m_resampler = this::resample_nop;
@@ -1017,151 +1024,150 @@ public abstract class Opn {
             }
         }
 
-        // resample
-        final void resample(YmFm.Output output, int offset, int numSamples) {
-            this.m_resampler.accept(output, offset, numSamples);
+        /** resample */
+        public final void resample(YmFm.Output[] output, int numSamples) {
+            this.m_resampler.accept(output, numSamples);
         }
 
         /**
-         * resample_n_1 - resample SSG output to the
+         * Resamples SSG output to the
          * target at a rate of 1 SSG sample to every
          * n output sample
+         *
+         * @param multiplier used as template in c++
          */
-        //	template<int Multiplier>
-        private void resample_n_1(YmFm.Output output, int numSamples, int Multiplier) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
-                if (m_sampindex % Multiplier == 0) {
+        private void resample_n_1(YmFm.Output[] output, int numSamples, int multiplier) {
+            for (int samp = 0; samp < numSamples; samp++) {
+                if (m_sampleIndex % multiplier == 0) {
                     m_ssg.clock();
                     m_ssg.output(m_last);
                 }
-                write_to_output(output, m_last.data[0], m_last.data[1], m_last.data[2], 1);
+                write_to_output(output[samp], m_last.data[0], m_last.data[1], m_last.data[2], 1);
             }
         }
 
-        private void resample_4_1(YmFm.Output output, int offset, int numSamples) {
+        private void _resample_4_1(YmFm.Output[] output, int numSamples) {
             resample_n_1(output, numSamples, 4);
         }
 
-        private void resample_2_1(YmFm.Output output, int offset, int numSamples) {
+        private void _resample_2_1(YmFm.Output[] output, int numSamples) {
             resample_n_1(output, numSamples, 2);
         }
 
-        private void resample_1_1(YmFm.Output output, int offset, int numSamples) {
+        private void _resample_1_1(YmFm.Output[] output, int numSamples) {
             resample_n_1(output, numSamples, 1);
         }
 
         /**
-         * resample_1_n - resample SSG output to the
+         * Resample SSG output to the
          * target at a rate of n SSG samples to every
          * 1 output sample
+         *
+         * @param divisor used as template in c++
          */
-        //template<int Divisor>
-        private void resample_1_n(YmFm.Output output, int offset, int numsamples, int Divisor) {
-            // TODO offset
-            for (int samp = offset; samp < numsamples; samp++, output.inc()) {
+        private void resample_1_n(YmFm.Output[] output, int numSamples, int divisor) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
-                for (int rep = 0; rep < Divisor; rep++)
+                for (int rep = 0; rep < divisor; rep++)
                     clock_and_add(sum0, sum1, sum2, 1);
-                write_to_output(output, sum0[0], sum1[0], sum2[0], Divisor);
+                write_to_output(output[samp], sum0[0], sum1[0], sum2[0], divisor);
             }
         }
 
-        private void resample_1_3(YmFm.Output output, int offset, int numsamples) {
-            resample_1_n(output, numsamples, offset, 3);
+        /**
+         * resample SSG output to the target at a rate of 3 SSG samples
+         * to every 1 output sample
+         */
+        private void _resample_1_3(YmFm.Output[] output, int numSamples) {
+            resample_1_n(output, numSamples, 3);
         }
 
-        private void resample_1_6(YmFm.Output output, int offset, int numsamples) {
-            resample_1_n(output, numsamples, offset, 6);
+        private void _resample_1_6(YmFm.Output[] output, int numSamples) {
+            resample_1_n(output, numSamples, 6);
         }
 
         /**
-         * resample_2_9 - resample SSG output to the
+         * Resamples SSG output to the
          * target at a rate of 9 SSG samples to every
          * 2 output samples
          */
-        private void resample_2_9(YmFm.Output output, int offset, int numsamples) {
-            // TODO offset
-            for (int samp = offset; samp < numsamples; samp++, output.inc()) {
+        private void resample_2_9(YmFm.Output[] output, int numSamples) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
-                if (bitfield(m_sampindex, 0) != 0)
+                if (bitfield(m_sampleIndex, 0) != 0)
                     add_last(sum0, sum1, sum2, 1);
                 clock_and_add(sum0, sum1, sum2, 2);
                 clock_and_add(sum0, sum1, sum2, 2);
                 clock_and_add(sum0, sum1, sum2, 2);
                 clock_and_add(sum0, sum1, sum2, 2);
-                if (bitfield(m_sampindex, 0) == 0)
+                if (bitfield(m_sampleIndex, 0) == 0)
                     clock_and_add(sum0, sum1, sum2, 1);
-                write_to_output(output, sum0[0], sum1[0], sum2[0], 9);
+                write_to_output(output[samp], sum0[0], sum1[0], sum2[0], 9);
             }
         }
 
-        // resample SSG output to the target at a rate of 3 SSG samples
-        // to every 1 output sample
-//		private void resample_1_3(OutputType output, int numsamples);
-
         /**
-         * resample_2_3 - resample SSG output to the
+         * Resamples SSG output to the
          * target at a rate of 3 SSG samples to every
          * 2 output samples
          */
-        private void resample_2_3(YmFm.Output output, int offset, int numsamples) {
-            // TODO offset
-            for (int samp = offset; samp < numsamples; samp++, output.inc()) {
+        private void resample_2_3(YmFm.Output[] output, int numSamples) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
-                if (bitfield(m_sampindex, 0) == 0) {
+                if (bitfield(m_sampleIndex, 0) == 0) {
                     clock_and_add(sum0, sum1, sum2, 2);
                     clock_and_add(sum0, sum1, sum2, 1);
                 } else {
                     add_last(sum0, sum1, sum2, 1);
                     clock_and_add(sum0, sum1, sum2, 2);
                 }
-                write_to_output(output, sum0[0], sum1[0], sum2[0], 3);
+                write_to_output(output[samp], sum0[0], sum1[0], sum2[0], 3);
             }
         }
 
         /**
-         * resample_4_3 - resample SSG output to the
+         * Resamples SSG output to the
          * target at a rate of 3 SSG samples to every
          * 4 output samples
          */
-        private void resample_4_3(YmFm.Output output, int offset, int numsamples) {
-            // TODO offset
-            for (int samp = offset; samp < numsamples; samp++, output.inc()) {
+        private void resample_4_3(YmFm.Output[] output, int numSamples) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
-                int step = bitfield(m_sampindex, 0, 2);
+                int step = bitfield(m_sampleIndex, 0, 2);
                 add_last(sum0, sum1, sum2, step);
                 if (step != 3)
                     clock_and_add(sum0, sum1, sum2, 3 - step);
-                write_to_output(output, sum0[0], sum1[0], sum2[0], 3);
+                write_to_output(output[samp], sum0[0], sum1[0], sum2[0], 3);
             }
         }
 
         /**
-         * resample_nop - no-op resampler
+         * no-op resampler.
          */
-        private void resample_nop(YmFm.Output output, int offset, int numsamples) {
+        private void resample_nop(YmFm.Output[] output, int numSamples) {
             // nothing to do except increment the sample index
-            m_sampindex += numsamples;
+            m_sampleIndex += numSamples;
         }
 
         // define a pointer type
-        //using resample_func = void (ssg_resampler)(OutputType output, int numsamples);
+        //using resample_func = void (ssg_resampler)(OutputType output, int numSamples);
 
         // internal state
+
         private final Ssg.Engine m_ssg;
         @Element(sequence = 0)
-        private int m_sampindex;
+        private int m_sampleIndex;
         // resample_func
-        private TriConsumer<YmFm.Output, Integer, Integer> m_resampler;
+        private BiConsumer<Output[], Integer> m_resampler;
         @Element(sequence = 1)
         private final YmFm.Output m_last;
     }
 
-    // ym2203
+    //
+    // YM2203
+    //
 
-    /**
-     * YM2203
-     */
+    /** ym2203 */
     @Serdes
     public static class Ym2203 implements YmFm.Chip {
 
@@ -1176,9 +1182,9 @@ public abstract class Opn {
         private static final int SSG_OUTPUTS = Ssg.Engine.OUTPUTS;
         private final int OUTPUTS;
 
+        //using output_data = ymfm_output<OUTPUTS>;
         @Override
         public YmFm.Output outputFactory() {
-            //using output_data = ymfm_output<OUTPUTS>;
             return new YmFm.Output(OUTPUTS);
         }
 
@@ -1188,7 +1194,7 @@ public abstract class Opn {
         }
 
         /**
-         * ym2203 - constructor
+         * Constructor.
          */
         public Ym2203(YmFm.Interface intf) {
             m_fidelity = MAX;
@@ -1217,11 +1223,11 @@ public abstract class Opn {
 
         // configuration
 
-        void ssg_override(Ssg.Override intf) {
+        public void ssg_override(Ssg.Override intf) {
             m_ssg.override(intf);
         }
 
-        void set_fidelity(Fidelity fidelity) {
+        public void set_fidelity(Fidelity fidelity) {
             m_fidelity = fidelity;
             update_prescale(m_fm.clock_prescale());
         }
@@ -1279,19 +1285,19 @@ public abstract class Opn {
             }
         }
 
-        final int ssg_effective_clock(int input_clock) {
+        public final int ssg_effective_clock(int input_clock) {
             int scale = m_fm.clock_prescale() * 2 / 3;
             return input_clock * 2 / scale;
         }
 
-        void invalidate_caches() {
+        public void invalidate_caches() {
             m_fm.invalidate_caches();
         }
 
         /**
-         * read_status - read the status register
+         * Reads the status register.
          */
-        int read_status() {
+        public int read_status() {
             int result = m_fm.status();
             if (m_fm.intf().ymfm_is_busy())
                 result |= OpnRegisters.STATUS_BUSY;
@@ -1299,9 +1305,9 @@ public abstract class Opn {
         }
 
         /**
-         * read_data - read the data register
+         * Reads the data register.
          */
-        int read_data() {
+        public int read_data() {
             int result = 0;
             if (m_address < 0x10) {
                 // 00-0F: Read from SSG
@@ -1311,7 +1317,7 @@ public abstract class Opn {
         }
 
         /**
-         * read - handle a read from the device
+         * Handles a read from the device.
          */
         @Override
         public int read(int offset) {
@@ -1329,10 +1335,9 @@ public abstract class Opn {
         }
 
         /**
-         * write_address - handle a write to the address
-         * register
+         * Handles a write to the address register.
          */
-        void write_address(int data) {
+        public void write_address(int data) {
             // just set the address
             m_address = data;
 
@@ -1349,10 +1354,9 @@ public abstract class Opn {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
-        void write_data(int data) {
+        public void write_data(int data) {
             if (m_address < 0x10) {
                 // 00-0F: write to SSG
                 m_ssg.write(m_address & 0x0f, data);
@@ -1366,8 +1370,7 @@ public abstract class Opn {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -1383,38 +1386,37 @@ public abstract class Opn {
         }
 
         /**
-         * generate - generate one sample of sound
+         * Generates one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
             // FM output is just repeated the prescale number of times; note that
             // 0 is a special 1.5 case
             if (m_fm_samples_per_output != 0) {
-                for (int samp = 0; samp < numSamples; samp++, output.inc()) {
-                    if ((m_ssg_resampler.sampindex() + samp) % m_fm_samples_per_output == 0)
+                for (int samp = 0; samp < numSamples; samp++) {
+                    if ((m_ssg_resampler.sampleIndex() + samp) % m_fm_samples_per_output == 0)
                         clock_fm();
-                    output.data[0] = m_last_fm.data[0];
+                    output[samp].data[0] = m_last_fm.data[0];
                 }
             } else {
-                for (int samp = 0; samp < numSamples; samp++, output.inc()) {
-                    int step = (m_ssg_resampler.sampindex() + samp) % 3;
+                for (int samp = 0; samp < numSamples; samp++) {
+                    int step = (m_ssg_resampler.sampleIndex() + samp) % 3;
                     if (step == 0)
                         clock_fm();
-                    output.data[0] = m_last_fm.data[0];
+                    output[samp].data[0] = m_last_fm.data[0];
                     if (step == 1) {
                         clock_fm();
-                        output.data[0] = (output.data[0] + m_last_fm.data[0]) / 2;
+                        output[samp].data[0] = (output[samp].data[0] + m_last_fm.data[0]) / 2;
                     }
                 }
             }
 
             // resample the SSG as configured
-            m_ssg_resampler.resample(output, output.pos() - numSamples, numSamples);
+            m_ssg_resampler.resample(output, numSamples);
         }
 
         /**
-         * update_prescale - update the prescale value,
-         * recomputing derived values
+         * Updates the prescale value, recomputing derived values.
          */
         protected void update_prescale(int prescale) {
             // tell the FM engine
@@ -1487,7 +1489,7 @@ public abstract class Opn {
         }
 
         /**
-         * clock_fm - clock FM state
+         * Clocks FM state.
          */
         protected void clock_fm() {
             // clock the system
@@ -1511,31 +1513,31 @@ public abstract class Opn {
         protected int m_fm_samples_per_output;
         /** last FM output */
         @Element(sequence = 1)
-        protected YmFm.Output m_last_fm;
+        protected final YmFm.Output m_last_fm;
         /** core FM engine */
-        protected FmEngine m_fm;
+        protected final FmEngine m_fm;
         /** SSG engine */
-        protected Ssg.Engine m_ssg;
+        protected final Ssg.Engine m_ssg;
         /** SSG resampler helper */
-        protected SsgResampler /* <output_data, 1, false> */ m_ssg_resampler;
+        protected final SsgResampler /* <output_data, 1, false> */ m_ssg_resampler;
     }
 
-    //*********************************************************
-    //  OPNA IMPLEMENTATION CLASSES
-    //*********************************************************
+    //
+    // OPNA IMPLEMENTATION CLASSES
+    //
 
-    // ======================> ym2608
+    //
+    // YM2608
+    //
 
-    //*********************************************************
-    //  YM2608
-    //*********************************************************
+    /** ym2608 */
     @Serdes
     public static class Ym2608 implements YmFm.Chip {
 
-        static final int STATUS_ADPCM_B_EOS = 0x04;
-        static final int STATUS_ADPCM_B_BRDY = 0x08;
-        static final int STATUS_ADPCM_B_ZERO = 0x10;
-        static final int STATUS_ADPCM_B_PLAYING = 0x20;
+        protected static final int STATUS_ADPCM_B_EOS = 0x04;
+        protected static final int STATUS_ADPCM_B_BRDY = 0x08;
+        protected static final int STATUS_ADPCM_B_ZERO = 0x10;
+        protected static final int STATUS_ADPCM_B_PLAYING = 0x20;
 
         protected static class FmEngine extends EngineBase<OpnaRegisters> {
 
@@ -1544,8 +1546,8 @@ public abstract class Opn {
             }
         }
 
-        public final int FM_OUTPUTS;
-        public static final int SSG_OUTPUTS = 1;
+        protected final int FM_OUTPUTS;
+        protected static final int SSG_OUTPUTS = 1;
         private final int OUTPUTS;
 
         //using output_data = Output<OUTPUTS>;
@@ -1560,7 +1562,7 @@ public abstract class Opn {
         }
 
         /**
-         * ym2608 - constructor
+         * Constructor.
          */
         public Ym2608(YmFm.Interface intf) {
             m_fidelity = MAX;
@@ -1570,18 +1572,13 @@ public abstract class Opn {
             m_fm = new FmEngine(intf);
             m_ssg = new Ssg.Engine(intf);
             m_ssg_resampler = new SsgResampler(m_ssg) {
-                @Override
-                int getOutput() {
+                @Override int getOutput() {
                     return OUTPUTS;
                 }
-
-                @Override
-                int getFirstOutput() {
+                @Override int getFirstOutput() {
                     return 0;
                 }
-
-                @Override
-                boolean isMixTo1() {
+                @Override boolean isMixTo1() {
                     return false;
                 }
             };
@@ -1597,6 +1594,7 @@ public abstract class Opn {
         }
 
         // configuration
+
         public void ssg_override(Ssg.Override intf) {
             m_ssg.override(intf);
         }
@@ -1607,7 +1605,7 @@ public abstract class Opn {
         }
 
         /**
-         * reset - reset the system
+         * Resets the system.
          */
         @Override
         public void reset() {
@@ -1633,7 +1631,7 @@ public abstract class Opn {
         }
 
         /**
-         * save the data
+         * Saves the data.
          */
         @Override
         public void save(OutputStream os) throws IOException {
@@ -1647,7 +1645,7 @@ public abstract class Opn {
         }
 
         /**
-         * restore the data
+         * Restores the data.
          */
         @Override
         public void restore(InputStream is) throws IOException {
@@ -1661,6 +1659,7 @@ public abstract class Opn {
         }
 
         // pass-through helpers
+
         @Override
         public final int sample_rate(int input_clock) {
             switch (m_fidelity) {
@@ -1684,7 +1683,7 @@ public abstract class Opn {
         }
 
         /**
-         * read_status - read the status register
+         * Reads the status register.
          */
         public int read_status() {
             int result = m_fm.status() & (OpnaRegisters.STATUS_TIMERA | OpnaRegisters.STATUS_TIMERB);
@@ -1694,7 +1693,7 @@ public abstract class Opn {
         }
 
         /**
-         * read_data - read the data register
+         * Reads the data register.
          */
         public int read_data() {
             int result = 0;
@@ -1709,8 +1708,7 @@ public abstract class Opn {
         }
 
         /**
-         * read_status_hi - read the extended status
-         * register
+         * Reads the extended status register.
          */
         public int read_status_hi() {
             // fetch regular status
@@ -1738,7 +1736,7 @@ public abstract class Opn {
         }
 
         /**
-         * read_data_hi - read the upper data register
+         * Reads the upper data register.
          */
         public int read_data_hi() {
             int result = 0;
@@ -1750,7 +1748,7 @@ public abstract class Opn {
         }
 
         /**
-         * read - handle a read from the device
+         * Handles a read from the device.
          */
         @Override
         public int read(int offset) {
@@ -1776,8 +1774,7 @@ public abstract class Opn {
         }
 
         /**
-         * write_address - handle a write to the address
-         * register
+         * Handle a write to the address register.
          */
         public void write_address(int data) {
             // just set the address
@@ -1796,7 +1793,7 @@ public abstract class Opn {
         }
 
         /**
-         * write - handle a write to the data register
+         * Handles a write to the data register.
          */
         public void write_data(int data) {
             // ignore if paired with upper address
@@ -1823,8 +1820,7 @@ public abstract class Opn {
         }
 
         /**
-         * write_address_hi - handle a write to the upper
-         * address register
+         * Handles a write to the upper address register.
          */
         public void write_address_hi(int data) {
             // just set the address
@@ -1832,8 +1828,7 @@ public abstract class Opn {
         }
 
         /**
-         * write_data_hi - handle a write to the upper
-         * data register
+         * Handles a write to the upper data register.
          */
         public void write_data_hi(int data) {
             // ignore if paired with upper address
@@ -1861,8 +1856,7 @@ public abstract class Opn {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -1886,41 +1880,40 @@ public abstract class Opn {
         }
 
         /**
-         * generate - generate one sample of sound
+         * Generates one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
             // FM output is just repeated the prescale number of times; note that
             // 0 is a special 1.5 case
             if (m_fm_samples_per_output != 0) {
-                for (int samp = 0; samp < numSamples; samp++, output.inc()) {
-                    if ((m_ssg_resampler.sampindex() + samp) % m_fm_samples_per_output == 0)
+                for (int samp = 0; samp < numSamples; samp++) {
+                    if ((m_ssg_resampler.sampleIndex() + samp) % m_fm_samples_per_output == 0)
                         clock_fm_and_adpcm();
-                    output.data[0] = m_last_fm.data[0];
-                    output.data[1] = m_last_fm.data[1];
+                    output[samp].data[0] = m_last_fm.data[0];
+                    output[samp].data[1] = m_last_fm.data[1];
                 }
             } else {
-                for (int samp = 0; samp < numSamples; samp++, output.inc()) {
-                    int step = (m_ssg_resampler.sampindex() + samp) % 3;
+                for (int samp = 0; samp < numSamples; samp++) {
+                    int step = (m_ssg_resampler.sampleIndex() + samp) % 3;
                     if (step == 0)
                         clock_fm_and_adpcm();
-                    output.data[0] = m_last_fm.data[0];
-                    output.data[1] = m_last_fm.data[1];
+                    output[samp].data[0] = m_last_fm.data[0];
+                    output[samp].data[1] = m_last_fm.data[1];
                     if (step == 1) {
                         clock_fm_and_adpcm();
-                        output.data[0] = (output.data[0] + m_last_fm.data[0]) / 2;
-                        output.data[1] = (output.data[1] + m_last_fm.data[1]) / 2;
+                        output[samp].data[0] = (output[samp].data[0] + m_last_fm.data[0]) / 2;
+                        output[samp].data[1] = (output[samp].data[1] + m_last_fm.data[1]) / 2;
                     }
                 }
             }
 
             // resample the SSG as configured
-            m_ssg_resampler.resample(output, output.pos() - numSamples, numSamples);
+            m_ssg_resampler.resample(output, numSamples);
         }
 
         /**
-         * update_prescale - update the prescale value,
-         * recomputing derived values
+         * Updates the prescale value, recomputing derived values.
          */
         protected void update_prescale(int prescale) {
             // tell the FM engine
@@ -1993,11 +1986,11 @@ public abstract class Opn {
         }
 
         /**
-         * clock_fm_and_adpcm - clock FM and ADPCM state
+         * Clocks FM and ADPCM state.
          */
         protected void clock_fm_and_adpcm() {
             // top bit of the IRQ enable flags controls 3-channel vs 6-channel mode
-            int fmmask = bitfield(m_irq_enable, 7) != 0 ? 0x3f : 0x07;
+            int fmMask = bitfield(m_irq_enable, 7) != 0 ? 0x3f : 0x07;
 
             // clock the system
             int env_counter = m_fm.clock((int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
@@ -2011,7 +2004,7 @@ public abstract class Opn {
             m_adpcm_b.clock();
 
             // update the FM content; OPNA is 13-bit with no intermediate clipping
-            m_fm.output(m_last_fm.clear(), 1, 32767, fmmask);
+            m_fm.output(m_last_fm.clear(), 1, 32767, fmMask);
 
             // mix in the ADPCM and clamp
             m_adpcm_a.output(m_last_fm, 0x3f);
@@ -2020,38 +2013,54 @@ public abstract class Opn {
         }
 
         // internal state
-        protected Fidelity m_fidelity;            // configured fidelity
+
+        /** configured fidelity */
+        protected Fidelity m_fidelity;
+        /** address register */
         @Element(sequence = 0)
-        protected int m_address;                 // address register
-        protected int m_fm_samples_per_output;    // how many samples to repeat
+        protected int m_address;
+        /** how many samples to repeat */
+        protected int m_fm_samples_per_output;
+        /** IRQ enable register */
         @Element(sequence = 1)
-        protected int m_irq_enable;               // IRQ enable register
+        protected int m_irq_enable;
+        /** flag control register */
         @Element(sequence = 2)
-        protected int m_flag_control;             // flag control register
+        protected int m_flag_control;
+        /** last FM output */
         @Element(sequence = 3)
-        protected YmFm.Output m_last_fm;   // last FM output
-        protected FmEngine m_fm;                     // core FM engine
-        protected Ssg.Engine m_ssg;                   // SSG engine
-        protected SsgResampler/*<output_data, 2, true>*/ m_ssg_resampler; // SSG resampler helper
-        protected Adpcm.EngineA m_adpcm_a;           // ADPCM-A engine
-        protected Adpcm.EngineB m_adpcm_b;           // ADPCM-B engine
+        protected final YmFm.Output m_last_fm;
+        /** core FM engine */
+        protected final FmEngine m_fm;
+        /** SSG engine */
+        protected final Ssg.Engine m_ssg;
+        /** SSG resampler helper */
+        protected final SsgResampler /* <output_data, 2, true> */ m_ssg_resampler;
+        /** ADPCM-A engine */
+        protected final Adpcm.EngineA m_adpcm_a;
+        /** ADPCM-B engine */
+        protected final Adpcm.EngineB m_adpcm_b;
     }
 
-    // ======================> ymf288
+    //
+    // YMF288
+    //
 
-    //*********************************************************
-    //  YMF288
-    //*********************************************************
-
-    // YMF288 is a YM2608 with the following changes:
-    //   * ADPCM-B part removed
-    //   * prescaler removed (fixed at 6)
-    //   * CSM removed
-    //   * Low power mode added
-    //   * SSG tone frequency is altered in some way? (explicitly DC for Tp 0-7, also double volume in some cases)
-    //   * I/O ports removed
-    //   * Shorter busy times
-    //   * All registers can be read
+    /**
+     * ymf288
+     *
+     * YMF288 is a YM2608 with the following changes:
+     * <ul>
+     *  <li>ADPCM-B part removed</li>
+     *  <li>prescaler removed (fixed at 6)</li>
+     *  <li>CSM removed</li>
+     *  <li>Low power mode added</li>
+     *  <li>SSG tone frequency is altered in some way? (explicitly DC for Tp 0-7, also double volume in some cases)</li>
+     *  <li>I/O ports removed</li>
+     *  <li>Shorter busy times</li>
+     *  <li>All registers can be read</li>
+     * </ul>
+     */
     @Serdes
     public static class Ymf288 implements YmFm.Chip {
 
@@ -2062,9 +2071,10 @@ public abstract class Opn {
             }
         }
 
-        public final int FM_OUTPUTS;
-        public static final int SSG_OUTPUTS = 1;
+        protected final int FM_OUTPUTS;
+        protected static final int SSG_OUTPUTS = 1;
         private final int OUTPUTS;
+
         //using output_data = Output<OUTPUTS>;
         @Override
         public YmFm.Output outputFactory() {
@@ -2108,17 +2118,18 @@ public abstract class Opn {
         }
 
         // configuration
-        protected void ssg_override(Ssg.Override intf) {
+
+        public void ssg_override(Ssg.Override intf) {
             m_ssg.override(intf);
         }
 
-        protected void set_fidelity(Fidelity fidelity) {
+        public void set_fidelity(Fidelity fidelity) {
             m_fidelity = fidelity;
             update_prescale();
         }
 
         /**
-         * reset - reset the system
+         * Resets the system.
          */
         @Override
         public void reset() {
@@ -2143,7 +2154,7 @@ public abstract class Opn {
         }
 
         /**
-         * save the data
+         * Saves the data.
          */
         @Override
         public void save(OutputStream os) throws IOException {
@@ -2156,7 +2167,7 @@ public abstract class Opn {
         }
 
         /**
-         * restore the data
+         * Restores the data.
          */
         @Override
         public void restore(InputStream is) throws IOException {
@@ -2169,6 +2180,7 @@ public abstract class Opn {
         }
 
         // pass-through helpers
+
         @Override
         public final int sample_rate(int input_clock) {
             switch (m_fidelity) {
@@ -2191,7 +2203,7 @@ public abstract class Opn {
         }
 
         /**
-         * read_status - read the status register
+         * Reads the status register.
          */
         public int read_status() {
             int result = m_fm.status() & (OpnaRegisters.STATUS_TIMERA | OpnaRegisters.STATUS_TIMERB);
@@ -2201,7 +2213,7 @@ public abstract class Opn {
         }
 
         /**
-         * read_data - read the data register
+         * Reads the data register.
          */
         public int read_data() {
             int result = 0;
@@ -2222,8 +2234,7 @@ public abstract class Opn {
         }
 
         /**
-         * read_status_hi - read the extended status
-         * register
+         * Reads the extended status register.
          */
         public int read_status_hi() {
             // fetch regular status
@@ -2242,7 +2253,7 @@ public abstract class Opn {
         }
 
         /**
-         * read - handle a read from the device
+         * Handles a read from the device.
          */
         @Override
         public int read(int offset) {
@@ -2261,15 +2272,14 @@ public abstract class Opn {
                     break;
 
                 case 3: // unmapped
-                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YMF288 offset %d\n", offset & 3);
+                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YMF288 offset %d".formatted(offset & 3));
                     break;
             }
             return result;
         }
 
         /**
-         * write_address - handle a write to the address
-         * register
+         * Handle a write to the address register.
          */
         public void write_address(int data) {
             // just set the address
@@ -2281,7 +2291,7 @@ public abstract class Opn {
         }
 
         /**
-         * write - handle a write to the data register
+         * Handle a write to the data register.
          */
         public void write_data(int data) {
             // ignore if paired with upper address
@@ -2317,8 +2327,7 @@ public abstract class Opn {
         }
 
         /**
-         * write_address_hi - handle a write to the upper
-         * address register
+         * Handles a write to the upper address register.
          */
         public void write_address_hi(int data) {
             // just set the address
@@ -2330,8 +2339,7 @@ public abstract class Opn {
         }
 
         /**
-         * write_data_hi - handle a write to the upper
-         * data register
+         * Handle a write to the upper data register.
          */
         public void write_data_hi(int data) {
             // ignore if paired with upper address
@@ -2358,8 +2366,7 @@ public abstract class Opn {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handle a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -2383,46 +2390,46 @@ public abstract class Opn {
         }
 
         /**
-         * generate - generate one sample of sound
+         * Generates one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
             // FM output is just repeated the prescale number of times; note that
             // 0 is a special 1.5 case
             if (m_fm_samples_per_output != 0) {
-                for (int samp = 0; samp < numSamples; samp++, output.inc()) {
-                    if ((m_ssg_resampler.sampindex() + samp) % m_fm_samples_per_output == 0)
+                for (int samp = 0; samp < numSamples; samp++) {
+                    if ((m_ssg_resampler.sampleIndex() + samp) % m_fm_samples_per_output == 0)
                         clock_fm_and_adpcm();
-                    output.data[0] = m_last_fm.data[0];
-                    output.data[1] = m_last_fm.data[1];
+                    output[samp].data[0] = m_last_fm.data[0];
+                    output[samp].data[1] = m_last_fm.data[1];
                 }
             } else {
-                for (int samp = 0; samp < numSamples; samp++, output.inc()) {
-                    int step = (m_ssg_resampler.sampindex() + samp) % 3;
+                for (int samp = 0; samp < numSamples; samp++) {
+                    int step = (m_ssg_resampler.sampleIndex() + samp) % 3;
                     if (step == 0)
                         clock_fm_and_adpcm();
-                    output.data[0] = m_last_fm.data[0];
-                    output.data[1] = m_last_fm.data[1];
+                    output[samp].data[0] = m_last_fm.data[0];
+                    output[samp].data[1] = m_last_fm.data[1];
                     if (step == 1) {
                         clock_fm_and_adpcm();
-                        output.data[0] = (output.data[0] + m_last_fm.data[0]) / 2;
-                        output.data[1] = (output.data[1] + m_last_fm.data[1]) / 2;
+                        output[samp].data[0] = (output[samp].data[0] + m_last_fm.data[0]) / 2;
+                        output[samp].data[1] = (output[samp].data[1] + m_last_fm.data[1]) / 2;
                     }
                 }
             }
 
             // resample the SSG as configured
-            m_ssg_resampler.resample(output, output.pos() - numSamples, numSamples);
+            m_ssg_resampler.resample(output, numSamples);
         }
 
         // internal helpers
+
         protected boolean ymf288_mode() {
             return ((m_fm.regs().read(0x20) & 0x02) != 0);
         }
 
         /**
-         * update_prescale - update the prescale value,
-         * recomputing derived values
+         * Updates the prescale value, recomputing derived values.
          */
         protected void update_prescale() {
             // Fidelity:   ---- minimum ----    ---- medium -----    ---- maximum-----
@@ -2447,7 +2454,7 @@ public abstract class Opn {
         }
 
         /**
-         * clock_fm_and_adpcm - clock FM and ADPCM state
+         * Clocks FM and ADPCM state.
          */
         protected void clock_fm_and_adpcm() {
             // top bit of the IRQ enable flags controls 3-channel vs 6-channel mode
@@ -2469,31 +2476,42 @@ public abstract class Opn {
         }
 
         // internal state
-        protected Opn.Fidelity m_fidelity;            // configured fidelity
+
+        /** configured fidelity */
+        protected Opn.Fidelity m_fidelity;
+        /** address register */
         @Element(sequence = 0)
-        protected int m_address;                 // address register
-        protected int m_fm_samples_per_output;    // how many samples to repeat
+        protected int m_address;
+        /** how many samples to repeat */
+        protected int m_fm_samples_per_output;
+        /** IRQ enable register */
         @Element(sequence = 1)
-        protected int m_irq_enable;               // IRQ enable register
+        protected int m_irq_enable;
+        /** flag control register */
         @Element(sequence = 2)
-        protected int m_flag_control;             // flag control register
+        protected int m_flag_control;
+        /** last FM output */
         @Element(sequence = 3)
-        protected YmFm.Output m_last_fm;   // last FM output
-        protected FmEngine m_fm;                     // core FM engine
-        protected Ssg.Engine m_ssg;                   // SSG engine
-        protected SsgResampler/* <output_data, 2,true> */ m_ssg_resampler; // SSG resampler helper
-        protected Adpcm.EngineA m_adpcm_a;           // ADPCM-A engine
+        protected final YmFm.Output m_last_fm;
+        /** core FM engine */
+        protected final FmEngine m_fm;
+        /** SSG engine */
+        protected final Ssg.Engine m_ssg;
+        /** SSG resampler helper */
+        protected final SsgResampler /* <output_data, 2,true> */ m_ssg_resampler;
+        /** ADPCM-A engine */
+        protected final Adpcm.EngineA m_adpcm_a;
     }
 
-    // ======================> ym2610/ym2610b
+    //
+    // YM2610
+    //
 
-    //*********************************************************
-    //  YM2610
-    //*********************************************************
+    /** ym2610 */
     @Serdes
     public static class Ym2610 implements YmFm.Chip {
 
-        static final int EOS_FLAGS_MASK = 0xbf;
+        protected static final int EOS_FLAGS_MASK = 0xbf;
 
         protected static class FmEngine extends EngineBase<OpnaRegisters> {
 
@@ -2502,9 +2520,10 @@ public abstract class Opn {
             }
         }
 
-        public final int FM_OUTPUTS;
-        public static final int SSG_OUTPUTS = 1;
+        protected final int FM_OUTPUTS;
+        protected static final int SSG_OUTPUTS = 1;
         private final int OUTPUTS;
+
         //using output_data = Output<OUTPUTS>;
         @Override
         public YmFm.Output outputFactory() {
@@ -2521,7 +2540,7 @@ public abstract class Opn {
         }
 
         /**
-         * ym2610 - constructor
+         * Constructor.
          */
         public Ym2610(YmFm.Interface intf, int channel_mask /* = 0x36 */) {
             m_fidelity = MAX;
@@ -2554,17 +2573,18 @@ public abstract class Opn {
         }
 
         // configuration
-        protected void ssg_override(Ssg.Override intf) {
+
+        public void ssg_override(Ssg.Override intf) {
             m_ssg.override(intf);
         }
 
-        protected void set_fidelity(Fidelity fidelity) {
+        public void set_fidelity(Fidelity fidelity) {
             m_fidelity = fidelity;
             update_prescale();
         }
 
         /**
-         * reset - reset the system
+         * Resets the system.
          */
         @Override
         public void reset() {
@@ -2580,7 +2600,7 @@ public abstract class Opn {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         @Override
         public void save(OutputStream os) throws IOException {
@@ -2594,7 +2614,7 @@ public abstract class Opn {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         @Override
         public void restore(InputStream is) throws IOException {
@@ -2608,6 +2628,7 @@ public abstract class Opn {
         }
 
         // pass-through helpers
+
         @Override
         public final int sample_rate(int input_clock) {
             switch (m_fidelity) {
@@ -2621,16 +2642,16 @@ public abstract class Opn {
             }
         }
 
-        final int ssg_effective_clock(int input_clock) {
+        public final int ssg_effective_clock(int input_clock) {
             return input_clock / 4;
         }
 
-        void invalidate_caches() {
+        public void invalidate_caches() {
             m_fm.invalidate_caches();
         }
 
         /**
-         * read_status - read the status register
+         * Reads the status register.
          */
         int read_status() {
             int result = m_fm.status() & (OpnaRegisters.STATUS_TIMERA | OpnaRegisters.STATUS_TIMERB);
@@ -2640,9 +2661,9 @@ public abstract class Opn {
         }
 
         /**
-         * read_data - read the data register
+         * Reads the data register.
          */
-        int read_data() {
+        public int read_data() {
             int result = 0;
             if (m_address < 0x0e) {
                 // 00-0D: Read from SSG
@@ -2658,10 +2679,9 @@ public abstract class Opn {
         }
 
         /**
-         * read_status_hi - read the extended status
-         * register
+         * Reads the extended status register.
          */
-        int read_status_hi() {
+        public int read_status_hi() {
             return m_eos_status & m_flag_mask;
         }
 
@@ -2674,7 +2694,7 @@ public abstract class Opn {
         }
 
         /**
-         * read - handle a read from the device
+         * Handles a read from the device.
          */
         @Override
         public int read(int offset) {
@@ -2700,8 +2720,7 @@ public abstract class Opn {
         }
 
         /**
-         * write_address - handle a write to the address
-         * register
+         * Handles a write to the address register.
          */
         public void write_address(int data) {
             // just set the address
@@ -2709,7 +2728,7 @@ public abstract class Opn {
         }
 
         /**
-         * write - handle a write to the data register
+         * Handle a write to the data register.
          */
         public void write_data(int data) {
             // ignore if paired with upper address
@@ -2741,19 +2760,17 @@ public abstract class Opn {
         }
 
         /**
-         * write_address_hi - handle a write to the upper
-         * address register
+         * Handles a write to the upper address register.
          */
-        void write_address_hi(int data) {
+        public void write_address_hi(int data) {
             // just set the address
             m_address = 0x100 | data;
         }
 
         /**
-         * write_data_hi - handle a write to the upper
-         * data register
+         * Handle a write to the upper data register.
          */
-        void write_data_hi(int data) {
+        public void write_data_hi(int data) {
             // ignore if paired with upper address
             if (bitfield(m_address, 8) == 0)
                 return;
@@ -2771,8 +2788,7 @@ public abstract class Opn {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handle a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -2796,25 +2812,24 @@ public abstract class Opn {
         }
 
         /**
-         * generate - generate one sample of sound
+         * Generates one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
             // FM output is just repeated the prescale number of times
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
-                if ((m_ssg_resampler.sampindex() + samp) % m_fm_samples_per_output == 0)
+            for (int samp = 0; samp < numSamples; samp++) {
+                if ((m_ssg_resampler.sampleIndex() + samp) % m_fm_samples_per_output == 0)
                     clock_fm_and_adpcm();
-                output.data[0] = m_last_fm.data[0];
-                output.data[1] = m_last_fm.data[1];
+                output[samp].data[0] = m_last_fm.data[0];
+                output[samp].data[1] = m_last_fm.data[1];
             }
 
             // resample the SSG as configured
-            m_ssg_resampler.resample(output, output.pos() - numSamples, numSamples);
+            m_ssg_resampler.resample(output, numSamples);
         }
 
         /**
-         * update_prescale - update the prescale value,
-         * recomputing derived values
+         * Updates the prescale value, recomputing derived values.
          */
         protected void update_prescale() {
             // Fidelity:   ---- minimum ----    ---- medium -----    ---- maximum-----
@@ -2839,7 +2854,7 @@ public abstract class Opn {
         }
 
         /**
-         * clock_fm_and_adpcm - clock FM and ADPCM state
+         * Clocks FM and ADPCM state
          */
         protected void clock_fm_and_adpcm() {
             // clock the system
@@ -2868,23 +2883,37 @@ public abstract class Opn {
         }
 
         // internal state
-        protected Fidelity m_fidelity;            // configured fidelity
+
+        /** configured fidelity */
+        protected Fidelity m_fidelity;
+        /** address register */
         @Element(sequence = 0)
-        protected int m_address;                 // address register
-        protected final int m_fm_mask;            // FM channel mask
-        protected int m_fm_samples_per_output;    // how many samples to repeat
+        protected int m_address;
+        /** FM channel mask */
+        protected final int m_fm_mask;
+        /** how many samples to repeat */
+        protected int m_fm_samples_per_output;
+        /** end-of-sample signals */
         @Element(sequence = 1)
-        protected int m_eos_status;               // end-of-sample signals
+        protected int m_eos_status;
+        /** flag mask control */
         @Element(sequence = 2)
-        protected int m_flag_mask;                // flag mask control
-        protected YmFm.Output m_last_fm;   // last FM output
-        protected FmEngine m_fm;                     // core FM engine
-        protected Ssg.Engine m_ssg;                   // core FM engine
-        protected SsgResampler/*<output_data, 2,true>*/m_ssg_resampler; // SSG resampler helper
-        protected Adpcm.EngineA m_adpcm_a;           // ADPCM-A engine
-        protected Adpcm.EngineB m_adpcm_b;           // ADPCM-B engine
+        protected int m_flag_mask;
+        /** last FM output */
+        protected final YmFm.Output m_last_fm;
+        /** core FM engine */
+        protected final FmEngine m_fm;
+        /** core FM engine */
+        protected final Ssg.Engine m_ssg;
+        /** SSG resampler helper */
+        protected final SsgResampler /* <output_data, 2,true> */ m_ssg_resampler;
+        /** ADPCM-A engine */
+        protected final Adpcm.EngineA m_adpcm_a;
+        /** ADPCM-B engine */
+        protected final Adpcm.EngineB m_adpcm_b;
     }
 
+    /** ym2610b */
     public static class Ym2610b extends Ym2610 implements YmFm.Chip {
 
         // constructor
@@ -2893,11 +2922,11 @@ public abstract class Opn {
         }
     }
 
-    // ======================> ym2612
-
-    //*********************************************************
+    //
     // YM2612
-    //*********************************************************
+    //
+
+    /** ym2612 */
     @Serdes
     public static class Ym2612 implements YmFm.Chip {
 
@@ -2909,6 +2938,7 @@ public abstract class Opn {
         }
 
         private final int OUTPUTS;
+
         //using output_data = fm_engine.output_data;
         @Override
         public YmFm.Output outputFactory() {
@@ -2921,7 +2951,7 @@ public abstract class Opn {
         }
 
         /**
-         * ym2612 - constructor
+         * Constructor.
          */
         public Ym2612(YmFm.Interface intf) {
             m_address = 0;
@@ -2933,7 +2963,7 @@ public abstract class Opn {
         }
 
         /**
-         * reset - reset the system
+         * Resets the system.
          */
         @Override
         public void reset() {
@@ -2942,7 +2972,7 @@ public abstract class Opn {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         @Override
         public void save(OutputStream os) throws IOException {
@@ -2951,7 +2981,7 @@ public abstract class Opn {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         @Override
         public void restore(InputStream is) throws IOException {
@@ -2960,19 +2990,20 @@ public abstract class Opn {
         }
 
         // pass-through helpers
+
         @Override
         public final int sample_rate(int input_clock) {
             return m_fm.sample_rate(input_clock);
         }
 
-        void invalidate_caches() {
+        public void invalidate_caches() {
             m_fm.invalidate_caches();
         }
 
         /**
-         * read_status - read the status register
+         * Reads the status register.
          */
-        int read_status() {
+        public int read_status() {
             int result = m_fm.status();
             if (m_fm.intf().ymfm_is_busy())
                 result |= OpnaRegisters.STATUS_BUSY;
@@ -2980,7 +3011,7 @@ public abstract class Opn {
         }
 
         /**
-         * read - handle a read from the device
+         * Handles a read from the device.
          */
         @Override
         public int read(int offset) {
@@ -2993,26 +3024,24 @@ public abstract class Opn {
                 case 1: // data port (unused)
                 case 2: // status port, extended
                 case 3: // data port (unused)
-                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YM2612 offset %d\n", offset & 3);
+                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YM2612 offset %d".formatted(offset & 3));
                     break;
             }
             return result;
         }
 
         /**
-         * write_address - handle a write to the address
-         * register
+         * Handles a write to the address register.
          */
-        void write_address(int data) {
+        public void write_address(int data) {
             // just set the address
             m_address = data;
         }
 
         /**
-         * write_data - handle a write to the data
-         * register
+         * Handles a write to the data register.
          */
-        void write_data(int data) {
+        public void write_data(int data) {
             // ignore if paired with upper address
             if (bitfield(m_address, 8) != 0)
                 return;
@@ -3036,19 +3065,17 @@ public abstract class Opn {
         }
 
         /**
-         * write_address_hi - handle a write to the upper
-         * address register
+         * Handles a write to the upper address register.
          */
-        void write_address_hi(int data) {
+        public void write_address_hi(int data) {
             // just set the address
             m_address = 0x100 | data;
         }
 
         /**
-         * write_data_hi - handle a write to the upper
-         * data register
+         * Handles a write to the upper data register.
          */
-        void write_data_hi(int data) {
+        public void write_data_hi(int data) {
             // ignore if paired with upper address
             if (bitfield(m_address, 8) == 0)
                 return;
@@ -3061,8 +3088,7 @@ public abstract class Opn {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -3086,60 +3112,64 @@ public abstract class Opn {
         }
 
         /**
-         * generate - generate one sample of sound
+         * Generates one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock((int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
 
                 // sum individual channels to apply DAC discontinuity on each
-                output.clear();
+                output[samp].clear();
                 YmFm.Output temp = new YmFm.Output(m_fm.OUTPUTS);
 
                 // first do FM-only channels; OPN2 is 9-bit with intermediate clipping
                 int last_fm_channel = m_dac_enable != 0 ? 5 : 6;
                 for (int chan = 0; chan < last_fm_channel; chan++) {
                     m_fm.output(temp.clear(), 5, 256, 1 << chan);
-                    output.data[0] += dac_discontinuity(temp.data[0]);
-                    output.data[1] += dac_discontinuity(temp.data[1]);
+                    output[samp].data[0] += dac_discontinuity(temp.data[0]);
+                    output[samp].data[1] += dac_discontinuity(temp.data[1]);
                 }
 
                 // add in DAC
                 if (m_dac_enable != 0) {
                     // DAC enabled: start with DAC value then add the first 5 channels only
-                    int dacval = dac_discontinuity((m_dac_data << 7) >> 7);
-                    output.data[0] += m_fm.regs().ch_output_0(0x102) != 0 ? dacval : dac_discontinuity(0);
-                    output.data[1] += m_fm.regs().ch_output_1(0x102) != 0 ? dacval : dac_discontinuity(0);
+                    int dacVal = dac_discontinuity((m_dac_data << 7) >> 7);
+                    output[samp].data[0] += m_fm.regs().ch_output_0(0x102) != 0 ? dacVal : dac_discontinuity(0);
+                    output[samp].data[1] += m_fm.regs().ch_output_1(0x102) != 0 ? dacVal : dac_discontinuity(0);
                 }
 
                 // output is technically multiplexed rather than mixed, but that requires
                 // a better sound mixer than we usually have, so just average over the six
                 // channels; also apply a 64/65 factor to account for the discontinuity
                 // adjustment above
-                output.data[0] = (output.data[0] * 128) * 64 / (6 * 65);
-                output.data[1] = (output.data[1] * 128) * 64 / (6 * 65);
+                output[samp].data[0] = (output[samp].data[0] * 128) * 64 / (6 * 65);
+                output[samp].data[1] = (output[samp].data[1] * 128) * 64 / (6 * 65);
             }
         }
 
-        // simulate the DAC discontinuity
+        /** simulate the DAC discontinuity */
         protected final int dac_discontinuity(int value) {
             return (value < 0) ? (value - 3) : (value + 4);
         }
 
         // internal state
+
+        /** address register */
         @Element(sequence = 0)
-        protected int m_address;              // address register
+        protected int m_address;
+        /** 9-bit DAC data */
         @Element(sequence = 1)
-        protected int m_dac_data;             // 9-bit DAC data
+        protected int m_dac_data;
+        /** DAC enabled? */
         @Element(sequence = 2)
-        protected int m_dac_enable;            // DAC enabled?
-        protected FmEngine m_fm;                  // core FM engine
+        protected int m_dac_enable;
+        /** core FM engine */
+        protected final FmEngine m_fm;
     }
 
-    // ======================> ym3438
-
+    /** ym3438 */
     public static class Ym3438 extends Ym2612 implements YmFm.Chip {
 
         public Ym3438(YmFm.Interface intf) {
@@ -3147,36 +3177,35 @@ public abstract class Opn {
         }
 
         /**
-         * generate - generate one sample of sound
+         * Generates one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock((int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
 
                 // first do FM-only channels; OPN2C is 9-bit with intermediate clipping
                 if (m_dac_enable == 0) {
                     // DAC disabled: all 6 channels sum together
-                    m_fm.output(output.clear(), 5, 256, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
+                    m_fm.output(output[samp].clear(), 5, 256, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
                 } else {
                     // DAC enabled: start with DAC value then add the first 5 channels only
-                    int dacval = (m_dac_data << 7) >> 7;
-                    output.data[0] = m_fm.regs().ch_output_0(0x102) != 0 ? dacval : 0;
-                    output.data[1] = m_fm.regs().ch_output_1(0x102) != 0 ? dacval : 0;
-                    m_fm.output(output, 5, 256, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS") ^ (1 << 5));
+                    int dacVal = (m_dac_data << 7) >> 7;
+                    output[samp].data[0] = m_fm.regs().ch_output_0(0x102) != 0 ? dacVal : 0;
+                    output[samp].data[1] = m_fm.regs().ch_output_1(0x102) != 0 ? dacVal : 0;
+                    m_fm.output(output[samp], 5, 256, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS") ^ (1 << 5));
                 }
 
                 // YM3438 doesn't have the same DAC discontinuity, though its output is
                 // multiplexed like the YM2612
-                output.data[0] = (output.data[0] * 128) / 6;
-                output.data[1] = (output.data[1] * 128) / 6;
+                output[samp].data[0] = (output[samp].data[0] * 128) / 6;
+                output[samp].data[1] = (output[samp].data[1] * 128) / 6;
             }
         }
     }
 
-    // ======================> ymf276
-
+    /** ymf276 */
     public static class Ymf276 extends Ym2612 implements YmFm.Chip {
 
         public Ymf276(YmFm.Interface intf) {
@@ -3184,29 +3213,29 @@ public abstract class Opn {
         }
 
         /**
-         * generate - generate one sample of sound
+         * Generate one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock((int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
 
                 // first do FM-only channels; OPN2L is 14-bit with intermediate clipping
                 if (m_dac_enable == 0) {
                     // DAC disabled: all 6 channels sum together
-                    m_fm.output(output.clear(), 0, 8191, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
+                    m_fm.output(output[samp].clear(), 0, 8191, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
                 } else {
                     // DAC enabled: start with DAC value then add the first 5 channels only
-                    int dacval = (m_dac_data << 7) >> 7;
-                    output.data[0] = m_fm.regs().ch_output_0(0x102) != 0 ? dacval : 0;
-                    output.data[1] = m_fm.regs().ch_output_1(0x102) != 0 ? dacval : 0;
-                    m_fm.output(output, 0, 8191, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS") ^ (1 << 5));
+                    int dacVal = (m_dac_data << 7) >> 7;
+                    output[samp].data[0] = m_fm.regs().ch_output_0(0x102) != 0 ? dacVal : 0;
+                    output[samp].data[1] = m_fm.regs().ch_output_1(0x102) != 0 ? dacVal : 0;
+                    m_fm.output(output[samp], 0, 8191, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS") ^ (1 << 5));
                 }
 
                 // YMF276 is properly mixed; it shifts down 1 bit before clamping
-                output.data[0] = clamp(output.data[0] >> 1, -32768, 32767);
-                output.data[1] = clamp(output.data[1] >> 1, -32768, 32767);
+                output[samp].data[0] = clamp(output[samp].data[0] >> 1, -32768, 32767);
+                output[samp].data[1] = clamp(output[samp].data[1] >> 1, -32768, 32767);
             }
         }
     }

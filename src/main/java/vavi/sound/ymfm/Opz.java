@@ -108,15 +108,13 @@ public abstract class Opz {
 
     public static final int TEMPORARY_DEBUG_PRINTS = 0;
 
-    //*********************************************************
-    //  REGISTER CLASSES
-    //*********************************************************
+    //
+    // REGISTER CLASSES
+    //
 
-    // ======================> opz_registers
-
-    //*********************************************************
-    //  OPZ REGISTERS
-    //*********************************************************
+    //
+    // OPZ REGISTERS
+    //
 
     //
     // OPZ register map:
@@ -195,6 +193,8 @@ public abstract class Opz {
     //          188 -xxxxxxx LFO #2 PM depth
     //          189 -xxxxxxx LFO PM depth
     //
+
+    /** opz_registers */
     @Serdes
     static class Registers extends RegistersBase {
 
@@ -202,21 +202,21 @@ public abstract class Opz {
         static final int LFO_WAVEFORM_LENGTH = 256;
 
         // constants
-        public static final int OUTPUTS = 2;
-        public static final int CHANNELS = 8;
-        public static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
-        public static final int OPERATORS = CHANNELS * 4;
-        public static final int WAVEFORMS = 8;
-        public static final int REGISTERS = 0x190;
-        public static final int DEFAULT_PRESCALE = 2;
-        public static final int EG_CLOCK_DIVIDER = 3;
-        public static final boolean EG_HAS_REVERB = true;
-        public static final int CSM_TRIGGER_MASK = ALL_CHANNELS;
-        public static final int REG_MODE = 0x14;
-        public static final int STATUS_TIMERA = 0x01;
-        public static final int STATUS_TIMERB = 0x02;
-        public static final int STATUS_BUSY = 0x80;
-        public static final int STATUS_IRQ = 0;
+        protected static final int OUTPUTS = 2;
+        protected static final int CHANNELS = 8;
+        protected static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
+        protected static final int OPERATORS = CHANNELS * 4;
+        protected static final int WAVEFORMS = 8;
+        protected static final int REGISTERS = 0x190;
+        protected static final int DEFAULT_PRESCALE = 2;
+        protected static final int EG_CLOCK_DIVIDER = 3;
+        protected static final boolean EG_HAS_REVERB = true;
+        protected static final int CSM_TRIGGER_MASK = ALL_CHANNELS;
+        protected static final int REG_MODE = 0x14;
+        protected static final int STATUS_TIMERA = 0x01;
+        protected static final int STATUS_TIMERB = 0x02;
+        protected static final int STATUS_BUSY = 0x80;
+        protected static final int STATUS_IRQ = 0;
 
         {
             getParams().put("OUTPUTS", OUTPUTS);
@@ -237,7 +237,7 @@ public abstract class Opz {
         }
 
         /**
-         * opz_registers - constructor
+         * Constructor.
          */
         public Registers() {
 
@@ -293,8 +293,9 @@ public abstract class Opz {
         }
 
         /**
-         * reset - reset to initial state
+         * Resets to initial state.
          */
+        @Override
         public void reset() {
             Arrays.fill(m_regdata, 0, REGISTERS, 0);
 
@@ -304,41 +305,46 @@ public abstract class Opz {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
+        @Override
         public void save(OutputStream os) throws IOException {
             Serdes.Util.serialize(this, os);
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
+        @Override
         public void restore(InputStream is) throws IOException {
             Serdes.Util.deserialize(is, this);
         }
 
-        // map channel number to register offset
+        /** Maps channel number to register offset */
         @Override
-        public int channel_offset(int chnum) {
-            assert (chnum < CHANNELS);
-            return chnum;
+        public int channel_offset(int chNum) {
+            assert (chNum < CHANNELS);
+            return chNum;
         }
 
-        // map operator number to register offset
+        /** Maps operator number to register offset */
         @Override
-        public int operator_offset(int opnum) {
-            assert (opnum < OPERATORS);
-            return opnum;
+        public int operator_offset(int opNum) {
+            assert (opNum < OPERATORS);
+            return opNum;
         }
 
-        // return an array of operator indices for each channel
-        // Note that the channel index order is 0,2,1,3, so we bitswap the index.
-        //
-        // This is because the order in the map is:
-        //    carrier 1, carrier 2, modulator 1, modulator 2
-        //
-        // But when wiring up the connections, the more natural order is:
-        //    carrier 1, modulator 1, carrier 2, modulator 2
+        /**
+         * return an array of operator indices for each channel
+         * Note that the channel index order is 0,2,1,3, so we bitswap the index.
+         * <pre>
+         * This is because the order in the map is:
+         *    carrier 1, carrier 2, modulator 1, modulator 2
+         *
+         * But when wiring up the connections, the more natural order is:
+         *    carrier 1, modulator 1, carrier 2, modulator 2
+         * </pre>
+         */
         static final int[] s_fixed_map = {
                 operator_list(0, 16, 8, 24),  // Channel 0 operators
                 operator_list(1, 17, 9, 25),  // Channel 1 operators
@@ -351,8 +357,8 @@ public abstract class Opz {
         };
 
         /**
-         * operator_map - return an array of operator
-         * indices for each channel; for OPZ this is fixed
+         * Returns an array of operator indices for each channel;
+         * for OPZ this is fixed
          */
         @Override
         public final void operator_map(int[][] dest) {
@@ -360,10 +366,10 @@ public abstract class Opz {
         }
 
         /**
-         * write - handle writes to the register array
+         * Handles writes to the register array.
          */
         @Override
-        public boolean write(int index, int data, int[] channel, int[] opmask) {
+        public boolean write(int index, int data, int[] channel, int[] opMask) {
             assert (index < REGISTERS);
 
             // special mappings:
@@ -429,11 +435,11 @@ public abstract class Opz {
             // handle writes to the key on index
             if ((index & 0xf8) == 0x20 && bitfield(index, 0, 3) == bitfield(m_regdata[0x08], 0, 3)) {
                 channel[0] = bitfield(index, 0, 3);
-                opmask[0] = ch_key_on(channel[0]) != 0 ? 0xf : 0;
+                opMask[0] = ch_key_on(channel[0]) != 0 ? 0xf : 0;
 
                 // according to the TX81Z manual, the sync option causes the LFOs
                 // to reset at each note on
-                if (opmask[0] != 0) {
+                if (opMask[0] != 0) {
                     if (lfo_sync() != 0)
                         m_lfo_counter[0] = 0;
                     if (lfo2_sync() != 0)
@@ -445,9 +451,8 @@ public abstract class Opz {
         }
 
         /**
-         * clock_noise_and_lfo - clock the noise and LFO,
-         * handling clock division, depth, and waveform
-         * computations
+         * Clocks the noise and LFO, handling clock division,
+         * depth, and waveform computations
          */
         @Override
         public int clock_noise_and_lfo() {
@@ -503,18 +508,17 @@ public abstract class Opz {
         }
 
         /**
-         * lfo_am_offset - return the AM offset from LFO
-         * for the given channel
+         * Returns the AM offset from LFO for the given channel.
          */
         @Override
-        public final int lfo_am_offset(int choffs) {
+        public final int lfo_am_offset(int chOffs) {
             // not sure how this works for real, but just adding the two
             // AM LFOs together
             int result = 0;
 
             // shift value for AM sensitivity is [*, 0, 1, 2],
             // mapping to values of [0, 23.9, 47.8, and 95.6dB]
-            int am_sensitivity = ch_lfo_am_sens(choffs);
+            int am_sensitivity = ch_lfo_am_sens(chOffs);
             if (am_sensitivity != 0)
                 result = m_lfo_am[0] << (am_sensitivity - 1);
 
@@ -524,35 +528,34 @@ public abstract class Opz {
             // raw LFO AM value on OPZ is 0-FF, which is already a factor of 2
             // larger than the OPN below, putting our staring point at 2x theirs;
             // this works out since our minimum is 2x their maximum
-            int am_sensitivity2 = ch_lfo2_am_sens(choffs);
+            int am_sensitivity2 = ch_lfo2_am_sens(chOffs);
             if (am_sensitivity2 != 0)
                 result += m_lfo_am[1] << (am_sensitivity2 - 1);
 
             return result;
         }
 
-        // return the current noise state, gated by the noise clock
+        /** Returns the current noise state, gated by the noise clock */
         @Override
         public final int noise_state() {
             return m_noise_state;
         }
 
         /**
-         * cache_operator_data - fill the operator cache
-         * with prefetched data
+         * Fills the operator cache with prefetched data.
          */
         @Override
-        public void cache_operator_data(int choffs, int opoffs, OpDataCache cache) {
+        public void cache_operator_data(int chOffs, int opOffs, OpDataCache cache) {
             // TODO: how does fixed frequency mode work? appears to be enabled by
             // op_fix_mode(), and controlled by op_fix_range(), op_fix_frequency()
 
             // TODO: what is op_rev()?
 
             // set up the easy stuff
-            cache.waveform = m_waveform[op_waveform(opoffs)];
+            cache.waveform = m_waveform[op_waveform(opOffs)];
 
             // get frequency from the channel
-            int block_freq = cache.block_freq = ch_block_freq(choffs);
+            int block_freq = cache.block_freq = ch_block_freq(chOffs);
 
             // compute the keycode: block_freq is:
             //
@@ -564,45 +567,45 @@ public abstract class Opz {
             int keycode = bitfield(block_freq, 8, 5);
 
             // detune adjustment
-            cache.detune = detune_adjustment(op_detune(opoffs), keycode);
+            cache.detune = detune_adjustment(op_detune(opOffs), keycode);
 
             // multiple value, as an x.4 value (0 means 0.5)
             // the "fine" control provides the fractional bits
-            cache.multiple = op_multiple(opoffs) << 4;
+            cache.multiple = op_multiple(opOffs) << 4;
             if (cache.multiple == 0)
                 cache.multiple = 0x08;
-            cache.multiple |= op_fine(opoffs);
+            cache.multiple |= op_fine(opOffs);
 
             // phase step, or PHASE_STEP_DYNAMIC if PM is active; this depends on
             // block_freq, detune, and multiple, so compute it after we've done those;
             // note that fix frequency mode is also treated as dynamic
-            if (op_fix_mode(opoffs) == 0 && (lfo_pm_depth() == 0 || ch_lfo_pm_sens(choffs) == 0) && (lfo2_pm_depth() == 0 || ch_lfo2_pm_sens(choffs) == 0))
-                cache.phase_step = compute_phase_step(choffs, opoffs, cache, 0);
+            if (op_fix_mode(opOffs) == 0 && (lfo_pm_depth() == 0 || ch_lfo_pm_sens(chOffs) == 0) && (lfo2_pm_depth() == 0 || ch_lfo2_pm_sens(chOffs) == 0))
+                cache.phase_step = compute_phase_step(chOffs, opOffs, cache, 0);
             else
                 cache.phase_step = OpDataCache.PHASE_STEP_DYNAMIC;
 
             // total level, scaled by 8
             // TODO: how does ch_volume() fit into this?
-            cache.total_level = op_total_level(opoffs) << 3;
+            cache.total_level = op_total_level(opOffs) << 3;
 
             // 4-bit sustain level, but 15 means 31 so effectively 5 bits
-            cache.eg_sustain = op_sustain_level(opoffs);
+            cache.eg_sustain = op_sustain_level(opOffs);
             cache.eg_sustain |= (cache.eg_sustain + 1) & 0x10;
             cache.eg_sustain <<= 5;
 
             // determine KSR adjustment for enevlope rates
-            int ksrval = keycode >> (op_ksr(opoffs) ^ 3);
-            cache.eg_rate[EG_ATTACK.ordinal()] = effective_rate(op_attack_rate(opoffs) * 2, ksrval);
-            cache.eg_rate[EG_DECAY.ordinal()] = effective_rate(op_decay_rate(opoffs) * 2, ksrval);
-            cache.eg_rate[EG_SUSTAIN.ordinal()] = effective_rate(op_sustain_rate(opoffs) * 2, ksrval);
-            cache.eg_rate[EG_RELEASE.ordinal()] = effective_rate(op_release_rate(opoffs) * 4 + 2, ksrval);
+            int ksrval = keycode >> (op_ksr(opOffs) ^ 3);
+            cache.eg_rate[EG_ATTACK.ordinal()] = effective_rate(op_attack_rate(opOffs) * 2, ksrval);
+            cache.eg_rate[EG_DECAY.ordinal()] = effective_rate(op_decay_rate(opOffs) * 2, ksrval);
+            cache.eg_rate[EG_SUSTAIN.ordinal()] = effective_rate(op_sustain_rate(opOffs) * 2, ksrval);
+            cache.eg_rate[EG_RELEASE.ordinal()] = effective_rate(op_release_rate(opOffs) * 4 + 2, ksrval);
             cache.eg_rate[EG_REVERB.ordinal()] = cache.eg_rate[EG_RELEASE.ordinal()];
-            int reverb = op_reverb_rate(opoffs);
+            int reverb = op_reverb_rate(opOffs);
             if (reverb != 0)
                 cache.eg_rate[EG_REVERB.ordinal()] = Math.min(effective_rate(reverb * 4 + 2, ksrval), cache.eg_rate[EG_REVERB.ordinal()]);
 
             // set the envelope shift; TX81Z manual says operator 1 shift is fixed at "off"
-            cache.eg_shift = ((opoffs & 0x18) == 0) ? 0 : op_eg_shift(opoffs);
+            cache.eg_shift = ((opOffs & 0x18) == 0) ? 0 : op_eg_shift(opOffs);
         }
 
         static final int[] s_detune2_delta = {
@@ -610,32 +613,32 @@ public abstract class Opz {
         };
 
         /**
-         * compute_phase_step - compute the phase step
+         * Compute the phase step.
          */
         @Override
-        public int compute_phase_step(int choffs, int opoffs, final OpDataCache cache, int lfo_raw_pm) {
+        public int compute_phase_step(int chOffs, int opOffs, OpDataCache cache, int lfo_raw_pm) {
             // OPZ has a fixed frequency mode; it is unclear whether the
             // detune and multiple parameters affect things
 
             int phase_step;
-            if (op_fix_mode(opoffs) != 0) {
+            if (op_fix_mode(opOffs) != 0) {
                 // the baseline frequency in hz comes from the fix frequency and fine
                 // registers, which can specify values 8-255Hz in 1Hz increments; that
                 // value is then shifted up by the 3-bit range
-                int freq = op_fix_frequency(opoffs) << 4;
+                int freq = op_fix_frequency(opOffs) << 4;
                 if (freq == 0)
                     freq = 8;
-                freq |= op_fine(opoffs);
-                freq <<= op_fix_range(opoffs);
+                freq |= op_fine(opOffs);
+                freq <<= op_fix_range(opOffs);
 
                 // there is not enough resolution in the plain phase step to track the
                 // full range of frequencies, so we keep a per-operator sub step with an
                 // additional 12 bits of resolution; this calculation gives us, for
                 // example, a frequency of 8.0009Hz when 8Hz is requested
-                int substep = m_phase_substep[opoffs];
+                int substep = m_phase_substep[opOffs];
                 substep += 75 * freq;
                 phase_step = substep >> 12;
-                m_phase_substep[opoffs] = substep & 0xfff;
+                m_phase_substep[opOffs] = substep & 0xfff;
 
                 // detune/multiple occupy the same space as fix_range/fix_frequency so
                 // don't apply them in addition
@@ -643,10 +646,10 @@ public abstract class Opz {
             } else {
                 // start with coarse detune delta; table uses cents value from
                 // manual, converted into 1/64ths
-                int delta = s_detune2_delta[op_detune2(opoffs)];
+                int delta = s_detune2_delta[op_detune2(opOffs)];
 
                 // add in the PM deltas
-                int pm_sensitivity = ch_lfo_pm_sens(choffs);
+                int pm_sensitivity = ch_lfo_pm_sens(chOffs);
                 if (pm_sensitivity != 0) {
                     // raw PM value is -127..128 which is +/- 200 cents
                     // manual gives these magnitudes in cents:
@@ -658,7 +661,7 @@ public abstract class Opz {
                     else
                         delta += lfo_raw_pm << (pm_sensitivity - 5);
                 }
-                int pm_sensitivity2 = ch_lfo2_pm_sens(choffs);
+                int pm_sensitivity2 = ch_lfo2_pm_sens(chOffs);
                 if (pm_sensitivity2 != 0) {
                     // raw PM value is -127..128 which is +/- 200 cents
                     // manual gives these magnitudes in cents:
@@ -684,69 +687,70 @@ public abstract class Opz {
         }
 
         /**
-         * log_keyon - log a key-on event
+         * Logs a key-on event.
          */
         @Override
-        public String log_keyon(int choffs, int opoffs) {
-            int chnum = choffs;
-            int opnum = opoffs;
+        public String log_keyon(int chOffs, int opOffs) {
+            int chnum = chOffs;
+            int opnum = opOffs;
 
             StringBuilder buffer = new StringBuilder();
 
             buffer.append("%d.%02d".formatted(chnum, opnum));
 
-            if (op_fix_mode(opoffs) != 0)
-                buffer.append(" fixfreq=%X fine=%X shift=%X".formatted(op_fix_frequency(opoffs), op_fine(opoffs), op_fix_range(opoffs)));
+            if (op_fix_mode(opOffs) != 0)
+                buffer.append(" fixfreq=%X fine=%X shift=%X".formatted(op_fix_frequency(opOffs), op_fine(opOffs), op_fix_range(opOffs)));
             else
-                buffer.append(" freq=%04X dt2=%d fine=%X".formatted(ch_block_freq(choffs), op_detune2(opoffs), op_fine(opoffs)));
+                buffer.append(" freq=%04X dt2=%d fine=%X".formatted(ch_block_freq(chOffs), op_detune2(opOffs), op_fine(opOffs)));
 
             buffer.append(" dt=%d fb=%d alg=%X mul=%X tl=%02X ksr=%d adsr=%02X/%02X/%02X/%X sl=%X out=%c%c".formatted(
-                    op_detune(opoffs),
-                    ch_feedback(choffs),
-                    ch_algorithm(choffs),
-                    op_multiple(opoffs),
-                    op_total_level(opoffs),
-                    op_ksr(opoffs),
-                    op_attack_rate(opoffs),
-                    op_decay_rate(opoffs),
-                    op_sustain_rate(opoffs),
-                    op_release_rate(opoffs),
-                    op_sustain_level(opoffs),
-                    ch_output_0(choffs) != 0 ? 'L' : '-',
-                    ch_output_1(choffs) != 0 ? 'R' : '-'));
+                    op_detune(opOffs),
+                    ch_feedback(chOffs),
+                    ch_algorithm(chOffs),
+                    op_multiple(opOffs),
+                    op_total_level(opOffs),
+                    op_ksr(opOffs),
+                    op_attack_rate(opOffs),
+                    op_decay_rate(opOffs),
+                    op_sustain_rate(opOffs),
+                    op_release_rate(opOffs),
+                    op_sustain_level(opOffs),
+                    ch_output_0(chOffs) != 0 ? 'L' : '-',
+                    ch_output_1(chOffs) != 0 ? 'R' : '-'));
 
-            if (op_eg_shift(opoffs) != 0)
-                buffer.append(" egshift=%d".formatted(op_eg_shift(opoffs)));
+            if (op_eg_shift(opOffs) != 0)
+                buffer.append(" egshift=%d".formatted(op_eg_shift(opOffs)));
 
-            boolean am = (lfo_am_depth() != 0 && ch_lfo_am_sens(choffs) != 0 && op_lfo_am_enable(opoffs) != 0);
+            boolean am = (lfo_am_depth() != 0 && ch_lfo_am_sens(chOffs) != 0 && op_lfo_am_enable(opOffs) != 0);
             if (am)
-                buffer.append(" am=%d/%02X".formatted(ch_lfo_am_sens(choffs), lfo_am_depth()));
-            boolean pm = (lfo_pm_depth() != 0 && ch_lfo_pm_sens(choffs) != 0);
+                buffer.append(" am=%d/%02X".formatted(ch_lfo_am_sens(chOffs), lfo_am_depth()));
+            boolean pm = (lfo_pm_depth() != 0 && ch_lfo_pm_sens(chOffs) != 0);
             if (pm)
-                buffer.append(" pm=%d/%02X".formatted(ch_lfo_pm_sens(choffs), lfo_pm_depth()));
+                buffer.append(" pm=%d/%02X".formatted(ch_lfo_pm_sens(chOffs), lfo_pm_depth()));
             if (am || pm)
                 buffer.append(" lfo=%02X/%c".formatted(lfo_rate(), "WQTN".charAt(lfo_waveform())));
 
-            boolean am2 = (lfo2_am_depth() != 0 && ch_lfo2_am_sens(choffs) != 0 && op_lfo_am_enable(opoffs) != 0);
+            boolean am2 = (lfo2_am_depth() != 0 && ch_lfo2_am_sens(chOffs) != 0 && op_lfo_am_enable(opOffs) != 0);
             if (am2)
-                buffer.append(" am2=%u/%02X", ch_lfo2_am_sens(choffs), lfo2_am_depth());
-            boolean pm2 = (lfo2_pm_depth() != 0 && ch_lfo2_pm_sens(choffs) != 0);
+                buffer.append(" am2=%u/%02X", ch_lfo2_am_sens(chOffs), lfo2_am_depth());
+            boolean pm2 = (lfo2_pm_depth() != 0 && ch_lfo2_pm_sens(chOffs) != 0);
             if (pm2)
-                buffer.append(" pm2=%u/%02X", ch_lfo2_pm_sens(choffs), lfo2_pm_depth());
+                buffer.append(" pm2=%u/%02X", ch_lfo2_pm_sens(chOffs), lfo2_pm_depth());
             if (am2 || pm2)
                 buffer.append(" lfo2=%02X/%c", lfo2_rate(), "WQTN".charAt(lfo2_waveform()));
 
-            if (op_reverb_rate(opoffs) != 0)
-                buffer.append(" rev=%d".formatted(op_reverb_rate(opoffs)));
-            if (op_waveform(opoffs) != 0)
-                buffer.append(" wf=%d".formatted(op_waveform(opoffs)));
-            if (noise_enable() != 0 && opoffs == 31)
+            if (op_reverb_rate(opOffs) != 0)
+                buffer.append(" rev=%d".formatted(op_reverb_rate(opOffs)));
+            if (op_waveform(opOffs) != 0)
+                buffer.append(" wf=%d".formatted(op_waveform(opOffs)));
+            if (noise_enable() != 0 && opOffs == 31)
                 buffer.append(" noise=1");
 
             return buffer.toString();
         }
 
         // system-wide registers
+
         public final int noise_frequency() {
             return byte_(0x0f, 0, 5);
         }
@@ -846,32 +850,33 @@ public abstract class Opz {
         }
 
         // per-channel registers
+
         public final int ch_volume(int choffs) {
             return byte_(0x00, 0, 8, choffs);
         }
 
         @Override
-        public final int ch_output_any(int choffs) {
-            return byte_(0x20, 7, 1, choffs) | byte_(0x30, 0, 1, choffs);
+        public final int ch_output_any(int chOffs) {
+            return byte_(0x20, 7, 1, chOffs) | byte_(0x30, 0, 1, chOffs);
         }
 
         @Override
-        public final int ch_output_0(int choffs) {
-            return byte_(0x30, 0, 1, choffs);
+        public final int ch_output_0(int chOffs) {
+            return byte_(0x30, 0, 1, chOffs);
         }
 
         @Override
-        public final int ch_output_1(int choffs) {
-            return byte_(0x20, 7, 1, choffs) | byte_(0x30, 0, 1, choffs);
+        public final int ch_output_1(int chOffs) {
+            return byte_(0x20, 7, 1, chOffs) | byte_(0x30, 0, 1, chOffs);
         }
 
         @Override
-        public final int ch_output_2(int choffs) {
+        public final int ch_output_2(int chOffs) {
             return 0;
         }
 
         @Override
-        public final int ch_output_3(int choffs) {
+        public final int ch_output_3(int chOffs) {
             return 0;
         }
 
@@ -880,13 +885,13 @@ public abstract class Opz {
         }
 
         @Override
-        public final int ch_feedback(int choffs) {
-            return byte_(0x20, 3, 3, choffs);
+        public final int ch_feedback(int chOffs) {
+            return byte_(0x20, 3, 3, chOffs);
         }
 
         @Override
-        public final int ch_algorithm(int choffs) {
-            return byte_(0x20, 0, 3, choffs);
+        public final int ch_algorithm(int chOffs) {
+            return byte_(0x20, 0, 3, chOffs);
         }
 
         public final int ch_block_freq(int choffs) {
@@ -910,6 +915,7 @@ public abstract class Opz {
         } // fake
 
         // per-operator registers
+
         public final int op_detune(int opoffs) {
             return byte_(0x40, 4, 3, opoffs);
         }
@@ -951,8 +957,8 @@ public abstract class Opz {
         }
 
         @Override
-        public final int op_lfo_am_enable(int opoffs) {
-            return byte_(0xa0, 7, 1, opoffs);
+        public final int op_lfo_am_enable(int opOffs) {
+            return byte_(0xa0, 7, 1, opOffs);
         }
 
         public final int op_decay_rate(int opoffs) {
@@ -983,54 +989,67 @@ public abstract class Opz {
             return byte_(0xe0, 0, 4, opoffs);
         }
 
+        /** Returns a bitfield extracted from a byte */
         protected final int byte_(int offset, int start, int count) {
             return byte_(offset, start, count, 0);
         }
 
-        // return a bitfield extracted from a byte
+        /** Returns a bitfield extracted from a byte */
         protected final int byte_(int offset, int start, int count, int extra_offset/* = 0 */) {
             return bitfield(m_regdata[offset + extra_offset], start, count);
         }
 
+        /** Return a bitfield extracted from a pair of bytes, MSBs listed first */
         protected final int word(int offset1, int start1, int count1, int offset2, int start2, int count2) {
             return word(offset1, start1, count1, offset2, start2, count2, 0);
         }
 
-        // return a bitfield extracted from a pair of bytes, MSBs listed first
+        /** Return a bitfield extracted from a pair of bytes, MSBs listed first */
         protected final int word(int offset1, int start1, int count1, int offset2, int start2, int count2, int extra_offset/* = 0*/) {
             return (byte_(offset1, start1, count1, extra_offset) << count2) | byte_(offset2, start2, count2, extra_offset);
         }
 
         // internal state
+
+        /** LFO counter */
         @Element(sequence = 0)
-        protected int[] m_lfo_counter = new int[2];            // LFO counter
+        protected final int[] m_lfo_counter = new int[2];
+        /** noise LFSR state */
         @Element(sequence = 2)
-        protected int m_noise_lfsr;                // noise LFSR state
+        protected int m_noise_lfsr;
+        /** noise counter */
         @Element(sequence = 3)
-        protected int m_noise_counter;              // noise counter
+        protected int m_noise_counter;
+        /** latched noise state */
         @Element(sequence = 4)
-        protected int m_noise_state;                // latched noise state
+        protected int m_noise_state;
+        /** latched LFO noise value */
         @Element(sequence = 5)
-        protected int m_noise_lfo;                  // latched LFO noise value
+        protected int m_noise_lfo;
+        /** current LFO AM value */
         @Element(sequence = 1)
-        protected int[] m_lfo_am = new int[2];                  // current LFO AM value
+        protected final int[] m_lfo_am = new int[2];
+        /** register data */
         @Element(sequence = 6)
-        protected int[] m_regdata = new int[REGISTERS];         // register data
+        protected final int[] m_regdata = new int[REGISTERS];
+        /** phase substep for fixed frequency */
         @Element(sequence = 7)
-        protected int[] m_phase_substep = new int[OPERATORS];  // phase substep for fixed frequency
-        protected int[][] m_lfo_waveform = new int[4][LFO_WAVEFORM_LENGTH]; // LFO waveforms; AM in low 8, PM in upper 8
-        protected int[][] m_waveform = new int[WAVEFORMS][WAVEFORM_LENGTH]; // waveforms
+        protected final int[] m_phase_substep = new int[OPERATORS];
+        /** LFO waveforms; AM in low 8, PM in upper 8 */
+        protected final int[][] m_lfo_waveform = new int[4][LFO_WAVEFORM_LENGTH];
+        /** waveforms */
+        protected final int[][] m_waveform = new int[WAVEFORMS][WAVEFORM_LENGTH];
     }
 
-    //*********************************************************
-    //  IMPLEMENTATION CLASSES
-    //*********************************************************
+    //
+    // IMPLEMENTATION CLASSES
+    //
 
-    // ======================> ym2414
+    //
+    // YM2414
+    //
 
-    //*********************************************************
-    //  YM2414
-    //*********************************************************
+    /** ym2414 */
     @Serdes
     public static class Ym2414 implements YmFm.Chip {
 
@@ -1055,7 +1074,7 @@ public abstract class Opz {
         }
 
         /**
-         * ym2414 - constructor
+         * Constructor.
          */
         public Ym2414(YmFm.Interface intf) {
             m_address = 0;
@@ -1065,7 +1084,7 @@ public abstract class Opz {
         }
 
         /**
-         * reset - reset the system
+         * Reset the system.
          */
         @Override
         public void reset() {
@@ -1074,7 +1093,7 @@ public abstract class Opz {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         @Override
         public void save(OutputStream os) throws IOException {
@@ -1083,7 +1102,7 @@ public abstract class Opz {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         @Override
         public void restore(InputStream is) throws IOException {
@@ -1092,6 +1111,7 @@ public abstract class Opz {
         }
 
         // pass-through helpers
+
         @Override
         public final int sample_rate(int input_clock) {
             return m_fm.sample_rate(input_clock);
@@ -1102,7 +1122,7 @@ public abstract class Opz {
         }
 
         /**
-         * read_status - read the status register
+         * Reads the status register.
          */
         public int read_status() {
             int result = m_fm.status();
@@ -1112,14 +1132,14 @@ public abstract class Opz {
         }
 
         /**
-         * read - handle a read from the device
+         * Handle a read from the device.
          */
         @Override
         public int read(int offset) {
             int result = 0xff;
             switch (offset & 1) {
                 case 0: // data port (unused)
-                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YM2414 offset %d", offset & 3);
+                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YM2414 offset %d".formatted(offset & 3));
                     break;
 
                 case 1: // status port, YM2203 compatible
@@ -1130,8 +1150,7 @@ public abstract class Opz {
         }
 
         /**
-         * write_address - handle a write to the address
-         * register
+         * Handles a write to the address register.
          */
         public void write_address(int data) {
             // just set the address
@@ -1139,8 +1158,7 @@ public abstract class Opz {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
         public void write_data(int data) {
             // write the FM register
@@ -1211,8 +1229,7 @@ public abstract class Opz {
         }
 
         /**
-         * write - handle a write to the register
-         * interface
+         * Handles a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
@@ -1228,25 +1245,28 @@ public abstract class Opz {
         }
 
         /**
-         * generate - generate one sample of sound
+         * Generate one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock(Registers.ALL_CHANNELS);
 
                 // update the FM content; YM2414 is full 14-bit with no intermediate clipping
-                m_fm.output(output.clear(), 0, 32767, Registers.ALL_CHANNELS);
+                m_fm.output(output[samp].clear(), 0, 32767, Registers.ALL_CHANNELS);
 
                 // unsure about YM2414 outputs; assume it is like YM2151
-                output.roundtrip_fp();
+                output[samp].roundtrip_fp();
             }
         }
 
         // internal state
+
+        /** address register */
         @Element
-        protected int m_address;               // address register
-        protected FmEngine m_fm;                  // core FM engine
+        protected int m_address;
+        /** core FM engine */
+        protected final FmEngine m_fm;
     }
 }

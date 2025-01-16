@@ -44,36 +44,37 @@ import static vavi.sound.ymfm.YmFm.bitfield;
 
 abstract class Ssg {
 
-    //*********************************************************
-    //  OVERRIDE INTERFACE
-    //*********************************************************
+    //
+    // OVERRIDE INTERFACE
+    //
 
-    // ======================> SsgOverride
-
-    // this class describes a simple interface to allow the internal SSG to be
-    // overridden with another implementation
+    /**
+     * SsgOverride
+     * <p>
+     * this class describes a simple interface to allow the internal SSG to be
+     * overridden with another implementation
+     */
     public interface Override {
 
         void ssg_reset();
 
         // read/write to the SSG registers
-        byte ssg_read(int regnum);
 
-        void ssg_write(int regnum, int data);
+        byte ssg_read(int regNum);
 
-        // notification when the prescale has changed
+        void ssg_write(int regNum, int data);
+
+        /** notification when the prescale has changed */
         void ssg_prescale_changed();
     }
 
-    //*********************************************************
-    //  REGISTER CLASS
-    //*********************************************************
+    //
+    // REGISTER CLASS
+    //
 
-    // ======================> SsgRegisters
-
-    //*********************************************************
+    //
     // SSG REGISTERS
-    //*********************************************************
+    //
 
     //
     // SSG register map:
@@ -103,50 +104,54 @@ abstract class Ssg {
     //     08,09,0A ---x---- Mode: fixed(0) or variable(1) for channel A,B,C
     //              ----xxxx Amplitude for channel A,B,C
     //
+
+    /** SsgRegisters */
     @Serdes
     protected static class Registers {
 
         // constants
-        public static final int OUTPUTS = 3;
-        public static final int CHANNELS = 3;
-        public static final int REGISTERS = 0x10;
-        public static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
+        protected static final int OUTPUTS = 3;
+        protected static final int CHANNELS = 3;
+        protected static final int REGISTERS = 0x10;
+        protected static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
 
-        // constructor
+        /** Constructor */
         public Registers() {
         }
 
         /**
-         * reset - reset the register state
+         * Resets the register state.
          */
         public void reset() {
             Arrays.fill(m_regdata, 0, REGISTERS, 0);
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         public void save(OutputStream os) throws IOException {
             Serdes.Util.serialize(this, os);
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         public void restore(InputStream is) throws IOException {
             Serdes.Util.deserialize(is, this);
         }
 
         // direct read/write access
-        int read(int index) {
+
+        public int read(int index) {
             return m_regdata[index];
         }
 
-        void write(int index, int data) {
+        public void write(int index, int data) {
             m_regdata[index] = data;
         }
 
         // system-wide registers
+
         public final int noise_period() {
             return bitfield(m_regdata[0x06], 0, 5);
         }
@@ -188,6 +193,7 @@ abstract class Ssg {
         }
 
         // per-channel registers
+
         public final int ch_noise_enable_n(int choffs) {
             return bitfield(m_regdata[0x07], 3 + choffs);
         }
@@ -209,21 +215,23 @@ abstract class Ssg {
         }
 
         // internal state
+
+        /** register data */
         @Element
-        private int[] m_regdata = new int[REGISTERS];         // register data
+        private final int[] m_regdata = new int[REGISTERS];
     }
 
-    // ======================> SsgEngine
-
-    //*********************************************************
+    //
     // SSG ENGINE
-    //*********************************************************
+    //
+
+    /** SsgEngine */
     @Serdes
     protected static class Engine extends YmFm.Interface {
 
-        public static final int OUTPUTS = Registers.OUTPUTS;
-        public static final int CHANNELS = Registers.CHANNELS;
-        public static final int CLOCK_DIVIDER = 8;
+        protected static final int OUTPUTS = Registers.OUTPUTS;
+        protected static final int CHANNELS = Registers.CHANNELS;
+        protected static final int CLOCK_DIVIDER = 8;
 
         //using output_data = Output<OUTPUTS>;
         public YmFm.Output outputFactory() {
@@ -231,7 +239,7 @@ abstract class Ssg {
         }
 
         /**
-         * SsgEngine - constructor
+         * Constructor.
          */
         public Engine(YmFm.Interface intf) {
             m_intf = intf;
@@ -246,13 +254,13 @@ abstract class Ssg {
             m_regs = new Ssg.Registers();
         }
 
-        // configure an override
-        void override(Ssg.Override override) {
+        /** Configures an override */
+        public void override(Ssg.Override override) {
             m_override = override;
         }
 
         /**
-         * reset - reset the engine state
+         * Resets the engine state.
          */
         public void reset() {
             // defer to the override if present
@@ -276,7 +284,7 @@ abstract class Ssg {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Saves the data.
          */
         public void save(OutputStream os) throws IOException {
             // save register state
@@ -287,7 +295,7 @@ abstract class Ssg {
         }
 
         /**
-         * save_restore - save or restore the data
+         * Restores the data.
          */
         public void restore(InputStream is) throws IOException {
             // save register state
@@ -298,7 +306,7 @@ abstract class Ssg {
         }
 
         /**
-         * clock - master clocking function
+         * Master clocking function.
          */
         public void clock() {
             // clock tones; tone period units are clock/16 but since we run at clock/8
@@ -332,7 +340,7 @@ abstract class Ssg {
             }
         }
 
-        static final int[] s_amplitudes = {
+        private static final int[] s_amplitudes = {
                 0, 32, 78, 141, 178, 222, 262, 306,
                 369, 441, 509, 585, 701, 836, 965, 1112,
                 1334, 1595, 1853, 2146, 2576, 3081, 3576, 4135,
@@ -340,7 +348,7 @@ abstract class Ssg {
         };
 
         /**
-         * output - output the current state
+         * Outputs the current state.
          */
         public void output(YmFm.Output output) {
             // volume to amplitude table, taken from MAME's implementation but biased
@@ -389,83 +397,93 @@ abstract class Ssg {
         }
 
         /**
-         * read - handle reads from the SSG registers
+         * Handles reads from the SSG registers.
          */
-        public int read(int regnum) {
+        public int read(int regNum) {
             // defer to the override if present
             if (m_override != null)
-                return m_override.ssg_read(regnum);
+                return m_override.ssg_read(regNum);
 
             // read from the I/O ports call the handlers if they are configured for input
-            if (regnum == 0x0e && m_regs.io_a_out() == 0)
+            if (regNum == 0x0e && m_regs.io_a_out() == 0)
                 return m_intf.ymfm_external_read(IO, 0);
-            else if (regnum == 0x0f && m_regs.io_b_out() == 0)
+            else if (regNum == 0x0f && m_regs.io_b_out() == 0)
                 return m_intf.ymfm_external_read(IO, 1);
 
             // otherwise just return the register value
-            return m_regs.read(regnum);
+            return m_regs.read(regNum);
         }
 
         /**
-         * write - handle writes to the SSG registers
+         * Handles writes to the SSG registers.
          */
-        public void write(int regnum, int data) {
+        public void write(int regNum, int data) {
             // defer to the override if present
             if (m_override != null) {
-                m_override.ssg_write(regnum, data);
+                m_override.ssg_write(regNum, data);
                 return;
             }
 
             // store the raw value to the register array;
             // most writes are passive, consumed only when needed
-            m_regs.write(regnum, data);
+            m_regs.write(regNum, data);
 
             // writes to the envelope shape register reset the state
-            if (regnum == 0x0d)
+            if (regNum == 0x0d)
                 m_envelope_state = 0;
 
                 // writes to the I/O ports call the handlers if they are configured for output
-            else if (regnum == 0x0e && m_regs.io_a_out() != 0)
+            else if (regNum == 0x0e && m_regs.io_a_out() != 0)
                 m_intf.ymfm_external_write(IO, 0, data);
-            else if (regnum == 0x0f && m_regs.io_b_out() != 0)
+            else if (regNum == 0x0f && m_regs.io_b_out() != 0)
                 m_intf.ymfm_external_write(IO, 1, data);
         }
 
-        // return a reference to our interface
+        /** Returns a reference to our interface */
         public YmFm.Interface intf() {
             return m_intf;
         }
 
-        // return a reference to our registers
+        /** return a reference to our registers */
         public Ssg.Registers regs() {
             return m_regs;
         }
 
-        // true if we are overridden
+        /** true if we are overridden */
         public final boolean overridden() {
             return (m_override != null);
         }
 
-        // indicate the prescale has changed
+        /** indicate the prescale has changed */
         public void prescale_changed() {
             if (m_override != null) m_override.ssg_prescale_changed();
         }
 
         // internal state
-        private YmFm.Interface m_intf;                   // reference to the interface
+
+        /** reference to the interface */
+        private final YmFm.Interface m_intf;
+        /** current tone counter */
         @Element(sequence = 0)
-        private int[] m_tone_count = new int[3];               // current tone counter
+        private final int[] m_tone_count = new int[3];
+        /** current tone state */
         @Element(sequence = 1)
-        private int[] m_tone_state = new int[3];               // current tone state
+        private final int[] m_tone_state = new int[3];
+        /** envelope counter */
         @Element(sequence = 2)
-        private int m_envelope_count;              // envelope counter
+        private int m_envelope_count;
+        /** envelope state */
         @Element(sequence = 3)
-        private int m_envelope_state;              // envelope state
+        private int m_envelope_state;
+        /** current noise counter */
         @Element(sequence = 4)
-        private int m_noise_count;                 // current noise counter
+        private int m_noise_count;
+        /** current noise state */
         @Element(sequence = 5)
-        private int m_noise_state;                 // current noise state
-        private Ssg.Registers m_regs;                   // registers
-        private Ssg.Override m_override;               // override interface
+        private int m_noise_state;
+        /** registers */
+        private final Ssg.Registers m_regs;
+        /** override interface */
+        private Ssg.Override m_override;
     }
 }

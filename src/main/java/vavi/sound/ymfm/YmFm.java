@@ -35,7 +35,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
-import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -47,12 +46,8 @@ import vavi.sound.ymfm.Opl.Ymf278b;
 import vavi.sound.ymfm.Opn.Ym2203;
 import vavi.sound.ymfm.Opn.Ym2608;
 import vavi.sound.ymfm.Opn.Ym2610;
-import vavi.sound.ymfm.YmFm.AccessClass;
-import vavi.sound.ymfm.YmFm.Interface;
-import vavi.sound.ymfm.YmFm.VgmChipBase;
 import vavi.util.serdes.Element;
 import vavi.util.serdes.Serdes;
-import vavi.util.win32.WAVE.data;
 
 import static java.lang.System.getLogger;
 import static vavi.sound.ymfm.YmFm.AccessClass.PCM;
@@ -62,18 +57,24 @@ public abstract class YmFm {
 
     private static final Logger logger = getLogger(YmFm.class.getName());
 
-    //*********************************************************
-    //  DEBUGGING
-    //*********************************************************
+    //
+    // DEBUGGING
+    //
+
     public abstract static class Debug {
 
-        private Debug() {}
+        private Debug() {
+            logger.log(Level.DEBUG, "GLOBAL_FM_CHANNEL_MASK: %08x".formatted(GLOBAL_FM_CHANNEL_MASK));
+            logger.log(Level.DEBUG, "GLOBAL_ADPCM_A_CHANNEL_MASK: %08x".formatted(GLOBAL_ADPCM_A_CHANNEL_MASK));
+            logger.log(Level.DEBUG, "GLOBAL_ADPCM_B_CHANNEL_MASK: %08x".formatted(GLOBAL_ADPCM_B_CHANNEL_MASK));
+            logger.log(Level.DEBUG, "GLOBAL_PCM_CHANNEL_MASK: %08x".formatted(GLOBAL_PCM_CHANNEL_MASK));
+        }
 
         // masks to help isolate specific channels
-        public static final int GLOBAL_FM_CHANNEL_MASK = 0xffff_ffff;
-        public static final int GLOBAL_ADPCM_A_CHANNEL_MASK = 0xffff_ffff;
-        public static final int GLOBAL_ADPCM_B_CHANNEL_MASK = 0xffff_ffff;
-        public static final int GLOBAL_PCM_CHANNEL_MASK = 0xffff_ffff;
+        public static int GLOBAL_FM_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.fm", "0xffffffff"));
+        public static int GLOBAL_ADPCM_A_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.adpcmA", "0xffffffff"));
+        public static int GLOBAL_ADPCM_B_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.adpcmB", "0xffffffff"));
+        public static int GLOBAL_PCM_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.pcm", "0xffffffff"));
 
         // types of logging
 
@@ -83,31 +84,28 @@ public abstract class YmFm {
         public static final Logger log_unexpected_read_write = getLogger("LOG_UNEXPECTED_READ_WRITES");
     }
 
-    //*********************************************************
-    //  GLOBAL HELPERS
-    //*********************************************************
+    //
+    // GLOBAL HELPERS
+    //
 
-    public interface TriConsumer<T, U, V> {
-
-        void accept(T var1, U var2, V var3);
+    /**
+     * Extracts a bitfield from the given value,
+     * starting at bit 'start' for a length of 'length' bits
+     */
+    static int bitfield(int value, int start, int length /* = 1 */) {
+        return (value >>> start) & ((1 << length) - 1);
     }
 
     /**
-     * bitfield - extract a bitfield from the given
-     * value, starting at bit 'start' for a length of
-     * 'length' bits
+     * Extracts a bitfield from the given value,
+     * starting at bit 'start' for a length of 'length' bits
      */
-    static int bitfield(int value, int start, int length /* = 1 */) {
-        return (value >> start) & ((1 << length) - 1);
-    }
-
     static int bitfield(int value, int start) {
         return bitfield(value, start, 1);
     }
 
     /**
-     * clamp - clamp between the minimum and maximum
-     * values provided
+     * Clamps between the minimum and maximum values provided.
      */
     static int clamp(int value, int minval, int maxval) {
         if (value < minval)
@@ -118,10 +116,8 @@ public abstract class YmFm {
     }
 
     /**
-     * count_leading_zeros - return the number of
-     * leading zeros in a 32-bit value; CPU-optimized
-     * versions for various architectures are included
-     * below
+     * Returns the number of leading zeros in a 32-bit value;
+     * CPU-optimized versions for various architectures are included below.
      */
     static int count_leading_zeros(int value) {
         if (value == 0)
@@ -153,9 +149,8 @@ public abstract class YmFm {
     // 0 0xxxxxxxx------  ->  1 0xxxxxxxx------  ->  111   0  0xxxxxxx
 
     /**
-     * encode_fp - given a 32-bit signed input value
-     * convert it to a signed 3.10 floating-point
-     * value
+     * Given a 32-bit signed input value,
+     * convert it to a signed 3.10 floating-point value
      */
     static int encode_fp(int value) {
         // handle overflows first
@@ -182,20 +177,18 @@ public abstract class YmFm {
     }
 
     /**
-     * decode_fp - given a 3.10 floating-point value,
-     * convert it to a signed 16-bit value
+     * Given a 3.10 floating-point value, convert it to a signed 16-bit value.
      */
     static int decode_fp(int value) {
         // invert the sign and the exponent
         value ^= 0x1e00;
 
         // shift mantissa up to 16 bits then apply inverted exponent
-        return (int) ((value << 6) >> bitfield(value, 10, 3));
+        return (value << 6) >> bitfield(value, 10, 3);
     }
 
     /**
-     * roundtrip_fp - compute the result of a round
-     * trip through the encode/decode process above
+     * Computes the result of a round trip through the encode/decode process above.
      */
     static int roundtrip_fp(int value) {
         // handle overflows first
@@ -217,12 +210,12 @@ public abstract class YmFm {
         // apply the shift back and forth to zero out bits that are lost
         exponent -= 1;
         int mask = (1 << exponent) - 1;
-        return (int) (value & ~mask);
+        return value & ~mask;
     }
 
-    //*********************************************************
+    //
     // HELPER CLASSES
-    //*********************************************************
+    //
 
     public interface Chip {
         YmFm.Output outputFactory();
@@ -233,21 +226,23 @@ public abstract class YmFm {
         void restore(InputStream is) throws IOException;
         int read(int offset);
         void write(int offset, int data);
-        void generate(Output output, int numSamples);
+        void generate(YmFm.Output[] output, int numSamples);
     }
 
-    // various envelope states
+    /** various envelope states */
     protected enum EnvelopeState {
-        EG_DEPRESS,        // OPLL only; set EG_HAS_DEPRESS to enable
+        /** OPLL only; set EG_HAS_DEPRESS to enable */
+        EG_DEPRESS,
         EG_ATTACK,
         EG_DECAY,
         EG_SUSTAIN,
         EG_RELEASE,
-        EG_REVERB,        // OPQ/OPZ only; set EG_HAS_REVERB to enable
+        /** OPQ/OPZ only; set EG_HAS_REVERB to enable */
+        EG_REVERB,
         EG_STATES
     }
 
-    // external I/O access classes
+    /** external I/O access classes */
     public enum AccessClass {
         IO,
         ADPCM_A,
@@ -256,20 +251,21 @@ public abstract class YmFm {
         CLASSES
     }
 
-    //*********************************************************
-    //  HELPER CLASSES
-    //*********************************************************
+    //
+    // HELPER CLASSES
+    //
 
-    // ======================> Output
-
-    // struct containing an array of output values
+    /**
+     * ymfm_output.
+     *
+     * struct containing an array of output values
+     */
     @Serdes
     public static class Output {
 
         private final int numOutputs;
-        private int pos = 0;
 
-        Output(int numOutputs) {
+        public Output(int numOutputs) {
             this.numOutputs = numOutputs;
 
             data = new int[numOutputs];
@@ -300,43 +296,38 @@ public abstract class YmFm {
             return this;
         }
 
-        void inc() {
-            pos++;
-        }
-
-        int pos() {
-            return pos;
-        }
-
         // internal state
+
         @Element
         public int[] data;
     }
 
-    // ======================> WavFile
-
-    // this class is a debugging helper that accumulates data and writes it to wav files
+    /**
+     * WavFile.
+     *
+     * this class is a debugging helper that accumulates data and writes it to wav files.
+     */
     public abstract static class WavFile implements AutoCloseable {
 
         protected abstract int getChannels();
 
-        // construction
-        public WavFile(int samplerate /* = 44100 */) {
+        /** construction */
+        protected WavFile(int samplerate /* = 44100 */) {
             m_samplerate = samplerate;
         }
 
-        // configuration
+        /** configuration */
         public WavFile set_index(int index) {
             m_index = index;
             return this;
         }
 
-        public WavFile set_samplerate(int samplerate) {
-            m_samplerate = samplerate;
+        public WavFile set_sampleRate(int sampleRate) {
+            m_samplerate = sampleRate;
             return this;
         }
 
-        // destruction
+        /**  destruction */
         @Override
         public void close() throws IOException {
             if (!m_buffer.isEmpty()) {
@@ -365,7 +356,7 @@ public abstract class YmFm {
             }
         }
 
-        // add data to the file
+        /** Adds data to the file */
         //template<int Outputs>
         public void add(YmFm.Output output) {
             int[] sum = new int[getChannels()];
@@ -375,9 +366,9 @@ public abstract class YmFm {
                 m_buffer.add(sum[index]);
         }
 
-        // add data to the file, using a reference
+        /** Adds data to the file, using a reference */
         //template<int Outputs>
-        public void add(YmFm.Output output, final Output ref) {
+        public void add(YmFm.Output output, Output ref) {
             int[] sum = new int[getChannels()];
             for (int index = 0; index < output.getNumOutputs(); index++)
                 sum[index % getChannels()] += output.data[index] - ref.data[index];
@@ -386,40 +377,45 @@ public abstract class YmFm {
         }
 
         // internal state
+
         private int m_index;
         private int m_samplerate;
         List<Integer> m_buffer;
     }
 
-    //*********************************************************
-    //  INTERFACE CLASSES
-    //*********************************************************
+    //
+    // INTERFACE CLASSES
+    //
 
-    // ======================> EngineCallbacks
-
-    // this class represents functions in the engine that the YmFmInterface
-    // needs to be able to call; it is represented here as a separate interface
-    // that is independent of the actual engine implementation
+    /**
+     * EngineCallbacks
+     *
+     * This class represents functions in the engine that the YmFmInterface
+     * needs to be able to call; it is represented here as a separate interface
+     * that is independent of the actual engine implementation.
+     */
     public interface EngineCallbacks {
 
-        // timer callback; called by the interface when a timer fires
+        /** timer callback; called by the interface when a timer fires */
         void engine_timer_expired(int tnum);
 
-        // check interrupts; called by the interface after synchronization
+        /** check interrupts; called by the interface after synchronization */
         void engine_check_interrupts();
 
-        // mode register write; called by the interface after synchronization
+        /** mode register write; called by the interface after synchronization */
         void engine_mode_write(int data);
     }
 
-    // ======================> YmFmInterface
-
-    // this class represents the interface between the fm_engine and the outside
-    // world; it provides hooks for timers, synchronization, and I/O
+    /**
+     * YmFmInterface
+     *
+     * This class represents the interface between the fm_engine and the outside
+     * world; it provides hooks for timers, synchronization, and I/O.
+     */
     public abstract static class Interface {
         // the engine is our friend
 //		template<typename RegisterType> friend class EngineBase;
-//		EngineBase EngineBase;
+//		EngineBase engineBase;
 
         // the following functions must be implemented by any derived classes; the
         // default implementations are sufficient for some minimal operation, but will
@@ -430,40 +426,50 @@ public abstract class YmFm {
         // timing and synchronization
         //
 
-        // the chip implementation calls this when a write happens to the mode
-        // register, which could affect timers and interrupts; our responsibility
-        // is to ensure the system is up to date before calling the engine's
-        // engine_mode_write() method
+        /**
+         * the chip implementation calls this when a write happens to the mode
+         * register, which could affect timers and interrupts; our responsibility
+         * is to ensure the system is up to date before calling the engine's
+         * engine_mode_write() method
+         */
         void ymfm_sync_mode_write(int data) {
             m_engine.engine_mode_write(data);
         }
 
-        // the chip implementation calls this when the chip's status has changed,
-        // which may affect the interrupt state; our responsibility is to ensure
-        // the system is up to date before calling the engine's
-        // engine_check_interrupts() method
+        /**
+         * the chip implementation calls this when the chip's status has changed,
+         * which may affect the interrupt state; our responsibility is to ensure
+         * the system is up to date before calling the engine's
+         * engine_check_interrupts() method
+         */
         void ymfm_sync_check_interrupts() {
             m_engine.engine_check_interrupts();
         }
 
-        // the chip implementation calls this when one of the two internal timers
-        // has changed state; our responsibility is to arrange to call the engine's
-        // engine_timer_expired() method after the provided number of clocks; if
-        // duration_in_clocks is negative, we should cancel any outstanding timers
+        /**
+         * the chip implementation calls this when one of the two internal timers
+         * has changed state; our responsibility is to arrange to call the engine's
+         * engine_timer_expired() method after the provided number of clocks; if
+         * duration_in_clocks is negative, we should cancel any outstanding timers
+         */
         void ymfm_set_timer(int tnum, int duration_in_clocks) {
         }
 
-        // the chip implementation calls this to indicate that the chip should be
-        // considered in a busy state until the given number of clocks has passed;
-        // our responsibility is to compute and remember the ending time based on
-        // the chip's clock for later checking
+        /**
+         * the chip implementation calls this to indicate that the chip should be
+         * considered in a busy state until the given number of clocks has passed;
+         * our responsibility is to compute and remember the ending time based on
+         * the chip's clock for later checking
+         */
         void ymfm_set_busy_end(int clocks) {
         }
 
-        // the chip implementation calls this to see if the chip is still currently
-        // is a busy state, as specified by a previous call to ymfm_set_busy_end();
-        // our responsibility is to compare the current time against the previously
-        // noted busy end time and return true if we haven't yet passed it
+        /**
+         * the chip implementation calls this to see if the chip is still currently
+         * is a busy state, as specified by a previous call to ymfm_set_busy_end();
+         * our responsibility is to compare the current time against the previously
+         * noted busy end time and return true if we haven't yet passed it
+         */
         boolean ymfm_is_busy() {
             return false;
         }
@@ -472,31 +478,41 @@ public abstract class YmFm {
         // I/O functions
         //
 
-        // the chip implementation calls this when the state of the IRQ signal has
-        // changed due to a status change; our responsibility is to respond as
-        // needed to the change in IRQ state, signaling any consumers
+        /**
+         * the chip implementation calls this when the state of the IRQ signal has
+         * changed due to a status change; our responsibility is to respond as
+         * needed to the change in IRQ state, signaling any consumers
+         */
         void ymfm_update_irq(boolean asserted) {
         }
 
-        // the chip implementation calls this whenever data is read from outside
-        // of the chip; our responsibility is to provide the data requested
-        int ymfm_external_read(AccessClass type, int address) {
+        /**
+         * the chip implementation calls this whenever data is read from outside
+         * of the chip; our responsibility is to provide the data requested
+         */
+        int ymfm_external_read(YmFm.AccessClass type, int address) {
             return 0;
         }
 
-        // the chip implementation calls this whenever data is written outside
-        // of the chip; our responsibility is to pass the written data on to any consumers
+        /**
+         * the chip implementation calls this whenever data is written outside
+         * of the chip; our responsibility is to pass the written data on to any consumers
+         */
         void ymfm_external_write(AccessClass type, int address, int data) {
         }
 
-        // pointer to engine callbacks -- this is set directly by the engine at
-        // construction time
+        /**
+         * Pointer to engine callbacks.
+         * this is set directly by the engine at construction time.
+         */
         EngineCallbacks m_engine;
     }
 
-    // the values here are stored as 4.8 logarithmic values for 1/4 phase
-    // this matches the internal format of the OPN chip, extracted from the die
-    static final int[] s_sin_table = {
+    /**
+     * the values here are stored as 4.8 logarithmic values for 1/4 phase
+     * this matches the internal format of the OPN chip, extracted from the die
+     */
+    protected static final int[] s_sin_table = {
             0x859, 0x6c3, 0x607, 0x58b, 0x52e, 0x4e4, 0x4a6, 0x471, 0x443, 0x41a, 0x3f5, 0x3d3, 0x3b5, 0x398, 0x37e, 0x365,
             0x34e, 0x339, 0x324, 0x311, 0x2ff, 0x2ed, 0x2dc, 0x2cd, 0x2bd, 0x2af, 0x2a0, 0x293, 0x286, 0x279, 0x26d, 0x261,
             0x256, 0x24b, 0x240, 0x236, 0x22c, 0x222, 0x218, 0x20f, 0x206, 0x1fd, 0x1f5, 0x1ec, 0x1e4, 0x1dc, 0x1d4, 0x1cd,
@@ -516,8 +532,7 @@ public abstract class YmFm {
     };
 
     /**
-     * abs_sin_attenuation - given a sin (phase) input
-     * where the range 0-2*PI is mapped onto 10 bits,
+     * Given a sin (phase) input where the range 0-2*PI is mapped onto 10 bits,
      * return the absolute value of sin(input),
      * logarithmically-adjusted and treated as an
      * attenuation value, in 4.8 fixed point format
@@ -532,9 +547,11 @@ public abstract class YmFm {
         return s_sin_table[input & 0xff];
     }
 
-    // as a nod to performance, the implicit 0x400 bit is pre-incorporated, and
-    // the values are left-shifted by 2 so that a simple right shift is all that
-    // is needed; also the order is reversed to save a NOT on the input
+    /**
+     * as a nod to performance, the implicit 0x400 bit is pre-incorporated, and
+     * the values are left-shifted by 2 so that a simple right shift is all that
+     * is needed; also the order is reversed to save a NOT on the input
+     */
     private static int X(int a) {
         return a | 0x400 << 2;
     }
@@ -608,11 +625,9 @@ public abstract class YmFm {
     };
 
     /**
-     * attenuation_increment - given a 6-bit ADSR
-     * rate value and a 3-bit stepping index,
-     * return a 4-bit increment to the attenutaion
-     * for this step (or for the attack case, the
-     * fractional scale factor to decrease by)
+     * Given a 6-bit ADSR rate value and a 3-bit stepping index,
+     * return a 4-bit increment to the attenutaion for this step
+     * (or for the attack case, the fractional scale factor to decrease by)
      */
     static int attenuation_increment(int rate, int index) {
         return bitfield(s_increment_table[rate], 4 * index, 4);
@@ -630,10 +645,9 @@ public abstract class YmFm {
     };
 
     /**
-     * detune_adjustment - given a 5-bit key code
-     * value and a 3-bit detune parameter, return a
-     * 6-bit signed phase displacement; this table
-     * has been verified against Nuked's equations,
+     * Given a 5-bit key code value and a 3-bit detune parameter,
+     * return a 6-bit signed phase displacement;
+     * this table has been verified against Nuked's equations,
      * but the equations are rather complicated, so
      * we'll keep the simplicity of the table
      */
@@ -777,8 +791,7 @@ public abstract class YmFm {
     };
 
     /**
-     * opn_lfo_pm_phase_adjustment - given the 7 most
-     * significant frequency number bits, plus a 3-bit
+     * Given the 7 most significant frequency number bits, plus a 3-bit
      * PM depth value and a signed 5-bit raw PM value,
      * return a signed PM adjustment to the frequency;
      * algorithm written to match Nuked behavior
@@ -789,7 +802,7 @@ public abstract class YmFm {
         // value containing 0-2 bits
         // look up the relevant shifts
         int abs_pm = (lfo_raw_pm < 0) ? -lfo_raw_pm : lfo_raw_pm;
-        final int shifts = s_lfo_pm_shifts[pm_sensitivity][bitfield(abs_pm, 0, 3)];
+        int shifts = s_lfo_pm_shifts[pm_sensitivity][bitfield(abs_pm, 0, 3)];
 
         // compute the adjustment
         int adjust = (fnum_bits >> bitfield(shifts, 0, 4)) + (fnum_bits >> bitfield(shifts, 4, 4));
@@ -803,7 +816,7 @@ public abstract class YmFm {
 
     // --- practical use
 
-    // run this many dummy clocks of each chip before generating
+    /** run this many dummy clocks of each chip before generating */
     static int EXTRA_CLOCKS = 0;
 
     /**
@@ -822,6 +835,10 @@ public abstract class YmFm {
             return m_type;
         }
 
+        public final void setName(String name) {
+            m_name = name;
+        }
+
         public abstract int sample_rate();
 
         /** required methods for derived classes to implement */
@@ -833,15 +850,16 @@ public abstract class YmFm {
         public void write_data(AccessClass type, int base, int length, byte[] src, int offset) {
             int end = base + length;
             if (m_data[type.ordinal()] == null) {
-                m_data[type.ordinal()] = new Output(end);
+                m_data[type.ordinal()] = new YmFm.Output(end);
             } else if (end > m_data[type.ordinal()].data.length) {
                 int[] newData = new int[end];
                 for (int i = 0; i < m_data[type.ordinal()].data.length; i++)
                     newData[i] = m_data[type.ordinal()].data[i];
                 m_data[type.ordinal()].data = newData;
             }
-            for (int i = 0; i < src.length; i++)
-                m_data[type.ordinal()].data[base + i] = src[i] & 0xff;
+logger.log(Level.DEBUG, "%s: d:%d (%d) <- s:%d, %d".formatted(type, base, m_data[type.ordinal()].data.length, offset, length));
+            for (int i = 0; i < length; i++)
+                m_data[type.ordinal()].data[base + i] = src[i + offset] & 0xff;
         }
 
         // seek within the PCM stream
@@ -855,9 +873,10 @@ public abstract class YmFm {
         }
 
         // internal state
-        protected Class<? extends YmFm.Chip> m_type;
+        protected final Class<? extends YmFm.Chip> m_type;
         protected String m_name;
-        protected YmFm.Output[] m_data = new YmFm.Output[AccessClass.values().length];
+        /** @see #ymfm_external_read */
+        protected final YmFm.Output[] m_data = new YmFm.Output[AccessClass.values().length];
         protected int m_pcm_offset;
     }
 
@@ -884,7 +903,7 @@ public abstract class YmFm {
             m_chip.reset();
 
             for (int clock_ = 0; clock_ < EXTRA_CLOCKS; clock_++)
-                m_chip.generate(m_output, 1);
+                m_chip.generate(new YmFm.Output[] {m_output}, 1);
         }
 
         /** */
@@ -902,6 +921,8 @@ public abstract class YmFm {
         public void write(int reg, int data) {
             m_queue.add(new int[] {reg, data});
         }
+
+boolean first = true;
 
         /** Generates one output sample of output */
         @Override
@@ -921,18 +942,18 @@ public abstract class YmFm {
 
             // write to the chip
             if (addr1 != 0xffff) {
-                logger.log(Level.TRACE, "%10.5f: %s %03X=%02X".formatted((double) output_start / (double) (1L << 32), m_name, data1 + 0x100 * (addr1 / 2), data2));
+logger.log(Level.TRACE, "%10.5f: %s %03X=%02X".formatted((double) output_start / (double) (1L << 32), m_name, data1 + 0x100 * (addr1 / 2), data2));
                 m_chip.write(addr1, data1);
                 m_chip.write(addr2, data2);
             }
 
             // generate at the appropriate sample rate
             for (; m_pos <= output_start; m_pos += m_step) {
-                m_chip.generate(m_output, 1);
+                m_chip.generate(new YmFm.Output[] {m_output}, 1);
             }
 
             int OUTPUTS = m_chip.getOutputs();
-//logger.log(Level.DEBUG, m_type + ", " + OUTPUTS + ", " + m_output.data.length);
+if (first) { logger.log(Level.DEBUG, m_type.getSimpleName() + ", " + OUTPUTS + ", " + m_output.data.length); first = false; }
             int p = 0; // buffer
             // add the final result to the buffer
             if (m_type == Ym2203.class) {
@@ -962,6 +983,7 @@ public abstract class YmFm {
         }
 
         /** Handles a read from the buffer */
+        @Override
         public int ymfm_external_read(AccessClass type, int offset) {
             var data = m_data[type.ordinal()];
             return (offset < data.data.length) ? data.data[offset] : 0;
@@ -974,6 +996,6 @@ public abstract class YmFm {
         protected YmFm.Output m_output;
         long m_step;
         long m_pos;
-        protected List<int[]> m_queue = new ArrayList<>();
+        protected final List<int[]> m_queue = new ArrayList<>();
     }
 }
