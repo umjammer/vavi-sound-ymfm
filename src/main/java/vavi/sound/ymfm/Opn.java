@@ -35,12 +35,13 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.System.Logger.Level;
 import java.util.Arrays;
+import java.util.function.BiConsumer;
 
 import vavi.sound.ymfm.Adpcm.ChannelB;
 import vavi.sound.ymfm.Fm.EngineBase;
 import vavi.sound.ymfm.Fm.OpDataCache;
 import vavi.sound.ymfm.YmFm.EnvelopeState;
-import vavi.sound.ymfm.YmFm.TriConsumer;
+import vavi.sound.ymfm.YmFm.Output;
 import vavi.util.serdes.Element;
 import vavi.util.serdes.Serdes;
 
@@ -1024,8 +1025,8 @@ public abstract class Opn {
         }
 
         /** resample */
-        public final void resample(YmFm.Output output, int offset, int numSamples) {
-            this.m_resampler.accept(output, offset, numSamples);
+        public final void resample(YmFm.Output[] output, int numSamples) {
+            this.m_resampler.accept(output, numSamples);
         }
 
         /**
@@ -1035,25 +1036,25 @@ public abstract class Opn {
          *
          * @param multiplier used as template in c++
          */
-        private void resample_n_1(YmFm.Output output, int numSamples, int multiplier) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        private void resample_n_1(YmFm.Output[] output, int numSamples, int multiplier) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 if (m_sampindex % multiplier == 0) {
                     m_ssg.clock();
                     m_ssg.output(m_last);
                 }
-                write_to_output(output, m_last.data[0], m_last.data[1], m_last.data[2], 1);
+                write_to_output(output[samp], m_last.data[0], m_last.data[1], m_last.data[2], 1);
             }
         }
 
-        private void _resample_4_1(YmFm.Output output, int offset, int numSamples) {
+        private void _resample_4_1(YmFm.Output[] output, int numSamples) {
             resample_n_1(output, numSamples, 4);
         }
 
-        private void _resample_2_1(YmFm.Output output, int offset, int numSamples) {
+        private void _resample_2_1(YmFm.Output[] output, int numSamples) {
             resample_n_1(output, numSamples, 2);
         }
 
-        private void _resample_1_1(YmFm.Output output, int offset, int numSamples) {
+        private void _resample_1_1(YmFm.Output[] output, int numSamples) {
             resample_n_1(output, numSamples, 1);
         }
 
@@ -1064,13 +1065,12 @@ public abstract class Opn {
          *
          * @param divisor used as template in c++
          */
-        private void resample_1_n(YmFm.Output output, int offset, int numSamples, int divisor) {
-            // TODO offset
-            for (int samp = offset; samp < numSamples; samp++, output.inc()) {
+        private void resample_1_n(YmFm.Output[] output, int numSamples, int divisor) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
                 for (int rep = 0; rep < divisor; rep++)
                     clock_and_add(sum0, sum1, sum2, 1);
-                write_to_output(output, sum0[0], sum1[0], sum2[0], divisor);
+                write_to_output(output[samp], sum0[0], sum1[0], sum2[0], divisor);
             }
         }
 
@@ -1078,12 +1078,12 @@ public abstract class Opn {
          * resample SSG output to the target at a rate of 3 SSG samples
          * to every 1 output sample
          */
-        private void _resample_1_3(YmFm.Output output, int offset, int numSamples) {
-            resample_1_n(output, offset, numSamples, 3);
+        private void _resample_1_3(YmFm.Output[] output, int numSamples) {
+            resample_1_n(output, numSamples, 3);
         }
 
-        private void _resample_1_6(YmFm.Output output, int offset, int numSamples) {
-            resample_1_n(output, offset, numSamples, 6);
+        private void _resample_1_6(YmFm.Output[] output, int numSamples) {
+            resample_1_n(output, numSamples, 6);
         }
 
         /**
@@ -1091,9 +1091,8 @@ public abstract class Opn {
          * target at a rate of 9 SSG samples to every
          * 2 output samples
          */
-        private void resample_2_9(YmFm.Output output, int offset, int numSamples) {
-            // TODO offset
-            for (int samp = offset; samp < numSamples; samp++, output.inc()) {
+        private void resample_2_9(YmFm.Output[] output, int numSamples) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
                 if (bitfield(m_sampindex, 0) != 0)
                     add_last(sum0, sum1, sum2, 1);
@@ -1103,7 +1102,7 @@ public abstract class Opn {
                 clock_and_add(sum0, sum1, sum2, 2);
                 if (bitfield(m_sampindex, 0) == 0)
                     clock_and_add(sum0, sum1, sum2, 1);
-                write_to_output(output, sum0[0], sum1[0], sum2[0], 9);
+                write_to_output(output[samp], sum0[0], sum1[0], sum2[0], 9);
             }
         }
 
@@ -1112,9 +1111,8 @@ public abstract class Opn {
          * target at a rate of 3 SSG samples to every
          * 2 output samples
          */
-        private void resample_2_3(YmFm.Output output, int offset, int numSamples) {
-            // TODO offset
-            for (int samp = offset; samp < numSamples; samp++, output.inc()) {
+        private void resample_2_3(YmFm.Output[] output, int numSamples) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
                 if (bitfield(m_sampindex, 0) == 0) {
                     clock_and_add(sum0, sum1, sum2, 2);
@@ -1123,7 +1121,7 @@ public abstract class Opn {
                     add_last(sum0, sum1, sum2, 1);
                     clock_and_add(sum0, sum1, sum2, 2);
                 }
-                write_to_output(output, sum0[0], sum1[0], sum2[0], 3);
+                write_to_output(output[samp], sum0[0], sum1[0], sum2[0], 3);
             }
         }
 
@@ -1132,22 +1130,21 @@ public abstract class Opn {
          * target at a rate of 3 SSG samples to every
          * 4 output samples
          */
-        private void resample_4_3(YmFm.Output output, int offset, int numSamples) {
-            // TODO offset
-            for (int samp = offset; samp < numSamples; samp++, output.inc()) {
+        private void resample_4_3(YmFm.Output[] output, int numSamples) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
                 int step = bitfield(m_sampindex, 0, 2);
                 add_last(sum0, sum1, sum2, step);
                 if (step != 3)
                     clock_and_add(sum0, sum1, sum2, 3 - step);
-                write_to_output(output, sum0[0], sum1[0], sum2[0], 3);
+                write_to_output(output[samp], sum0[0], sum1[0], sum2[0], 3);
             }
         }
 
         /**
          * no-op resampler.
          */
-        private void resample_nop(YmFm.Output output, int offset, int numSamples) {
+        private void resample_nop(YmFm.Output[] output, int numSamples) {
             // nothing to do except increment the sample index
             m_sampindex += numSamples;
         }
@@ -1161,7 +1158,7 @@ public abstract class Opn {
         @Element(sequence = 0)
         private int m_sampindex;
         // resample_func
-        private TriConsumer<YmFm.Output, Integer, Integer> m_resampler;
+        private BiConsumer<Output[], Integer> m_resampler;
         @Element(sequence = 1)
         private final YmFm.Output m_last;
     }
@@ -1392,30 +1389,30 @@ public abstract class Opn {
          * Generates one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
             // FM output is just repeated the prescale number of times; note that
             // 0 is a special 1.5 case
             if (m_fm_samples_per_output != 0) {
-                for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+                for (int samp = 0; samp < numSamples; samp++) {
                     if ((m_ssg_resampler.sampleIndex() + samp) % m_fm_samples_per_output == 0)
                         clock_fm();
-                    output.data[0] = m_last_fm.data[0];
+                    output[samp].data[0] = m_last_fm.data[0];
                 }
             } else {
-                for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+                for (int samp = 0; samp < numSamples; samp++) {
                     int step = (m_ssg_resampler.sampleIndex() + samp) % 3;
                     if (step == 0)
                         clock_fm();
-                    output.data[0] = m_last_fm.data[0];
+                    output[samp].data[0] = m_last_fm.data[0];
                     if (step == 1) {
                         clock_fm();
-                        output.data[0] = (output.data[0] + m_last_fm.data[0]) / 2;
+                        output[samp].data[0] = (output[samp].data[0] + m_last_fm.data[0]) / 2;
                     }
                 }
             }
 
             // resample the SSG as configured
-            m_ssg_resampler.resample(output, output.pos() - numSamples, numSamples);
+            m_ssg_resampler.resample(output, numSamples);
         }
 
         /**
@@ -1886,33 +1883,33 @@ public abstract class Opn {
          * Generates one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
             // FM output is just repeated the prescale number of times; note that
             // 0 is a special 1.5 case
             if (m_fm_samples_per_output != 0) {
-                for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+                for (int samp = 0; samp < numSamples; samp++) {
                     if ((m_ssg_resampler.sampleIndex() + samp) % m_fm_samples_per_output == 0)
                         clock_fm_and_adpcm();
-                    output.data[0] = m_last_fm.data[0];
-                    output.data[1] = m_last_fm.data[1];
+                    output[samp].data[0] = m_last_fm.data[0];
+                    output[samp].data[1] = m_last_fm.data[1];
                 }
             } else {
-                for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+                for (int samp = 0; samp < numSamples; samp++) {
                     int step = (m_ssg_resampler.sampleIndex() + samp) % 3;
                     if (step == 0)
                         clock_fm_and_adpcm();
-                    output.data[0] = m_last_fm.data[0];
-                    output.data[1] = m_last_fm.data[1];
+                    output[samp].data[0] = m_last_fm.data[0];
+                    output[samp].data[1] = m_last_fm.data[1];
                     if (step == 1) {
                         clock_fm_and_adpcm();
-                        output.data[0] = (output.data[0] + m_last_fm.data[0]) / 2;
-                        output.data[1] = (output.data[1] + m_last_fm.data[1]) / 2;
+                        output[samp].data[0] = (output[samp].data[0] + m_last_fm.data[0]) / 2;
+                        output[samp].data[1] = (output[samp].data[1] + m_last_fm.data[1]) / 2;
                     }
                 }
             }
 
             // resample the SSG as configured
-            m_ssg_resampler.resample(output, output.pos() - numSamples, numSamples);
+            m_ssg_resampler.resample(output, numSamples);
         }
 
         /**
@@ -2396,33 +2393,33 @@ public abstract class Opn {
          * Generates one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
             // FM output is just repeated the prescale number of times; note that
             // 0 is a special 1.5 case
             if (m_fm_samples_per_output != 0) {
-                for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+                for (int samp = 0; samp < numSamples; samp++) {
                     if ((m_ssg_resampler.sampleIndex() + samp) % m_fm_samples_per_output == 0)
                         clock_fm_and_adpcm();
-                    output.data[0] = m_last_fm.data[0];
-                    output.data[1] = m_last_fm.data[1];
+                    output[samp].data[0] = m_last_fm.data[0];
+                    output[samp].data[1] = m_last_fm.data[1];
                 }
             } else {
-                for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+                for (int samp = 0; samp < numSamples; samp++) {
                     int step = (m_ssg_resampler.sampleIndex() + samp) % 3;
                     if (step == 0)
                         clock_fm_and_adpcm();
-                    output.data[0] = m_last_fm.data[0];
-                    output.data[1] = m_last_fm.data[1];
+                    output[samp].data[0] = m_last_fm.data[0];
+                    output[samp].data[1] = m_last_fm.data[1];
                     if (step == 1) {
                         clock_fm_and_adpcm();
-                        output.data[0] = (output.data[0] + m_last_fm.data[0]) / 2;
-                        output.data[1] = (output.data[1] + m_last_fm.data[1]) / 2;
+                        output[samp].data[0] = (output[samp].data[0] + m_last_fm.data[0]) / 2;
+                        output[samp].data[1] = (output[samp].data[1] + m_last_fm.data[1]) / 2;
                     }
                 }
             }
 
             // resample the SSG as configured
-            m_ssg_resampler.resample(output, output.pos() - numSamples, numSamples);
+            m_ssg_resampler.resample(output, numSamples);
         }
 
         // internal helpers
@@ -2818,17 +2815,17 @@ public abstract class Opn {
          * Generates one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
             // FM output is just repeated the prescale number of times
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 if ((m_ssg_resampler.sampleIndex() + samp) % m_fm_samples_per_output == 0)
                     clock_fm_and_adpcm();
-                output.data[0] = m_last_fm.data[0];
-                output.data[1] = m_last_fm.data[1];
+                output[samp].data[0] = m_last_fm.data[0];
+                output[samp].data[1] = m_last_fm.data[1];
             }
 
             // resample the SSG as configured
-            m_ssg_resampler.resample(output, output.pos() - numSamples, numSamples);
+            m_ssg_resampler.resample(output, numSamples);
         }
 
         /**
@@ -3118,37 +3115,37 @@ public abstract class Opn {
          * Generates one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock((int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
 
                 // sum individual channels to apply DAC discontinuity on each
-                output.clear();
+                output[samp].clear();
                 YmFm.Output temp = new YmFm.Output(m_fm.OUTPUTS);
 
                 // first do FM-only channels; OPN2 is 9-bit with intermediate clipping
                 int last_fm_channel = m_dac_enable != 0 ? 5 : 6;
                 for (int chan = 0; chan < last_fm_channel; chan++) {
                     m_fm.output(temp.clear(), 5, 256, 1 << chan);
-                    output.data[0] += dac_discontinuity(temp.data[0]);
-                    output.data[1] += dac_discontinuity(temp.data[1]);
+                    output[samp].data[0] += dac_discontinuity(temp.data[0]);
+                    output[samp].data[1] += dac_discontinuity(temp.data[1]);
                 }
 
                 // add in DAC
                 if (m_dac_enable != 0) {
                     // DAC enabled: start with DAC value then add the first 5 channels only
-                    int dacval = dac_discontinuity((m_dac_data << 7) >> 7);
-                    output.data[0] += m_fm.regs().ch_output_0(0x102) != 0 ? dacval : dac_discontinuity(0);
-                    output.data[1] += m_fm.regs().ch_output_1(0x102) != 0 ? dacval : dac_discontinuity(0);
+                    int dacVal = dac_discontinuity((m_dac_data << 7) >> 7);
+                    output[samp].data[0] += m_fm.regs().ch_output_0(0x102) != 0 ? dacVal : dac_discontinuity(0);
+                    output[samp].data[1] += m_fm.regs().ch_output_1(0x102) != 0 ? dacVal : dac_discontinuity(0);
                 }
 
                 // output is technically multiplexed rather than mixed, but that requires
                 // a better sound mixer than we usually have, so just average over the six
                 // channels; also apply a 64/65 factor to account for the discontinuity
                 // adjustment above
-                output.data[0] = (output.data[0] * 128) * 64 / (6 * 65);
-                output.data[1] = (output.data[1] * 128) * 64 / (6 * 65);
+                output[samp].data[0] = (output[samp].data[0] * 128) * 64 / (6 * 65);
+                output[samp].data[1] = (output[samp].data[1] * 128) * 64 / (6 * 65);
             }
         }
 
@@ -3183,27 +3180,27 @@ public abstract class Opn {
          * Generates one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock((int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
 
                 // first do FM-only channels; OPN2C is 9-bit with intermediate clipping
                 if (m_dac_enable == 0) {
                     // DAC disabled: all 6 channels sum together
-                    m_fm.output(output.clear(), 5, 256, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
+                    m_fm.output(output[samp].clear(), 5, 256, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
                 } else {
                     // DAC enabled: start with DAC value then add the first 5 channels only
-                    int dacval = (m_dac_data << 7) >> 7;
-                    output.data[0] = m_fm.regs().ch_output_0(0x102) != 0 ? dacval : 0;
-                    output.data[1] = m_fm.regs().ch_output_1(0x102) != 0 ? dacval : 0;
-                    m_fm.output(output, 5, 256, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS") ^ (1 << 5));
+                    int dacVal = (m_dac_data << 7) >> 7;
+                    output[samp].data[0] = m_fm.regs().ch_output_0(0x102) != 0 ? dacVal : 0;
+                    output[samp].data[1] = m_fm.regs().ch_output_1(0x102) != 0 ? dacVal : 0;
+                    m_fm.output(output[samp], 5, 256, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS") ^ (1 << 5));
                 }
 
                 // YM3438 doesn't have the same DAC discontinuity, though its output is
                 // multiplexed like the YM2612
-                output.data[0] = (output.data[0] * 128) / 6;
-                output.data[1] = (output.data[1] * 128) / 6;
+                output[samp].data[0] = (output[samp].data[0] * 128) / 6;
+                output[samp].data[1] = (output[samp].data[1] * 128) / 6;
             }
         }
     }
@@ -3219,26 +3216,26 @@ public abstract class Opn {
          * Generate one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock((int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
 
                 // first do FM-only channels; OPN2L is 14-bit with intermediate clipping
                 if (m_dac_enable == 0) {
                     // DAC disabled: all 6 channels sum together
-                    m_fm.output(output.clear(), 0, 8191, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
+                    m_fm.output(output[samp].clear(), 0, 8191, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
                 } else {
                     // DAC enabled: start with DAC value then add the first 5 channels only
-                    int dacval = (m_dac_data << 7) >> 7;
-                    output.data[0] = m_fm.regs().ch_output_0(0x102) != 0 ? dacval : 0;
-                    output.data[1] = m_fm.regs().ch_output_1(0x102) != 0 ? dacval : 0;
-                    m_fm.output(output, 0, 8191, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS") ^ (1 << 5));
+                    int dacVal = (m_dac_data << 7) >> 7;
+                    output[samp].data[0] = m_fm.regs().ch_output_0(0x102) != 0 ? dacVal : 0;
+                    output[samp].data[1] = m_fm.regs().ch_output_1(0x102) != 0 ? dacVal : 0;
+                    m_fm.output(output[samp], 0, 8191, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS") ^ (1 << 5));
                 }
 
                 // YMF276 is properly mixed; it shifts down 1 bit before clamping
-                output.data[0] = clamp(output.data[0] >> 1, -32768, 32767);
-                output.data[1] = clamp(output.data[1] >> 1, -32768, 32767);
+                output[samp].data[0] = clamp(output[samp].data[0] >> 1, -32768, 32767);
+                output[samp].data[1] = clamp(output[samp].data[1] >> 1, -32768, 32767);
             }
         }
     }

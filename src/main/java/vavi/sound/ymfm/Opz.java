@@ -1248,16 +1248,16 @@ public abstract class Opz {
          * Generate one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock(Registers.ALL_CHANNELS);
 
                 // update the FM content; YM2414 is full 14-bit with no intermediate clipping
-                m_fm.output(output.clear(), 0, 32767, Registers.ALL_CHANNELS);
+                m_fm.output(output[samp].clear(), 0, 32767, Registers.ALL_CHANNELS);
 
                 // unsure about YM2414 outputs; assume it is like YM2151
-                output.roundtrip_fp();
+                output[samp].roundtrip_fp();
             }
         }
 

@@ -187,13 +187,13 @@ public abstract class Misc {
          * Generate samples of SSG sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the SSG
                 m_ssg.clock();
 
                 // YM2149 keeps the three SSG outputs independent
-                m_ssg.output(output);
+                m_ssg.output(output[samp]);
             }
         }
 

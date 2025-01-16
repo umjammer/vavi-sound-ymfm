@@ -83,11 +83,6 @@ public abstract class YmFm {
     // GLOBAL HELPERS
     //
 
-    public interface TriConsumer<T, U, V> {
-
-        void accept(T var1, U var2, V var3);
-    }
-
     /**
      * Extracts a bitfield from the given value,
      * starting at bit 'start' for a length of 'length' bits
@@ -226,7 +221,7 @@ public abstract class YmFm {
         void restore(InputStream is) throws IOException;
         int read(int offset);
         void write(int offset, int data);
-        void generate(Output output, int numSamples);
+        void generate(YmFm.Output[] output, int numSamples);
     }
 
     /** various envelope states */
@@ -264,7 +259,6 @@ public abstract class YmFm {
     public static class Output {
 
         private final int numOutputs;
-        private int pos = 0;
 
         public Output(int numOutputs) {
             this.numOutputs = numOutputs;
@@ -295,14 +289,6 @@ public abstract class YmFm {
             for (int index = 0; index < numOutputs; index++)
                 data[index] = YmFm.roundtrip_fp(data[index]);
             return this;
-        }
-
-        void inc() {
-            pos++;
-        }
-
-        int pos() {
-            return pos;
         }
 
         // internal state
@@ -911,7 +897,7 @@ logger.log(Level.DEBUG, "%s: d:%d <- s:%d, %d".formatted(type, base, offset, len
             m_chip.reset();
 
             for (int clock_ = 0; clock_ < EXTRA_CLOCKS; clock_++)
-                m_chip.generate(m_output, 1);
+                m_chip.generate(new YmFm.Output[] {m_output}, 1);
         }
 
         /** */
@@ -955,7 +941,7 @@ logger.log(Level.TRACE, "%10.5f: %s %03X=%02X".formatted((double) output_start /
 
             // generate at the appropriate sample rate
             for (; m_pos <= output_start; m_pos += m_step) {
-                m_chip.generate(m_output, 1);
+                m_chip.generate(new YmFm.Output[] {m_output}, 1);
             }
 
             int OUTPUTS = m_chip.getOutputs();

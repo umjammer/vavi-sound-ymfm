@@ -1656,17 +1656,17 @@ public abstract class Opl {
          * Generate samples of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock((int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
 
                 // update the FM content; mixing details for YM3526 need verification
-                m_fm.output(output.clear(), 1, 32767, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
+                m_fm.output(output[samp].clear(), 1, 32767, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
 
                 // YM3526 uses an external DAC (YM3014) with mantissa/exponent format
                 // convert to 10.3 floating point value and back to simulate truncation
-                output.roundtrip_fp();
+                output[samp].roundtrip_fp();
             }
         }
 
@@ -1911,22 +1911,22 @@ public abstract class Opl {
          * Generate samples of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock((int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
                 m_adpcm_b.clock();
 
                 // update the FM content; clipping need verification
-                m_fm.output(output.clear(), 1, 32767, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
+                m_fm.output(output[samp].clear(), 1, 32767, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
 
                 // mix in the ADPCM; ADPCM-B is stereo, but only one channel
                 // not sure how it's wired up internally
-                m_adpcm_b.output(output, 3);
+                m_adpcm_b.output(output[samp], 3);
 
                 // Y8950 uses an external DAC (YM3014) with mantissa/exponent format
                 // convert to 10.3 floating point value and back to simulate truncation
-                output.roundtrip_fp();
+                output[samp].roundtrip_fp();
             }
         }
 
@@ -2088,17 +2088,17 @@ public abstract class Opl {
          * Generate samples of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock((int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
 
                 // update the FM content; mixing details for YM3812 need verification
-                m_fm.output(output.clear(), 1, 32767, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
+                m_fm.output(output[samp].clear(), 1, 32767, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
 
                 // YM3812 uses an external DAC (YM3014) with mantissa/exponent format
                 // convert to 10.3 floating point value and back to simulate truncation
-                output.roundtrip_fp();
+                output[samp].roundtrip_fp();
             }
         }
 
@@ -2283,16 +2283,16 @@ public abstract class Opl {
          * Generate samples of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock((int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
 
                 // update the FM content; mixing details for YMF262 need verification
-                m_fm.output(output.clear(), 0, 32767, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
+                m_fm.output(output[samp].clear(), 0, 32767, (int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
 
                 // YMF262 output is 16-bit offset serial via YAC512 DAC
-                output.clamp16();
+                output[samp].clamp16();
             }
         }
 
@@ -2508,8 +2508,8 @@ public abstract class Opl {
          * Generates samples of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock((int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
 
@@ -2519,9 +2519,9 @@ public abstract class Opl {
 
                 // YMF278B output is 16-bit offset serial via YAC512 DAC, but
                 // only 2 of the 4 outputs are exposed
-                output.data[0] = full.data[0];
-                output.data[1] = full.data[1];
-                output.clamp16();
+                output[samp].data[0] = full.data[0];
+                output[samp].data[1] = full.data[1];
+                output[samp].clamp16();
             }
         }
 
@@ -2822,13 +2822,13 @@ public abstract class Opl {
          * Generate one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
             int pcm_l = s_mix_scale[m_pcm.regs().mix_pcm_l()];
             int pcm_r = s_mix_scale[m_pcm.regs().mix_pcm_r()];
             int fm_l = s_mix_scale[m_pcm.regs().mix_fm_l()];
             int fm_r = s_mix_scale[m_pcm.regs().mix_fm_r()];
 
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm_pos += FM_EXTRA_SAMPLE_STEP;
                 if (m_fm_pos >= FM_EXTRA_SAMPLE_THRESH) {
@@ -2847,19 +2847,19 @@ public abstract class Opl {
                 m_pcm.output(pcmout.clear(), Pcm.Engine.ALL_CHANNELS);
 
                 // DO0 output: FM channels 2+3 only
-                output.data[0] = fmout.data[2];
-                output.data[1] = fmout.data[3];
+                output[samp].data[0] = fmout.data[2];
+                output[samp].data[1] = fmout.data[3];
 
                 // DO1 output: wavetable channels 2+3 only
-                output.data[2] = pcmout.data[2];
-                output.data[3] = pcmout.data[3];
+                output[samp].data[2] = pcmout.data[2];
+                output[samp].data[3] = pcmout.data[3];
 
                 // DO2 output: mixed FM channels 0+1 and wavetable channels 0+1
-                output.data[4] = (fmout.data[0] * fm_l + pcmout.data[0] * pcm_l) >> 11;
-                output.data[5] = (fmout.data[1] * fm_r + pcmout.data[1] * pcm_r) >> 11;
+                output[samp].data[4] = (fmout.data[0] * fm_l + pcmout.data[0] * pcm_l) >> 11;
+                output[samp].data[5] = (fmout.data[1] * fm_r + pcmout.data[1] * pcm_r) >> 11;
 
                 // YMF278B output is 16-bit 2s complement serial
-                output.clamp16();
+                output[samp].clamp16();
             }
 
             // decrement the load waiting count
@@ -3025,18 +3025,18 @@ public abstract class Opl {
          * Generate one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock(OpllRegisters.ALL_CHANNELS);
 
                 // update the FM content; OPLL has a built-in 9-bit DAC
-                m_fm.output(output.clear(), 5, 256, OpllRegisters.ALL_CHANNELS);
+                m_fm.output(output[samp].clear(), 5, 256, OpllRegisters.ALL_CHANNELS);
 
                 // final output is multiplexed; we don't simulate that here except
                 // to average over everything
-                output.data[0] = (output.data[0] * 128) / 9;
-                output.data[1] = (output.data[1] * 128) / 9;
+                output[samp].data[0] = (output[samp].data[0] * 128) / 9;
+                output[samp].data[1] = (output[samp].data[1] * 128) / 9;
             }
         }
 

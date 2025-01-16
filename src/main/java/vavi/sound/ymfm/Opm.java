@@ -881,17 +881,17 @@ public abstract class Opm {
          * Generates one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output output, int numSamples /* = 1 */) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock(Registers.ALL_CHANNELS);
 
                 // update the FM content; OPM is full 14-bit with no intermediate clipping
-                m_fm.output(output.clear(), 0, 32767, Registers.ALL_CHANNELS);
+                m_fm.output(output[samp].clear(), 0, 32767, Registers.ALL_CHANNELS);
 
                 // YM2151 uses an external DAC (YM3012) with mantissa/exponent format
                 // convert to 10.3 floating point value and back to simulate truncation
-                output.roundtrip_fp();
+                output[samp].roundtrip_fp();
             }
         }
 

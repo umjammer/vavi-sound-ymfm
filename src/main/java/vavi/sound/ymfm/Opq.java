@@ -37,19 +37,18 @@ import java.lang.System.Logger.Level;
 import java.util.Arrays;
 
 import vavi.sound.ymfm.Fm.EngineBase;
-import vavi.sound.ymfm.Fm.RegistersBase;
 import vavi.sound.ymfm.Fm.OpDataCache;
+import vavi.sound.ymfm.Fm.RegistersBase;
 import vavi.sound.ymfm.YmFm.Chip;
 import vavi.sound.ymfm.YmFm.EnvelopeState;
 import vavi.sound.ymfm.YmFm.Interface;
-import vavi.sound.ymfm.YmFm.Output;
 import vavi.util.serdes.Element;
 import vavi.util.serdes.Serdes;
 
 import static vavi.sound.ymfm.Opz.TEMPORARY_DEBUG_PRINTS;
+import static vavi.sound.ymfm.YmFm.Debug.log_unexpected_read_write;
 import static vavi.sound.ymfm.YmFm.abs_sin_attenuation;
 import static vavi.sound.ymfm.YmFm.bitfield;
-import static vavi.sound.ymfm.YmFm.Debug.log_unexpected_read_write;
 import static vavi.sound.ymfm.YmFm.detune_adjustment;
 import static vavi.sound.ymfm.YmFm.opn_lfo_pm_phase_adjustment;
 
@@ -819,17 +818,17 @@ public abstract class Opq {
          * Generate one sample of sound.
          */
         @Override
-        public void generate(Output output, int numSamples /* = 1 */) {
-            for (int samp = 0; samp < numSamples; samp++, output.inc()) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
+            for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock(Registers.ALL_CHANNELS);
 
                 // update the FM content; YM3806 is full 14-bit with no intermediate clipping
-                m_fm.output(output.clear(), 0, 32767, Registers.ALL_CHANNELS);
+                m_fm.output(output[samp].clear(), 0, 32767, Registers.ALL_CHANNELS);
 
                 // YM3608 appears to go through a YM3012 DAC, which means we want to apply
                 // the FP truncation logic to the outputs
-                output.roundtrip_fp();
+                output[samp].roundtrip_fp();
             }
         }
 
