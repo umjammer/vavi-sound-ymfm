@@ -62,8 +62,6 @@ import static vavi.sound.ymfm.YmFm.clamp;
 
 abstract class Fm {
 
-    private static final Logger logger = getLogger(Fm.class.getName());
-
     //
     // GLOBAL ENUMERATORS
     //
@@ -819,7 +817,7 @@ abstract class Fm {
             if (log_keyon.isLoggable(Level.DEBUG) && ((GLOBAL_FM_CHANNEL_MASK >> chnum) & 1) != 0)
                 for (int opNum = 0; opNum < m_op.length; opNum++)
                     if (m_op[opNum] != null)
-                        log_keyon.log(Level.DEBUG, "%c%s\n", bitfield(states, opNum) != 0 ? '+' : '-', m_regs.log_keyon(m_choffs, m_op[opNum].opOffs()));
+                        log_keyon.log(Level.DEBUG, "%c%s".formatted(bitfield(states, opNum) != 0 ? '+' : '-', m_regs.log_keyon(m_choffs, m_op[opNum].opOffs())));
         }
 
         /**
@@ -857,7 +855,7 @@ abstract class Fm {
 //                            "PADSRV".charAt(op.debug_eg_state().ordinal()),
 //                            op.debug_eg_attenuation(),
 //                            op.debug_ssg_inverted() ? '-' : '+',
-//                            m_regs.op_ssg_eg_enable(op.opoffs()) != 0 ? '0' + m_regs.op_ssg_eg_mode(op.opoffs()) : ' '));
+//                            m_regs.op_ssg_eg_enable(op.opoffs()) != 0 ? '0' + m_regs.op_ssg_eg_mode(op.opOffs()) : ' '));
 //                }
 //                logger.log(Level.TRACE, " -- ");
 //            }
@@ -1434,12 +1432,12 @@ abstract class Fm {
         /**
          * Handles writes to the OPN registers.
          */
-        public void write(int regnum, int data) {
-            log_fm_write.log(Level.DEBUG, "%03X = %02X".formatted(regnum, data));
+        public void write(int regNum, int data) {
+            log_fm_write.log(Level.DEBUG, "%03X = %02X".formatted(regNum, data));
 
             // special case: writes to the mode register can impact IRQs;
             // schedule these writes to ensure ordering with timers
-            if (regnum == (int) m_regs.getParams().get("REG_MODE")) {
+            if (regNum == (int) m_regs.getParams().get("REG_MODE")) {
                 m_intf.ymfm_sync_mode_write(data);
                 return;
             }
@@ -1448,18 +1446,18 @@ abstract class Fm {
             m_modified_channels = ALL_CHANNELS;
 
             // most writes are passive, consumed only when needed
-            int[] keyon_channel = new int[1];
-            int[] keyon_opmask = new int[1];
-            if (m_regs.write(regnum, data, keyon_channel, keyon_opmask)) {
+            int[] keyOn_channel = new int[1];
+            int[] keyOn_opMask = new int[1];
+            if (m_regs.write(regNum, data, keyOn_channel, keyOn_opMask)) {
                 // handle writes to the keyon register(s)
-                if (keyon_channel[0] < CHANNELS) {
+                if (keyOn_channel[0] < CHANNELS) {
                     // normal channel on/off
-                    m_channel[keyon_channel[0]].keyOnOff(keyon_opmask[0], KeyOnType.NORMAL, keyon_channel[0]);
-                } else if (CHANNELS >= 9 && keyon_channel[0] == RegistersBase.RHYTHM_CHANNEL) {
+                    m_channel[keyOn_channel[0]].keyOnOff(keyOn_opMask[0], KeyOnType.NORMAL, keyOn_channel[0]);
+                } else if (CHANNELS >= 9 && keyOn_channel[0] == RegistersBase.RHYTHM_CHANNEL) {
                     // special case for the OPL rhythm channels
-                    m_channel[6].keyOnOff(bitfield(keyon_opmask[0], 4) != 0 ? 3 : 0, KeyOnType.RHYTHM, 6);
-                    m_channel[7].keyOnOff(bitfield(keyon_opmask[0], 0) | (bitfield(keyon_opmask[0], 3) << 1), KeyOnType.RHYTHM, 7);
-                    m_channel[8].keyOnOff(bitfield(keyon_opmask[0], 2) | (bitfield(keyon_opmask[0], 1) << 1), KeyOnType.RHYTHM, 8);
+                    m_channel[6].keyOnOff(bitfield(keyOn_opMask[0], 4) != 0 ? 3 : 0, KeyOnType.RHYTHM, 6);
+                    m_channel[7].keyOnOff(bitfield(keyOn_opMask[0], 0) | (bitfield(keyOn_opMask[0], 3) << 1), KeyOnType.RHYTHM, 7);
+                    m_channel[8].keyOnOff(bitfield(keyOn_opMask[0], 2) | (bitfield(keyOn_opMask[0], 1) << 1), KeyOnType.RHYTHM, 8);
                 }
             }
         }
@@ -1687,7 +1685,8 @@ assert map[0].length == CHANNELS;
         protected Operator<RegisterType>[] m_operator;
 
 //#if (YMFM_DEBUG_LOG_WAVFILES)
-//	mutable WavFile<1> m_wavfile[CHANNELS]; // for debugging
+//        /** for debugging */
+//	      mutable WavFile<1> m_wavfile[CHANNELS];
 //#endif
     }
 }

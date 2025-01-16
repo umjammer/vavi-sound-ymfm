@@ -642,7 +642,7 @@ abstract class Pcm {
 
             // don't log masked channels
             if ((m_key_state & (KEY_PENDING_ON | KEY_ON)) == KEY_PENDING_ON && ((Debug.GLOBAL_PCM_CHANNEL_MASK >> m_choffs) & 1) != 0) {
-                log_keyon.log(Level.DEBUG, "KeyOn PCM-%02d: num=%3d oct=%2d fnum=%03X level=%02X%c ADSR=%X/%X/%X/%X SL=%X",
+                log_keyon.log(Level.DEBUG, "KeyOn PCM-%02d: num=%3d oct=%2d fnum=%03X level=%02X%c ADSR=%X/%X/%X/%X SL=%X".formatted(
                         m_choffs,
                         m_regs.ch_wave_table_num(m_choffs),
                         (byte) (m_regs.ch_octave(m_choffs) << 4) >> 4,
@@ -653,24 +653,24 @@ abstract class Pcm {
                         m_regs.ch_decay_rate(m_choffs),
                         m_regs.ch_sustain_rate(m_choffs),
                         m_regs.ch_release_rate(m_choffs),
-                        m_regs.ch_sustain_level(m_choffs));
+                        m_regs.ch_sustain_level(m_choffs)));
 
                 if (m_regs.ch_rate_correction(m_choffs) != 15)
-                    log_keyon.log(Level.DEBUG, " RC=%X", m_regs.ch_rate_correction(m_choffs));
+                    log_keyon.log(Level.DEBUG, " RC=%X".formatted(m_regs.ch_rate_correction(m_choffs)));
 
                 if (m_regs.ch_pseudo_reverb(m_choffs) != 0)
-                    log_keyon.log(Level.DEBUG, " %s", "REV");
+                    log_keyon.log(Level.DEBUG, " %s".formatted("REV"));
                 if (m_regs.ch_damp(m_choffs) != 0)
-                    log_keyon.log(Level.DEBUG, " %s", "DAMP");
+                    log_keyon.log(Level.DEBUG, " %s".formatted("DAMP"));
 
                 if (m_regs.ch_vibrato(m_choffs) != 0 || m_regs.ch_am_depth(m_choffs) != 0) {
                     if (m_regs.ch_vibrato(m_choffs) != 0)
-                        log_keyon.log(Level.DEBUG, " VIB=%d", m_regs.ch_vibrato(m_choffs));
+                        log_keyon.log(Level.DEBUG, " VIB=%d".formatted(m_regs.ch_vibrato(m_choffs)));
                     if (m_regs.ch_am_depth(m_choffs) != 0)
-                        log_keyon.log(Level.DEBUG, " AM=%d", m_regs.ch_am_depth(m_choffs));
-                    log_keyon.log(Level.DEBUG, " LFO=%d", m_regs.ch_lfo_speed(m_choffs));
+                        log_keyon.log(Level.DEBUG, " AM=%d".formatted(m_regs.ch_am_depth(m_choffs)));
+                    log_keyon.log(Level.DEBUG, " LFO=%d".formatted(m_regs.ch_lfo_speed(m_choffs)));
                 }
-                log_keyon.log(Level.DEBUG, "%s", "\n");
+                log_keyon.log(Level.DEBUG, "---");
             }
         }
 

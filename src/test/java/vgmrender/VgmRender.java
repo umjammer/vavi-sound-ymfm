@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 
+import org.slf4j.LoggerFactory;
 import vavi.io.LittleEndianDataOutputStream;
 import vavi.sound.ymfm.Misc.Ym2149;
 import vavi.sound.ymfm.Opl.Y8950;
@@ -45,8 +46,9 @@ public class VgmRender {
 
     // run this many dummy clocks of each chip before generating
     private static final int EXTRA_CLOCKS = 0;
+    private static final org.slf4j.Logger log = LoggerFactory.getLogger(VgmRender.class);
 
-	//
+    //
 	// GLOBAL HELPERS
 	//
 
@@ -480,8 +482,10 @@ logger.log(Level.DEBUG, rom + " loaded, " + chipName + ", " + temp.length);
         int start = parse_uint32(buffer, localOffset);
         for (int index = 0; index < 2; index++) {
             VgmChip chip = find_chip(type, index);
-            if (chip != null)
+            if (chip != null) {
+//logger.log(Level.DEBUG, "%s[%s]: start: %d, size: %d, buffer: %d, offset: %d".formatted(type.getSimpleName(), access, start, size, buffer.length, localOffset[0]));
                 chip.write_data(access, start, size, buffer, localOffset[0]);
+            }
         }
     }
 

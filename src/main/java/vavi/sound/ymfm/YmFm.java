@@ -63,13 +63,18 @@ public abstract class YmFm {
 
     public abstract static class Debug {
 
-        private Debug() {}
+        private Debug() {
+            logger.log(Level.DEBUG, "GLOBAL_FM_CHANNEL_MASK: %08x".formatted(GLOBAL_FM_CHANNEL_MASK));
+            logger.log(Level.DEBUG, "GLOBAL_ADPCM_A_CHANNEL_MASK: %08x".formatted(GLOBAL_ADPCM_A_CHANNEL_MASK));
+            logger.log(Level.DEBUG, "GLOBAL_ADPCM_B_CHANNEL_MASK: %08x".formatted(GLOBAL_ADPCM_B_CHANNEL_MASK));
+            logger.log(Level.DEBUG, "GLOBAL_PCM_CHANNEL_MASK: %08x".formatted(GLOBAL_PCM_CHANNEL_MASK));
+        }
 
         // masks to help isolate specific channels
-        public static int GLOBAL_FM_CHANNEL_MASK = 0xffff_ffff;
-        public static int GLOBAL_ADPCM_A_CHANNEL_MASK = 0xffff_ffff;
-        public static int GLOBAL_ADPCM_B_CHANNEL_MASK = 0xffff_ffff;
-        public static int GLOBAL_PCM_CHANNEL_MASK = 0xffff_ffff;
+        public static int GLOBAL_FM_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.fm", "0xffffffff"));
+        public static int GLOBAL_ADPCM_A_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.adpcmA", "0xffffffff"));
+        public static int GLOBAL_ADPCM_B_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.adpcmB", "0xffffffff"));
+        public static int GLOBAL_PCM_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.pcm", "0xffffffff"));
 
         // types of logging
 
@@ -410,7 +415,7 @@ public abstract class YmFm {
     public abstract static class Interface {
         // the engine is our friend
 //		template<typename RegisterType> friend class EngineBase;
-//		EngineBase EngineBase;
+//		EngineBase engineBase;
 
         // the following functions must be implemented by any derived classes; the
         // default implementations are sufficient for some minimal operation, but will
@@ -852,8 +857,8 @@ public abstract class YmFm {
                     newData[i] = m_data[type.ordinal()].data[i];
                 m_data[type.ordinal()].data = newData;
             }
-logger.log(Level.DEBUG, "%s: d:%d <- s:%d, %d".formatted(type, base, offset, length));
-            for (int i = 0; i < src.length; i++)
+logger.log(Level.DEBUG, "%s: d:%d (%d) <- s:%d, %d".formatted(type, base, m_data[type.ordinal()].data.length, offset, length));
+            for (int i = 0; i < length; i++)
                 m_data[type.ordinal()].data[base + i] = src[i + offset] & 0xff;
         }
 
@@ -870,6 +875,7 @@ logger.log(Level.DEBUG, "%s: d:%d <- s:%d, %d".formatted(type, base, offset, len
         // internal state
         protected final Class<? extends YmFm.Chip> m_type;
         protected String m_name;
+        /** @see #ymfm_external_read */
         protected final YmFm.Output[] m_data = new YmFm.Output[AccessClass.values().length];
         protected int m_pcm_offset;
     }
@@ -916,6 +922,8 @@ logger.log(Level.DEBUG, "%s: d:%d <- s:%d, %d".formatted(type, base, offset, len
             m_queue.add(new int[] {reg, data});
         }
 
+boolean first = true;
+
         /** Generates one output sample of output */
         @Override
         public void generate(long output_start, long output_step, int[] buffer) {
@@ -945,7 +953,7 @@ logger.log(Level.TRACE, "%10.5f: %s %03X=%02X".formatted((double) output_start /
             }
 
             int OUTPUTS = m_chip.getOutputs();
-//logger.log(Level.DEBUG, m_type + ", " + OUTPUTS + ", " + m_output.data.length);
+if (first) { logger.log(Level.DEBUG, m_type.getSimpleName() + ", " + OUTPUTS + ", " + m_output.data.length); first = false; }
             int p = 0; // buffer
             // add the final result to the buffer
             if (m_type == Ym2203.class) {

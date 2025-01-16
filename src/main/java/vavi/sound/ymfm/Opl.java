@@ -1799,7 +1799,7 @@ public abstract class Opl {
                     break;
 
                 default:
-                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from Y8950 data port %02X\n", m_address);
+                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from Y8950 data port %02X".formatted(m_address));
                     break;
             }
             return result;
@@ -2208,7 +2208,7 @@ public abstract class Opl {
                 case 1:
                 case 2:
                 case 3:
-                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YMF262 offset %d\n", offset & 3);
+                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YMF262 offset %d".formatted(offset & 3));
                     break;
             }
             return result;
@@ -2433,7 +2433,7 @@ public abstract class Opl {
 
                 case 2:
                 case 3:
-                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YMF289B offset %d\n", offset & 3);
+                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YMF289B offset %d".formatted(offset & 3));
                     break;
             }
             return result;
@@ -2703,7 +2703,7 @@ public abstract class Opl {
                     break;
 
                 default:
-                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from ymf278b offset %d\n", offset & 3);
+                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from ymf278b offset %d".formatted(offset & 3));
                     break;
             }
             return result;
@@ -2811,7 +2811,7 @@ public abstract class Opl {
                     break;
 
                 default:
-                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected write to ymf278b offset %d\n", offset & 7);
+                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected write to ymf278b offset %d".formatted(offset & 7));
                     break;
             }
         }

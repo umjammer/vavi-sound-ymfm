@@ -33,6 +33,7 @@ package vavi.sound.ymfm;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.Arrays;
 
@@ -40,6 +41,7 @@ import vavi.sound.ymfm.YmFm.Debug;
 import vavi.util.serdes.Element;
 import vavi.util.serdes.Serdes;
 
+import static java.lang.System.getLogger;
 import static vavi.sound.ymfm.YmFm.AccessClass.ADPCM_A;
 import static vavi.sound.ymfm.YmFm.AccessClass.ADPCM_B;
 import static vavi.sound.ymfm.YmFm.Debug.log_keyon;
@@ -48,6 +50,8 @@ import static vavi.sound.ymfm.YmFm.clamp;
 
 
 public abstract class Adpcm {
+
+    private static final Logger logger = getLogger(Adpcm.class.getName());
 
     private Adpcm() {
     }
@@ -118,9 +122,9 @@ public abstract class Adpcm {
         }
 
         /** map channel number to register offset */
-        public static int channel_offset(int chnum) {
-            assert (chnum < CHANNELS);
-            return chnum;
+        public static int channel_offset(int chNum) {
+            assert (chNum < CHANNELS);
+            return chNum;
         }
 
         // direct read/write access
@@ -171,14 +175,14 @@ public abstract class Adpcm {
 
         // per-channel writes
 
-        public void write_start(int choffs, int address) {
-            write(choffs + 0x10, address);
-            write(choffs + 0x18, address >> 8);
+        public void write_start(int chOffs, int address) {
+            write(chOffs + 0x10, address);
+            write(chOffs + 0x18, address >> 8);
         }
 
-        public void write_end(int choffs, int address) {
-            write(choffs + 0x20, address);
-            write(choffs + 0x28, address >> 8);
+        public void write_end(int chOffs, int address) {
+            write(chOffs + 0x20, address);
+            write(chOffs + 0x28, address >> 8);
         }
 
         // internal state
@@ -199,12 +203,12 @@ public abstract class Adpcm {
          * Constructor.
          */
         public ChannelA(Adpcm.EngineA owner, int chOffs, int addrShift) {
-            m_choffs = chOffs;
+            m_chOffs = chOffs;
             m_address_shift = addrShift;
             m_playing = false;
-            m_curnibble = 0;
-            m_curbyte = 0;
-            m_curaddress = 0;
+            m_curNibble = 0;
+            m_curByte = 0;
+            m_curAddress = 0;
             m_accumulator = 0;
             m_step_index = 0;
             m_regs = owner.regs();
@@ -216,9 +220,9 @@ public abstract class Adpcm {
          */
         public void reset() {
             m_playing = false;
-            m_curnibble = 0;
-            m_curbyte = 0;
-            m_curaddress = 0;
+            m_curNibble = 0;
+            m_curByte = 0;
+            m_curAddress = 0;
             m_accumulator = 0;
             m_step_index = 0;
         }
@@ -244,21 +248,22 @@ public abstract class Adpcm {
             // QUESTION: repeated key ons restart the sample?
             m_playing = on;
             if (m_playing) {
-                m_curaddress = m_regs.ch_start(m_choffs) << m_address_shift;
-                m_curnibble = 0;
-                m_curbyte = 0;
+                m_curAddress = m_regs.ch_start(m_chOffs) << m_address_shift;
+logger.log(Level.DEBUG, "adpcmA: %d".formatted(m_curAddress));
+                m_curNibble = 0;
+                m_curByte = 0;
                 m_accumulator = 0;
                 m_step_index = 0;
 
                 // don't log masked channels
-                if (((Debug.GLOBAL_ADPCM_A_CHANNEL_MASK >> m_choffs) & 1) != 0)
-                    log_keyon.log(Level.DEBUG, "KeyOn ADPCM-A%d: pan=%d%d start=%04X end=%04X level=%02X\n",
-                            m_choffs,
-                            m_regs.ch_pan_left(m_choffs),
-                            m_regs.ch_pan_right(m_choffs),
-                            m_regs.ch_start(m_choffs),
-                            m_regs.ch_end(m_choffs),
-                            m_regs.ch_instrument_level(m_choffs));
+                if (((Debug.GLOBAL_ADPCM_A_CHANNEL_MASK >> m_chOffs) & 1) != 0)
+                    log_keyon.log(Level.DEBUG, "KeyOn ADPCM-A%d: pan=%d%d start=%04X end=%04X level=%02X".formatted(
+                            m_chOffs,
+                            m_regs.ch_pan_left(m_chOffs),
+                            m_regs.ch_pan_right(m_chOffs),
+                            m_regs.ch_start(m_chOffs),
+                            m_regs.ch_end(m_chOffs),
+                            m_regs.ch_instrument_level(m_chOffs)));
             }
         }
 
@@ -286,7 +291,7 @@ public abstract class Adpcm {
 
             // if we're about to read nibble 0, fetch the data
             int data;
-            if (m_curnibble == 0) {
+            if (m_curNibble == 0) {
                 // stop when we hit the end address; apparently only low 20 bits are used for
                 // comparison on the YM2610: this affects sample playback in some games, for
                 // example twinspri character select screen music will skip some samples if
@@ -295,22 +300,22 @@ public abstract class Adpcm {
                 // note also: end address is inclusive, so wait until we are about to fetch
                 // the sample just after the end before stopping; this is needed for nitd's
                 // jump sound, for example
-                int end = (m_regs.ch_end(m_choffs) + 1) << m_address_shift;
-                if (((m_curaddress ^ end) & 0xf_ffff) == 0) {
+                int end = (m_regs.ch_end(m_chOffs) + 1) << m_address_shift;
+                if (((m_curAddress ^ end) & 0xf_ffff) == 0) {
                     m_playing = false;
                     m_accumulator = 0;
                     return true;
                 }
 
-                m_curbyte = m_owner.intf().ymfm_external_read(ADPCM_A, m_curaddress++);
-                data = m_curbyte >> 4;
-                m_curnibble = 1;
+                m_curByte = m_owner.intf().ymfm_external_read(ADPCM_A, m_curAddress++);
+                data = m_curByte >> 4;
+                m_curNibble = 1;
             }
 
             // otherwise just extract from the previosuly-fetched byte
             else {
-                data = m_curbyte & 0xf;
-                m_curnibble = 0;
+                data = m_curByte & 0xf;
+                m_curNibble = 0;
             }
 
             // compute the ADPCM delta
@@ -333,7 +338,7 @@ public abstract class Adpcm {
         //template<int NumOutputs>
         public final void output(YmFm.Output output) {
             // volume combines instrument and total levels
-            int vol = (m_regs.ch_instrument_level(m_choffs) ^ 0x1f) + (m_regs.total_level() ^ 0x3f);
+            int vol = (m_regs.ch_instrument_level(m_chOffs) ^ 0x1f) + (m_regs.total_level() ^ 0x3f);
 
             // if combined is maximum, don't add to outputs
             if (vol >= 63)
@@ -349,16 +354,16 @@ public abstract class Adpcm {
             int value = (((m_accumulator << 4) * mul) >> shift) & ~3;
 
             // apply to left/right as appropriate
-            if (output.getNumOutputs() == 1 || m_regs.ch_pan_left(m_choffs) != 0)
+            if (output.getNumOutputs() == 1 || m_regs.ch_pan_left(m_chOffs) != 0)
                 output.data[0] += value;
-            if (output.getNumOutputs() > 1 && m_regs.ch_pan_right(m_choffs) != 0)
+            if (output.getNumOutputs() > 1 && m_regs.ch_pan_right(m_chOffs) != 0)
                 output.data[1] += value;
         }
 
         // internal state
 
         /** channel offset */
-        private final int m_choffs;
+        private final int m_chOffs;
         /** address bits shift-left */
         private final int m_address_shift;
         /** currently playing? */
@@ -366,13 +371,13 @@ public abstract class Adpcm {
         private boolean m_playing;
         /** index of the current nibble */
         @Element(sequence = 1)
-        private int m_curnibble;
+        private int m_curNibble;
         /** current byte of data */
         @Element(sequence = 2)
-        private int m_curbyte;
+        private int m_curByte;
         /** current address */
         @Element(sequence = 3)
-        private int m_curaddress;
+        private int m_curAddress;
         /** accumulator */
         @Element(sequence = 4)
         private int m_accumulator;
@@ -401,8 +406,8 @@ public abstract class Adpcm {
             m_intf = intf;
 
             // create the channels
-            for (int chnum = 0; chnum < CHANNELS; chnum++)
-                m_channel[chnum] = new ChannelA(this, chnum, addrShift);
+            for (int chNum = 0; chNum < CHANNELS; chNum++)
+                m_channel[chNum] = new ChannelA(this, chNum, addrShift);
         }
 
         /**
@@ -425,8 +430,8 @@ public abstract class Adpcm {
             m_regs.save(os);
 
             // save channel state
-            for (int chnum = 0; chnum < CHANNELS; chnum++)
-                m_channel[chnum].save(os);
+            for (int chNum = 0; chNum < CHANNELS; chNum++)
+                m_channel[chNum].save(os);
         }
 
         /**
@@ -437,20 +442,20 @@ public abstract class Adpcm {
             m_regs.restore(is);
 
             // save channel state
-            for (int chnum = 0; chnum < CHANNELS; chnum++)
-                m_channel[chnum].restore(is);
+            for (int chNum = 0; chNum < CHANNELS; chNum++)
+                m_channel[chNum].restore(is);
         }
 
         /**
          * Master clocking function.
          */
-        public int clock(int chanmask) {
+        public int clock(int chanMask) {
             // clock each channel, setting a bit in result if it finished
             int result = 0;
-            for (int chnum = 0; chnum < CHANNELS; chnum++)
-                if (bitfield(chanmask, chnum) != 0)
-                    if (m_channel[chnum].clock())
-                        result |= 1 << chnum;
+            for (int chNum = 0; chNum < CHANNELS; chNum++)
+                if (bitfield(chanMask, chNum) != 0)
+                    if (m_channel[chNum].clock())
+                        result |= 1 << chNum;
 
             // return the bitmask of completed samples
             return result;
@@ -460,14 +465,14 @@ public abstract class Adpcm {
          * Master update function.
          */
         //template<int NumOutputs>
-        public void output(YmFm.Output output, int chanmask) {
+        public void output(YmFm.Output output, int chanMask) {
             // mask out some channels for debug purposes
-            chanmask &= Debug.GLOBAL_ADPCM_A_CHANNEL_MASK;
+            chanMask &= Debug.GLOBAL_ADPCM_A_CHANNEL_MASK;
 
             // compute the output of each channel
-            for (int chnum = 0; chnum < CHANNELS; chnum++)
-                if (bitfield(chanmask, chnum) != 0)
-                    m_channel[chnum].output(output);
+            for (int chNum = 0; chNum < CHANNELS; chNum++)
+                if (bitfield(chanMask, chNum) != 0)
+                    m_channel[chNum].output(output);
         }
 
         //template void EngineA.output<1>(Output<1> output, int chanMask);
@@ -483,9 +488,9 @@ public abstract class Adpcm {
 
             // actively handle writes to the control register
             if (regNum == 0x00)
-                for (int chnum = 0; chnum < CHANNELS; chnum++)
-                    if (bitfield(data, chnum) != 0)
-                        m_channel[chnum].keyOnOff(bitfield(~data, 7) != 0);
+                for (int chNum = 0; chNum < CHANNELS; chNum++)
+                    if (bitfield(data, chNum) != 0)
+                        m_channel[chNum].keyOnOff(bitfield(~data, 7) != 0);
         }
 
         /** set the start/end address for a channel (for hardcoded YM2608 percussion) */
@@ -570,10 +575,10 @@ public abstract class Adpcm {
          * Resets the register state.
          */
         public void reset() {
-            Arrays.fill(m_regdata, 0, REGISTERS, 0);
+            Arrays.fill(m_regData, 0, REGISTERS, 0);
 
             // default limit to wide open
-            m_regdata[0x0c] = m_regdata[0x0d] = 0xff;
+            m_regData[0x0c] = m_regData[0x0d] = 0xff;
         }
 
         /**
@@ -593,100 +598,100 @@ public abstract class Adpcm {
         // direct read/write access
 
         public void write(int index, int data) {
-            m_regdata[index] = data;
+            m_regData[index] = data;
         }
 
         // system-wide registers
 
         public final int execute() {
-            return bitfield(m_regdata[0x00], 7);
+            return bitfield(m_regData[0x00], 7);
         }
 
         public final int record() {
-            return bitfield(m_regdata[0x00], 6);
+            return bitfield(m_regData[0x00], 6);
         }
 
         public final int external() {
-            return bitfield(m_regdata[0x00], 5);
+            return bitfield(m_regData[0x00], 5);
         }
 
         public final int repeat() {
-            return bitfield(m_regdata[0x00], 4);
+            return bitfield(m_regData[0x00], 4);
         }
 
         public final int speaker() {
-            return bitfield(m_regdata[0x00], 3);
+            return bitfield(m_regData[0x00], 3);
         }
 
         public final int resetflag() {
-            return bitfield(m_regdata[0x00], 0);
+            return bitfield(m_regData[0x00], 0);
         }
 
         public final int pan_left() {
-            return bitfield(m_regdata[0x01], 7);
+            return bitfield(m_regData[0x01], 7);
         }
 
         public final int pan_right() {
-            return bitfield(m_regdata[0x01], 6);
+            return bitfield(m_regData[0x01], 6);
         }
 
         public final int start_conversion() {
-            return bitfield(m_regdata[0x01], 3);
+            return bitfield(m_regData[0x01], 3);
         }
 
         public final int dac_enable() {
-            return bitfield(m_regdata[0x01], 2);
+            return bitfield(m_regData[0x01], 2);
         }
 
         public final int dram_8bit() {
-            return bitfield(m_regdata[0x01], 1);
+            return bitfield(m_regData[0x01], 1);
         }
 
         public final int rom_ram() {
-            return bitfield(m_regdata[0x01], 0);
+            return bitfield(m_regData[0x01], 0);
         }
 
         public final int start() {
-            return m_regdata[0x02] | (m_regdata[0x03] << 8);
+            return m_regData[0x02] | (m_regData[0x03] << 8);
         }
 
         public final int end() {
-            return m_regdata[0x04] | (m_regdata[0x05] << 8);
+            return m_regData[0x04] | (m_regData[0x05] << 8);
         }
 
         public final int prescale() {
-            return m_regdata[0x06] | (bitfield(m_regdata[0x07], 0, 3) << 8);
+            return m_regData[0x06] | (bitfield(m_regData[0x07], 0, 3) << 8);
         }
 
         public final int cpudata() {
-            return m_regdata[0x08];
+            return m_regData[0x08];
         }
 
         public final int delta_n() {
-            return m_regdata[0x09] | (m_regdata[0x0a] << 8);
+            return m_regData[0x09] | (m_regData[0x0a] << 8);
         }
 
         public final int level() {
-            return m_regdata[0x0b];
+            return m_regData[0x0b];
         }
 
         public final int limit() {
-            return m_regdata[0x0c] | (m_regdata[0x0d] << 8);
+            return m_regData[0x0c] | (m_regData[0x0d] << 8);
         }
 
         public final int dac() {
-            return m_regdata[0x0e];
+            return m_regData[0x0e];
         }
 
         public final int pcm() {
-            return m_regdata[0x0f];
+            return m_regData[0x0f];
         }
 
         // internal state
 
         /** register data */
         @Element
-        private final int[] m_regdata = new int[REGISTERS];
+        private final int[] m_regData = new int[REGISTERS];
     }
 
     //
@@ -709,11 +714,11 @@ public abstract class Adpcm {
         public ChannelB(Adpcm.EngineB owner, int addrShift) {
             m_address_shift = addrShift;
             m_status = STATUS_BRDY;
-            m_curnibble = 0;
-            m_curbyte = 0;
+            m_curNibble = 0;
+            m_curByte = 0;
             m_dummy_read = 0;
             m_position = 0;
-            m_curaddress = 0;
+            m_curAddress = 0;
             m_accumulator = 0;
             m_prev_accum = 0;
             m_adpcm_step = STEP_MIN;
@@ -726,11 +731,11 @@ public abstract class Adpcm {
          */
         public void reset() {
             m_status = STATUS_BRDY;
-            m_curnibble = 0;
-            m_curbyte = 0;
+            m_curNibble = 0;
+            m_curByte = 0;
             m_dummy_read = 0;
             m_position = 0;
-            m_curaddress = 0;
+            m_curAddress = 0;
             m_accumulator = 0;
             m_prev_accum = 0;
             m_adpcm_step = STEP_MIN;
@@ -772,18 +777,18 @@ public abstract class Adpcm {
                 return;
 
             // if we're about to process nibble 0, fetch sample
-            if (m_curnibble == 0) {
+            if (m_curNibble == 0) {
                 // playing from RAM/ROM
                 if (m_regs.external() != 0)
-                    m_curbyte = m_owner.intf().ymfm_external_read(ADPCM_B, m_curaddress);
+                    m_curByte = m_owner.intf().ymfm_external_read(ADPCM_B, m_curAddress);
             }
 
             // extract the nibble from our current byte
-            int data = (m_curbyte << (4 * m_curnibble)) >> 4;
-            m_curnibble ^= 1;
+            int data = (m_curByte << (4 * m_curNibble)) >> 4;
+            m_curNibble ^= 1;
 
             // we just processed the last nibble
-            if (m_curnibble == 0) {
+            if (m_curNibble == 0) {
                 // if playing from RAM/ROM, check the end/limit address or advance
                 if (m_regs.external() != 0) {
                     // handle the sample end, either repeating or stopping
@@ -797,25 +802,25 @@ public abstract class Adpcm {
                             m_accumulator = 0;
                             m_prev_accum = 0;
                             m_status = (m_status & ~STATUS_PLAYING) | STATUS_EOS;
-                            log_keyon.log(Level.DEBUG, "%s\n", "ADPCM EOS");
+                            log_keyon.log(Level.DEBUG, "%s".formatted("ADPCM EOS"));
                             return;
                         }
                     }
 
                     // wrap at the limit address
                     else if (at_limit())
-                        m_curaddress = 0;
+                        m_curAddress = 0;
 
                         // otherwise, advance the current address
                     else {
-                        m_curaddress++;
-                        m_curaddress &= 0xffffff;
+                        m_curAddress++;
+                        m_curAddress &= 0xffffff;
                     }
                 }
 
                 // if CPU-driven, copy the next byte and request more
                 else {
-                    m_curbyte = m_regs.cpudata();
+                    m_curByte = m_regs.cpudata();
                     m_status |= STATUS_BRDY;
                 }
             }
@@ -865,11 +870,11 @@ public abstract class Adpcm {
         /**
          * Handles special register reads.
          */
-        public int read(int regnum) {
+        public int read(int regNum) {
             int result = 0;
 
             // register 8 reads over the bus under some conditions
-            if (regnum == 0x08 && m_regs.execute() == 0 && m_regs.record() == 0 && m_regs.external() != 0) {
+            if (regNum == 0x08 && m_regs.execute() == 0 && m_regs.record() == 0 && m_regs.external() != 0) {
                 // two dummy reads are consumed first
                 if (m_dummy_read != 0) {
                     load_start();
@@ -879,12 +884,12 @@ public abstract class Adpcm {
                 // read the data
                 else {
                     // read from outside of the chip
-                    result = m_owner.intf().ymfm_external_read(ADPCM_B, m_curaddress++);
+                    result = m_owner.intf().ymfm_external_read(ADPCM_B, m_curAddress++);
 
                     // did we hit the end? if so, signal EOS
                     if (at_end()) {
                         m_status = STATUS_EOS | STATUS_BRDY;
-                        log_keyon.log(Level.DEBUG, "%s\n", "ADPCM EOS");
+                        log_keyon.log(Level.DEBUG, "%s".formatted("ADPCM EOS"));
                     } else {
                         // signal ready
                         m_status = STATUS_BRDY;
@@ -892,7 +897,7 @@ public abstract class Adpcm {
 
                     // wrap at the limit address
                     if (at_limit())
-                        m_curaddress = 0;
+                        m_curAddress = 0;
                 }
             }
             return result;
@@ -910,7 +915,7 @@ public abstract class Adpcm {
 
                     // don't log masked channels
                     if ((Debug.GLOBAL_ADPCM_B_CHANNEL_MASK & 1) != 0)
-                        log_keyon.log(Level.DEBUG, "KeyOn ADPCM-B: rep=%d spk=%d pan=%d%d dac=%d 8b=%d rom=%d ext=%d rec=%d start=%04X end=%04X pre=%04X dn=%04X lvl=%02X lim=%04X\n",
+                        log_keyon.log(Level.DEBUG, "KeyOn ADPCM-B: rep=%d spk=%d pan=%d%d dac=%d 8b=%d rom=%d ext=%d rec=%d start=%04X end=%04X pre=%04X dn=%04X lvl=%02X lim=%04X".formatted(
                                 m_regs.repeat(),
                                 m_regs.speaker(),
                                 m_regs.pan_left(),
@@ -925,7 +930,7 @@ public abstract class Adpcm {
                                 m_regs.prescale(),
                                 m_regs.delta_n(),
                                 m_regs.level(),
-                                m_regs.limit());
+                                m_regs.limit()));
                 } else
                     m_status &= ~STATUS_EOS;
                 if (m_regs.resetflag() == 0)
@@ -950,13 +955,13 @@ public abstract class Adpcm {
 
                     // did we hit the end? if so, signal EOS
                     if (at_end()) {
-                        log_keyon.log(Level.DEBUG, "%s\n", "ADPCM EOS");
+                        log_keyon.log(Level.DEBUG, "%s".formatted("ADPCM EOS"));
                         m_status = STATUS_EOS | STATUS_BRDY;
                     }
 
                     // otherwise, write the data and signal ready
                     else {
-                        m_owner.intf().ymfm_external_write(ADPCM_B, m_curaddress++, value);
+                        m_owner.intf().ymfm_external_write(ADPCM_B, m_curAddress++, value);
                         m_status = STATUS_BRDY;
                     }
                 }
@@ -986,9 +991,9 @@ public abstract class Adpcm {
          */
         private void load_start() {
             m_status = (m_status & ~STATUS_EOS) | STATUS_PLAYING;
-            m_curaddress = m_regs.external() != 0 ? (m_regs.start() << address_shift()) : 0;
-            m_curnibble = 0;
-            m_curbyte = 0;
+            m_curAddress = m_regs.external() != 0 ? (m_regs.start() << address_shift()) : 0;
+            m_curNibble = 0;
+            m_curByte = 0;
             m_position = 0;
             m_accumulator = 0;
             m_prev_accum = 0;
@@ -997,12 +1002,12 @@ public abstract class Adpcm {
 
         /** limit checker; stops at the last byte of the chunk described by address_shift() */
         private boolean at_limit() {
-            return (m_curaddress == (((m_regs.limit() + 1) << address_shift()) - 1));
+            return (m_curAddress == (((m_regs.limit() + 1) << address_shift()) - 1));
         }
 
         /** end checker; stops at the last byte of the chunk described by address_shift() */
         private boolean at_end() {
-            return (m_curaddress == (((m_regs.end() + 1) << address_shift()) - 1));
+            return (m_curAddress == (((m_regs.end() + 1) << address_shift()) - 1));
         }
 
         // internal state
@@ -1014,10 +1019,10 @@ public abstract class Adpcm {
         private int m_status;
         /** index of the current nibble */
         @Element(sequence = 1)
-        private int m_curnibble;
+        private int m_curNibble;
         /** current byte of data */
         @Element(sequence = 2)
-        private int m_curbyte;
+        private int m_curByte;
         /** dummy read tracker */
         @Element(sequence = 3)
         private int m_dummy_read;
@@ -1026,7 +1031,7 @@ public abstract class Adpcm {
         private int m_position;
         /** current address */
         @Element(sequence = 5)
-        private int m_curaddress;
+        private int m_curAddress;
         /** accumulator */
         @Element(sequence = 6)
         private int m_accumulator;

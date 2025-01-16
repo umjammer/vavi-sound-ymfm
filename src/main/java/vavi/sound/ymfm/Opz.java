@@ -1139,7 +1139,7 @@ public abstract class Opz {
             int result = 0xff;
             switch (offset & 1) {
                 case 0: // data port (unused)
-                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YM2414 offset %d", offset & 3);
+                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YM2414 offset %d".formatted(offset & 3));
                     break;
 
                 case 1: // status port, YM2203 compatible

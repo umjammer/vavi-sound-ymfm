@@ -789,11 +789,11 @@ public abstract class Opq {
                     break;
 
                 default: // unknown
-                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YM3806 offset %02X", offset);
+                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YM3806 offset %02X".formatted(offset));
                     break;
             }
             if (log_unexpected_read_write.isLoggable(Level.DEBUG) && offset != 0)
-                System.out.printf("Read %02X = %02X%n", offset, result);
+                log_unexpected_read_write.log(Level.DEBUG, "Read %02X = %02X", offset, result);
             return result;
         }
 
@@ -809,7 +809,7 @@ public abstract class Opq {
         @Override
         public void write(int offset, int data) {
             if (TEMPORARY_DEBUG_PRINTS != 0 && (offset != 3 || data != 0x71))
-                System.out.printf("Write %02X = %02X%n", offset, data);
+                log_unexpected_read_write.log(Level.DEBUG, "Write %02X = %02X".formatted(offset, data));
             // write the FM register
             m_fm.write(offset, data);
         }

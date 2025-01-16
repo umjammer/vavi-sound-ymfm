@@ -928,7 +928,7 @@ public abstract class Opn {
         //template<typename OutputType, int FirstOutput, boolean MixTo1>
         protected SsgResampler(Ssg.Engine ssg) {
             m_ssg = ssg;
-            m_sampindex = 0;
+            m_sampleIndex = 0;
             m_resampler = this::resample_nop;
 
             m_last = m_ssg.outputFactory();
@@ -964,7 +964,7 @@ public abstract class Opn {
             }
 
             // track the sample index here
-            m_sampindex++;
+            m_sampleIndex++;
         }
 
         /**
@@ -983,7 +983,7 @@ public abstract class Opn {
 
         /** get the current sample index */
         public final int sampleIndex() {
-            return m_sampindex;
+            return m_sampleIndex;
         }
 
         /**
@@ -1038,7 +1038,7 @@ public abstract class Opn {
          */
         private void resample_n_1(YmFm.Output[] output, int numSamples, int multiplier) {
             for (int samp = 0; samp < numSamples; samp++) {
-                if (m_sampindex % multiplier == 0) {
+                if (m_sampleIndex % multiplier == 0) {
                     m_ssg.clock();
                     m_ssg.output(m_last);
                 }
@@ -1094,13 +1094,13 @@ public abstract class Opn {
         private void resample_2_9(YmFm.Output[] output, int numSamples) {
             for (int samp = 0; samp < numSamples; samp++) {
                 int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
-                if (bitfield(m_sampindex, 0) != 0)
+                if (bitfield(m_sampleIndex, 0) != 0)
                     add_last(sum0, sum1, sum2, 1);
                 clock_and_add(sum0, sum1, sum2, 2);
                 clock_and_add(sum0, sum1, sum2, 2);
                 clock_and_add(sum0, sum1, sum2, 2);
                 clock_and_add(sum0, sum1, sum2, 2);
-                if (bitfield(m_sampindex, 0) == 0)
+                if (bitfield(m_sampleIndex, 0) == 0)
                     clock_and_add(sum0, sum1, sum2, 1);
                 write_to_output(output[samp], sum0[0], sum1[0], sum2[0], 9);
             }
@@ -1114,7 +1114,7 @@ public abstract class Opn {
         private void resample_2_3(YmFm.Output[] output, int numSamples) {
             for (int samp = 0; samp < numSamples; samp++) {
                 int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
-                if (bitfield(m_sampindex, 0) == 0) {
+                if (bitfield(m_sampleIndex, 0) == 0) {
                     clock_and_add(sum0, sum1, sum2, 2);
                     clock_and_add(sum0, sum1, sum2, 1);
                 } else {
@@ -1133,7 +1133,7 @@ public abstract class Opn {
         private void resample_4_3(YmFm.Output[] output, int numSamples) {
             for (int samp = 0; samp < numSamples; samp++) {
                 int[] sum0 = new int[1], sum1 = new int[1], sum2 = new int[1];
-                int step = bitfield(m_sampindex, 0, 2);
+                int step = bitfield(m_sampleIndex, 0, 2);
                 add_last(sum0, sum1, sum2, step);
                 if (step != 3)
                     clock_and_add(sum0, sum1, sum2, 3 - step);
@@ -1146,17 +1146,17 @@ public abstract class Opn {
          */
         private void resample_nop(YmFm.Output[] output, int numSamples) {
             // nothing to do except increment the sample index
-            m_sampindex += numSamples;
+            m_sampleIndex += numSamples;
         }
 
         // define a pointer type
-        //using resample_func = void (ssg_resampler)(OutputType output, int numsamples);
+        //using resample_func = void (ssg_resampler)(OutputType output, int numSamples);
 
         // internal state
 
         private final Ssg.Engine m_ssg;
         @Element(sequence = 0)
-        private int m_sampindex;
+        private int m_sampleIndex;
         // resample_func
         private BiConsumer<Output[], Integer> m_resampler;
         @Element(sequence = 1)
@@ -2272,7 +2272,7 @@ public abstract class Opn {
                     break;
 
                 case 3: // unmapped
-                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YMF288 offset %d\n", offset & 3);
+                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YMF288 offset %d".formatted(offset & 3));
                     break;
             }
             return result;
@@ -3024,7 +3024,7 @@ public abstract class Opn {
                 case 1: // data port (unused)
                 case 2: // status port, extended
                 case 3: // data port (unused)
-                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YM2612 offset %d\n", offset & 3);
+                    log_unexpected_read_write.log(Level.DEBUG, "Unexpected read from YM2612 offset %d".formatted(offset & 3));
                     break;
             }
             return result;
