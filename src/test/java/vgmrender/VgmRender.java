@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-import org.slf4j.LoggerFactory;
 import vavi.io.LittleEndianDataOutputStream;
 import vavi.sound.ymfm.Misc.Ym2149;
 import vavi.sound.ymfm.Opl.Y8950;
@@ -46,7 +45,6 @@ public class VgmRender {
 
     // run this many dummy clocks of each chip before generating
     private static final int EXTRA_CLOCKS = 0;
-    private static final org.slf4j.Logger log = LoggerFactory.getLogger(VgmRender.class);
 
     //
 	// GLOBAL HELPERS

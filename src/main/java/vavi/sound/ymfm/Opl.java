@@ -237,14 +237,14 @@ public abstract class Opl {
                 wf0[index] = abs_sin_attenuation(index) | (bitfield(index, 9) << 15);
 
             if (WAVEFORMS >= 4) {
-                int zeroval = wf0[0];
+                int zeroVal = wf0[0];
                 for (int index = 0; index < WAVEFORM_LENGTH; index++) {
-                    wf1[index] = bitfield(index, 9) != 0 ? zeroval : wf0[index];
+                    wf1[index] = bitfield(index, 9) != 0 ? zeroVal : wf0[index];
                     wf2[index] = wf0[index] & 0x7fff;
-                    wf3[index] = bitfield(index, 8) != 0 ? zeroval : (wf0[index] & 0x7fff);
+                    wf3[index] = bitfield(index, 8) != 0 ? zeroVal : (wf0[index] & 0x7fff);
                     if (WAVEFORMS >= 8) {
-                        wf4[index] = bitfield(index, 9) != 0 ? zeroval : wf0[index * 2];
-                        wf5[index] = bitfield(index, 9) != 0 ? zeroval : wf0[(index * 2) & 0x1ff];
+                        wf4[index] = bitfield(index, 9) != 0 ? zeroVal : wf0[index * 2];
+                        wf5[index] = bitfield(index, 9) != 0 ? zeroVal : wf0[(index * 2) & 0x1ff];
                         wf6[index] = bitfield(index, 9) << 15;
                         wf7[index] = (bitfield(index, 9) != 0 ? (index ^ 0x13ff) : index) << 3;
                     }
@@ -327,24 +327,24 @@ public abstract class Opl {
                 dest[0] = s_fixed_map;
             } else {
                 // OPL3/OPL4 can be configured for 2 or 4 operators
-                int fourop = fourop_enable();
+                int fourOp = fourOp_enable();
 
-                dest[0][0] = bitfield(fourop, 0) != 0 ? operator_list(0, 3, 6, 9) : operator_list(0, 3);
-                dest[0][1] = bitfield(fourop, 1) != 0 ? operator_list(1, 4, 7, 10) : operator_list(1, 4);
-                dest[0][2] = bitfield(fourop, 2) != 0 ? operator_list(2, 5, 8, 11) : operator_list(2, 5);
-                dest[0][3] = bitfield(fourop, 0) != 0 ? operator_list() : operator_list(6, 9);
-                dest[0][4] = bitfield(fourop, 1) != 0 ? operator_list() : operator_list(7, 10);
-                dest[0][5] = bitfield(fourop, 2) != 0 ? operator_list() : operator_list(8, 11);
+                dest[0][0] = bitfield(fourOp, 0) != 0 ? operator_list(0, 3, 6, 9) : operator_list(0, 3);
+                dest[0][1] = bitfield(fourOp, 1) != 0 ? operator_list(1, 4, 7, 10) : operator_list(1, 4);
+                dest[0][2] = bitfield(fourOp, 2) != 0 ? operator_list(2, 5, 8, 11) : operator_list(2, 5);
+                dest[0][3] = bitfield(fourOp, 0) != 0 ? operator_list() : operator_list(6, 9);
+                dest[0][4] = bitfield(fourOp, 1) != 0 ? operator_list() : operator_list(7, 10);
+                dest[0][5] = bitfield(fourOp, 2) != 0 ? operator_list() : operator_list(8, 11);
                 dest[0][6] = operator_list(12, 15);
                 dest[0][7] = operator_list(13, 16);
                 dest[0][8] = operator_list(14, 17);
 
-                dest[0][9] = bitfield(fourop, 3) != 0 ? operator_list(18, 21, 24, 27) : operator_list(18, 21);
-                dest[0][10] = bitfield(fourop, 4) != 0 ? operator_list(19, 22, 25, 28) : operator_list(19, 22);
-                dest[0][11] = bitfield(fourop, 5) != 0 ? operator_list(20, 23, 26, 29) : operator_list(20, 23);
-                dest[0][12] = bitfield(fourop, 3) != 0 ? operator_list() : operator_list(24, 27);
-                dest[0][13] = bitfield(fourop, 4) != 0 ? operator_list() : operator_list(25, 28);
-                dest[0][14] = bitfield(fourop, 5) != 0 ? operator_list() : operator_list(26, 29);
+                dest[0][9] = bitfield(fourOp, 3) != 0 ? operator_list(18, 21, 24, 27) : operator_list(18, 21);
+                dest[0][10] = bitfield(fourOp, 4) != 0 ? operator_list(19, 22, 25, 28) : operator_list(19, 22);
+                dest[0][11] = bitfield(fourOp, 5) != 0 ? operator_list(20, 23, 26, 29) : operator_list(20, 23);
+                dest[0][12] = bitfield(fourOp, 3) != 0 ? operator_list() : operator_list(24, 27);
+                dest[0][13] = bitfield(fourOp, 4) != 0 ? operator_list() : operator_list(25, 28);
+                dest[0][14] = bitfield(fourOp, 5) != 0 ? operator_list() : operator_list(26, 29);
                 dest[0][15] = operator_list(30, 33);
                 dest[0][16] = operator_list(31, 34);
                 dest[0][17] = operator_list(32, 35);
@@ -517,12 +517,12 @@ public abstract class Opl {
             cache.eg_sustain |= (cache.eg_sustain + 1) & 0x10;
             cache.eg_sustain <<= 5;
 
-            // determine KSR adjustment for enevlope rates
-            int ksrval = keycode >> (2 * (op_ksr(opOffs) ^ 1));
-            cache.eg_rate[EG_ATTACK.ordinal()] = effective_rate(op_attack_rate(opOffs) * 4, ksrval);
-            cache.eg_rate[EG_DECAY.ordinal()] = effective_rate(op_decay_rate(opOffs) * 4, ksrval);
-            cache.eg_rate[EG_SUSTAIN.ordinal()] = op_eg_sustain(opOffs) != 0 ? 0 : effective_rate(op_release_rate(opOffs) * 4, ksrval);
-            cache.eg_rate[EG_RELEASE.ordinal()] = effective_rate(op_release_rate(opOffs) * 4, ksrval);
+            // determine KSR adjustment for envelope rates
+            int ksrVal = keycode >> (2 * (op_ksr(opOffs) ^ 1));
+            cache.eg_rate[EG_ATTACK.ordinal()] = effective_rate(op_attack_rate(opOffs) * 4, ksrVal);
+            cache.eg_rate[EG_DECAY.ordinal()] = effective_rate(op_decay_rate(opOffs) * 4, ksrVal);
+            cache.eg_rate[EG_SUSTAIN.ordinal()] = op_eg_sustain(opOffs) != 0 ? 0 : effective_rate(op_release_rate(opOffs) * 4, ksrVal);
+            cache.eg_rate[EG_RELEASE.ordinal()] = effective_rate(op_release_rate(opOffs) * 4, ksrVal);
             cache.eg_rate[EG_DEPRESS.ordinal()] = 0x3f;
         }
 
@@ -560,14 +560,14 @@ public abstract class Opl {
          * Logs a key-on event.
          */
         @Override
-        public String log_keyon(int chOffs, int opOffs) {
-            int chnum = (chOffs & 15) + 9 * bitfield(chOffs, 8);
-            int opnum = (opOffs & 31) - 2 * ((opOffs & 31) / 8) + 18 * bitfield(opOffs, 8);
+        public String log_keyOn(int chOffs, int opOffs) {
+            int chNum = (chOffs & 15) + 9 * bitfield(chOffs, 8);
+            int opNum = (opOffs & 31) - 2 * ((opOffs & 31) / 8) + 18 * bitfield(opOffs, 8);
 
             StringBuilder buffer = new StringBuilder();
 
             buffer.append("%2d.%02d freq=%04X fb=%d alg=%X mul=%X tl=%02X ksr=%d ns=%d ksl=%d adr=%X/%X/%X sl=%X sus=%d".formatted(
-                    chnum, opnum,
+                    chNum, opNum,
                     ch_block_freq(chOffs),
                     ch_feedback(chOffs),
                     ch_algorithm(chOffs),
@@ -599,7 +599,7 @@ public abstract class Opl {
             if (DYNAMIC_OPS) {
                 int[][] map = new int[1][];
                 operator_map(map);
-                if (bitfield(map[0][chnum], 16, 8) != 0xff)
+                if (bitfield(map[0][chNum], 16, 8) != 0xff)
                     buffer.append(" 4op");
             }
 
@@ -689,11 +689,11 @@ public abstract class Opl {
             return byte_(0xbd, 5, 1);
         }
 
-        public final int rhythm_keyon() {
+        public final int rhythm_keyOn() {
             return byte_(0xbd, 4, 0);
         }
 
-        public final int newflag() {
+        public final int newFlag() {
             return IsOpl3Plus ? byte_(0x105, 0, 1) : 0;
         }
 
@@ -701,7 +701,7 @@ public abstract class Opl {
             return IsOpl4Plus ? byte_(0x105, 1, 1) : 0;
         }
 
-        public final int fourop_enable() {
+        public final int fourOp_enable() {
             return IsOpl3Plus ? byte_(0x104, 0, 6) : 0;
         }
 
@@ -723,27 +723,27 @@ public abstract class Opl {
 
         @Override
         public final int ch_output_any(int chOffs) {
-            return newflag() != 0 ? byte_(0xc0 + chOffs, 4, 4) : 1;
+            return newFlag() != 0 ? byte_(0xc0 + chOffs, 4, 4) : 1;
         }
 
         @Override
         public final int ch_output_0(int chOffs) {
-            return newflag() != 0 ? byte_(0xc0 + chOffs, 4, 1) : 1;
+            return newFlag() != 0 ? byte_(0xc0 + chOffs, 4, 1) : 1;
         }
 
         @Override
         public final int ch_output_1(int chOffs) {
-            return newflag() != 0 ? byte_(0xc0 + chOffs, 5, 1) : (IsOpl3Plus ? 1 : 0);
+            return newFlag() != 0 ? byte_(0xc0 + chOffs, 5, 1) : (IsOpl3Plus ? 1 : 0);
         }
 
         @Override
         public final int ch_output_2(int chOffs) {
-            return newflag() != 0 ? byte_(0xc0 + chOffs, 6, 1) : 0;
+            return newFlag() != 0 ? byte_(0xc0 + chOffs, 6, 1) : 0;
         }
 
         @Override
         public final int ch_output_3(int chOffs) {
-            return newflag() != 0 ? byte_(0xc0 + chOffs, 7, 1) : 0;
+            return newFlag() != 0 ? byte_(0xc0 + chOffs, 7, 1) : 0;
         }
 
         // per-operator registers
@@ -753,49 +753,49 @@ public abstract class Opl {
             return byte_(0x20, 7, 1, opOffs);
         }
 
-        public final int op_lfo_pm_enable(int opoffs) {
-            return byte_(0x20, 6, 1, opoffs);
+        public final int op_lfo_pm_enable(int opOffs) {
+            return byte_(0x20, 6, 1, opOffs);
         }
 
-        public final int op_eg_sustain(int opoffs) {
-            return byte_(0x20, 5, 1, opoffs);
+        public final int op_eg_sustain(int opOffs) {
+            return byte_(0x20, 5, 1, opOffs);
         }
 
-        public final int op_ksr(int opoffs) {
-            return byte_(0x20, 4, 1, opoffs);
+        public final int op_ksr(int opOffs) {
+            return byte_(0x20, 4, 1, opOffs);
         }
 
-        public final int op_multiple(int opoffs) {
-            return byte_(0x20, 0, 4, opoffs);
+        public final int op_multiple(int opOffs) {
+            return byte_(0x20, 0, 4, opOffs);
         }
 
-        public final int op_ksl(int opoffs) {
-            int temp = byte_(0x40, 6, 2, opoffs);
+        public final int op_ksl(int opOffs) {
+            int temp = byte_(0x40, 6, 2, opOffs);
             return bitfield(temp, 1) | (bitfield(temp, 0) << 1);
         }
 
-        public final int op_total_level(int opoffs) {
-            return byte_(0x40, 0, 6, opoffs);
+        public final int op_total_level(int opOffs) {
+            return byte_(0x40, 0, 6, opOffs);
         }
 
-        public final int op_attack_rate(int opoffs) {
-            return byte_(0x60, 4, 4, opoffs);
+        public final int op_attack_rate(int opOffs) {
+            return byte_(0x60, 4, 4, opOffs);
         }
 
-        public final int op_decay_rate(int opoffs) {
-            return byte_(0x60, 0, 4, opoffs);
+        public final int op_decay_rate(int opOffs) {
+            return byte_(0x60, 0, 4, opOffs);
         }
 
-        public final int op_sustain_level(int opoffs) {
-            return byte_(0x80, 4, 4, opoffs);
+        public final int op_sustain_level(int opOffs) {
+            return byte_(0x80, 4, 4, opOffs);
         }
 
-        public final int op_release_rate(int opoffs) {
-            return byte_(0x80, 0, 4, opoffs);
+        public final int op_release_rate(int opOffs) {
+            return byte_(0x80, 0, 4, opOffs);
         }
 
-        public final int op_waveform(int opoffs) {
-            return IsOpl2Plus ? byte_(0xe0, 0, newflag() != 0 ? 3 : 2, opoffs) : 0;
+        public final int op_waveform(int opOffs) {
+            return IsOpl2Plus ? byte_(0xe0, 0, newFlag() != 0 ? 3 : 2, opOffs) : 0;
         }
 
         /** Returns a bitfield extracted from a byte */
@@ -919,27 +919,35 @@ public abstract class Opl {
     @Serdes
     protected static class OpllRegisters extends RegistersBase {
 
-        public static final int OUTPUTS = 2;
-        public static final int CHANNELS = 9;
-        public static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
-        public static final int OPERATORS = CHANNELS * 2;
-        public static final int WAVEFORMS = 2;
-        public static final int REGISTERS = 0x40;
-        public static final int REG_MODE = 0x3f;
-        public static final int DEFAULT_PRESCALE = 4;
-        public static final int EG_CLOCK_DIVIDER = 1;
-        public static final int CSM_TRIGGER_MASK = 0;
-        public static final boolean EG_HAS_DEPRESS = true;
-        public static final boolean MODULATOR_DELAY = true;
-        public static final int STATUS_TIMERA = 0;
-        public static final int STATUS_TIMERB = 0;
-        public static final int STATUS_BUSY = 0;
-        public static final int STATUS_IRQ = 0;
+        protected static final int OUTPUTS = 2;
+        protected static final int CHANNELS = 9;
+        protected static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
+        protected static final int OPERATORS = CHANNELS * 2;
+        protected static final int WAVEFORMS = 2;
+        protected static final int REGISTERS = 0x40;
+        protected static final int REG_MODE = 0x3f;
+        protected static final int DEFAULT_PRESCALE = 4;
+        protected static final int EG_CLOCK_DIVIDER = 1;
+        protected static final int CSM_TRIGGER_MASK = 0;
+        protected static final boolean EG_HAS_DEPRESS = true;
+        protected static final boolean MODULATOR_DELAY = true;
+        protected static final int STATUS_TIMERA = 0;
+        protected static final int STATUS_TIMERB = 0;
+        protected static final int STATUS_BUSY = 0;
+        protected static final int STATUS_IRQ = 0;
 
         // OPLL-specific constants
-        public static final int INSTDATA_SIZE = 0x90;
+        protected static final int INSTDATA_SIZE = 0x90;
 
-        {
+        /**
+         * Constructor.
+         */
+        protected OpllRegisters() {
+            m_lfo_am_counter = 0;
+            m_lfo_pm_counter = 0;
+            m_noise_lfsr = 1;
+            m_lfo_am = 0;
+
             getParams().put("OUTPUTS", OUTPUTS);
             getParams().put("CHANNELS", CHANNELS);
             getParams().put("ALL_CHANNELS", ALL_CHANNELS);
@@ -956,16 +964,6 @@ public abstract class Opl {
             getParams().put("STATUS_TIMERB", STATUS_TIMERB);
             getParams().put("STATUS_BUSY", STATUS_BUSY);
             getParams().put("STATUS_IRQ", STATUS_IRQ);
-        }
-
-        /**
-         * Constructor.
-         */
-        protected OpllRegisters() {
-            m_lfo_am_counter = 0;
-            m_lfo_pm_counter = 0;
-            m_noise_lfsr = 1;
-            m_lfo_am = 0;
 
             // create the waveforms
             for (int index = 0; index < WAVEFORM_LENGTH; index++)
@@ -1006,14 +1004,14 @@ public abstract class Opl {
             Serdes.Util.deserialize(is, this);
         }
 
-        /** Maps channel number to register offset */
+        /** Maps channel number to register offset. */
         @Override
         public int channel_offset(int chNum) {
             assert (chNum < CHANNELS);
             return chNum;
         }
 
-        /** Maps operator number to register offset */
+        /** Maps operator number to register offset. */
         @Override
         public int operator_offset(int opNum) {
             assert (opNum < OPERATORS);
@@ -1035,7 +1033,7 @@ public abstract class Opl {
 
         /**
          * Returns an array of operator indices for each channel;
-         * for OPLL this is fixed
+         * for OPLL this is fixed.
          */
         @Override
         public final void operator_map(int[][] dest) {
@@ -1051,7 +1049,7 @@ public abstract class Opl {
          * Handles writes to the register array;
          * note that this code is also used by
          * ymopl3_registers, so it must handle upper
-         * channels cleanly
+         * channels cleanly.
          */
         @Override
         public boolean write(int index, int data, int[] channel, int[] opMask) {
@@ -1083,7 +1081,7 @@ public abstract class Opl {
 
         /**
          * Clocks the noise and LFO, handling clock division, depth, and waveform
-         * computations
+         * computations.
          */
         @Override
         public int clock_noise_and_lfo() {
@@ -1204,15 +1202,15 @@ public abstract class Opl {
             final byte RS = 5 * 4;
 
             // determine KSR adjustment for envelope rates
-            int ksrval = keycode >> (2 * (op_ksr(opOffs) ^ 1));
+            int ksrVal = keycode >> (2 * (op_ksr(opOffs) ^ 1));
             cache.eg_rate[EG_DEPRESS.ordinal()] = DP;
-            cache.eg_rate[EG_ATTACK.ordinal()] = effective_rate(op_attack_rate(opOffs) * 4, ksrval);
-            cache.eg_rate[EG_DECAY.ordinal()] = effective_rate(op_decay_rate(opOffs) * 4, ksrval);
+            cache.eg_rate[EG_ATTACK.ordinal()] = effective_rate(op_attack_rate(opOffs) * 4, ksrVal);
+            cache.eg_rate[EG_DECAY.ordinal()] = effective_rate(op_decay_rate(opOffs) * 4, ksrVal);
             if (op_eg_sustain(opOffs) != 0) {
                 cache.eg_rate[EG_SUSTAIN.ordinal()] = 0;
-                cache.eg_rate[EG_RELEASE.ordinal()] = ch_sustain(chOffs) != 0 ? RS : effective_rate(op_release_rate(opOffs) * 4, ksrval);
+                cache.eg_rate[EG_RELEASE.ordinal()] = ch_sustain(chOffs) != 0 ? RS : effective_rate(op_release_rate(opOffs) * 4, ksrVal);
             } else {
-                cache.eg_rate[EG_SUSTAIN.ordinal()] = effective_rate(op_release_rate(opOffs) * 4, ksrval);
+                cache.eg_rate[EG_SUSTAIN.ordinal()] = effective_rate(op_release_rate(opOffs) * 4, ksrVal);
                 cache.eg_rate[EG_RELEASE.ordinal()] = ch_sustain(chOffs) != 0 ? RS : RR;
             }
         }
@@ -1231,7 +1229,7 @@ public abstract class Opl {
          * Logs a key-on event.
          */
         @Override
-        public String log_keyon(int chOffs, int opOffs) {
+        public String log_keyOn(int chOffs, int opOffs) {
             int chnum = chOffs;
             int opnum = opOffs;
 
@@ -1283,7 +1281,7 @@ public abstract class Opl {
             return byte_(0x0e, 5, 1);
         }
 
-        public final int rhythm_keyon() {
+        public final int rhythm_keyOn() {
             return byte_(0x0e, 4, 0);
         }
 
@@ -1352,21 +1350,21 @@ public abstract class Opl {
 
         // per-channel registers
 
-        public final int ch_block_freq(int choffs) {
-            return word(0x20, 0, 4, 0x10, 0, 8, choffs);
+        public final int ch_block_freq(int chOffs) {
+            return word(0x20, 0, 4, 0x10, 0, 8, chOffs);
         }
 
-        public final int ch_sustain(int choffs) {
-            return byte_(0x20, 5, 1, choffs);
+        public final int ch_sustain(int chOffs) {
+            return byte_(0x20, 5, 1, chOffs);
         }
 
-        public final int ch_total_level(int choffs) {
-            return instchbyte_(0x02, 0, 6, choffs);
+        public final int ch_total_level(int chOffs) {
+            return instChByte_(0x02, 0, 6, chOffs);
         }
 
         @Override
         public final int ch_feedback(int chOffs) {
-            return instchbyte_(0x03, 0, 3, chOffs);
+            return instChByte_(0x03, 0, 3, chOffs);
         }
 
         @Override
@@ -1374,8 +1372,8 @@ public abstract class Opl {
             return 0;
         }
 
-        public final int ch_instrument(int choffs) {
-            return byte_(0x30, 4, 4, choffs);
+        public final int ch_instrument(int chOffs) {
+            return byte_(0x30, 4, 4, chOffs);
         }
 
         @Override
@@ -1407,51 +1405,51 @@ public abstract class Opl {
 
         @Override
         public final int op_lfo_am_enable(int opOffs) {
-            return instopbyte_(0x00, 7, 1, opOffs);
+            return instOpByte_(0x00, 7, 1, opOffs);
         }
 
-        public final int op_lfo_pm_enable(int opoffs) {
-            return instopbyte_(0x00, 6, 1, opoffs);
+        public final int op_lfo_pm_enable(int opOffs) {
+            return instOpByte_(0x00, 6, 1, opOffs);
         }
 
-        public final int op_eg_sustain(int opoffs) {
-            return instopbyte_(0x00, 5, 1, opoffs);
+        public final int op_eg_sustain(int opOffs) {
+            return instOpByte_(0x00, 5, 1, opOffs);
         }
 
-        public final int op_ksr(int opoffs) {
-            return instopbyte_(0x00, 4, 1, opoffs);
+        public final int op_ksr(int opOffs) {
+            return instOpByte_(0x00, 4, 1, opOffs);
         }
 
-        public final int op_multiple(int opoffs) {
-            return instopbyte_(0x00, 0, 4, opoffs);
+        public final int op_multiple(int opOffs) {
+            return instOpByte_(0x00, 0, 4, opOffs);
         }
 
-        public final int op_ksl(int opoffs) {
-            return instopbyte_(0x02, 6, 2, opoffs);
+        public final int op_ksl(int opOffs) {
+            return instOpByte_(0x02, 6, 2, opOffs);
         }
 
-        public final int op_waveform(int opoffs) {
-            return instchbyte_(0x03, 3 + bitfield(opoffs, 0), 1, opoffs >> 1);
+        public final int op_waveform(int opOffs) {
+            return instChByte_(0x03, 3 + bitfield(opOffs, 0), 1, opOffs >> 1);
         }
 
-        public final int op_attack_rate(int opoffs) {
-            return instopbyte_(0x04, 4, 4, opoffs);
+        public final int op_attack_rate(int opOffs) {
+            return instOpByte_(0x04, 4, 4, opOffs);
         }
 
-        public final int op_decay_rate(int opoffs) {
-            return instopbyte_(0x04, 0, 4, opoffs);
+        public final int op_decay_rate(int opOffs) {
+            return instOpByte_(0x04, 0, 4, opOffs);
         }
 
-        public final int op_sustain_level(int opoffs) {
-            return instopbyte_(0x06, 4, 4, opoffs);
+        public final int op_sustain_level(int opOffs) {
+            return instOpByte_(0x06, 4, 4, opOffs);
         }
 
-        public final int op_release_rate(int opoffs) {
-            return instopbyte_(0x06, 0, 4, opoffs);
+        public final int op_release_rate(int opOffs) {
+            return instOpByte_(0x06, 0, 4, opOffs);
         }
 
-        public final int op_volume(int opoffs) {
-            return byte_(0x30, 4 * bitfield(~opoffs, 0), 4, opoffs >> 1);
+        public final int op_volume(int opOffs) {
+            return byte_(0x30, 4 * bitfield(~opOffs, 0), 4, opOffs >> 1);
         }
 
         /** Returns a bitfield extracted from a byte */
@@ -1471,16 +1469,16 @@ public abstract class Opl {
 
         // helpers to read from instrument channel/operator data
 
-        private final int instchbyte_(int offset, int start, int count, int choffs) {
-            return bitfield(m_chinst[choffs][offset], start, count);
+        private int instChByte_(int offset, int start, int count, int chOffs) {
+            return bitfield(m_chinst[chOffs][offset], start, count);
         }
 
-        private final int instopbyte_(int offset, int start, int count, int opoffs) {
-            return bitfield(m_opinst[opoffs][offset], start, count);
+        private int instOpByte_(int offset, int start, int count, int opOffs) {
+            return bitfield(m_opinst[opOffs][offset], start, count);
         }
 
-        // helper to determine if the this channel is an active rhythm channel
-        private final boolean is_rhythm(int choffs) {
+        // helper to determine if this channel is an active rhythm channel
+        private boolean is_rhythm(int choffs) {
             return rhythm_enable() != 0 && choffs >= 6;
         }
 
@@ -2251,7 +2249,7 @@ public abstract class Opl {
 
             // tests reveal that in compatibility mode, upper bit is masked
             // except for register 0x105
-            if (m_fm.regs().newflag() == 0 && m_address != 0x105)
+            if (m_fm.regs().newFlag() == 0 && m_address != 0x105)
                 m_address &= 0xff;
         }
 
@@ -2473,7 +2471,7 @@ public abstract class Opl {
 
             // tests reveal that in compatibility mode, upper bit is masked
             // except for register 0x105
-            if (m_fm.regs().newflag() == 0 && m_address != 0x105)
+            if (m_fm.regs().newFlag() == 0 && m_address != 0x105)
                 m_address &= 0xff;
 
             // count busy time
@@ -2653,7 +2651,7 @@ public abstract class Opl {
             if (m_next_status_id) {
                 if (m_fm.regs().new2flag() != 0)
                     result = 0x02;
-                else if (m_fm.regs().newflag() != 0)
+                else if (m_fm.regs().newFlag() != 0)
                     result = 0x00;
                 else
                     result = 0x06;
@@ -2745,7 +2743,7 @@ public abstract class Opl {
 
             // YMF262, in compatibility mode, treats the upper bit as masked
             // except for register 0x105; assuming YMF278B works the same way?
-            if (m_fm.regs().newflag() == 0 && m_address != 0x105)
+            if (m_fm.regs().newFlag() == 0 && m_address != 0x105)
                 m_address &= 0xff;
        }
 

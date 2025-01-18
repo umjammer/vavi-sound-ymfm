@@ -33,7 +33,6 @@ package vavi.sound.ymfm;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,7 +42,6 @@ import vavi.sound.ymfm.YmFm.EnvelopeState;
 import vavi.util.serdes.Element;
 import vavi.util.serdes.Serdes;
 
-import static java.lang.System.getLogger;
 import static vavi.sound.ymfm.YmFm.Debug.GLOBAL_FM_CHANNEL_MASK;
 import static vavi.sound.ymfm.YmFm.Debug.log_fm_write;
 import static vavi.sound.ymfm.YmFm.Debug.log_keyon;
@@ -105,7 +103,7 @@ abstract class Fm {
         /** sustain level, shifted up to envelope values */
         int eg_sustain;
         /** envelope rate, including KSR */
-        final int[] eg_rate = new int[EG_STATES.ordinal()];
+        final int[] eg_rate = new int[EG_STATES];
         /** envelope shift amount */
         int eg_shift = 0;
     }
@@ -175,7 +173,7 @@ abstract class Fm {
 
         public abstract int op_lfo_am_enable(int opOffs);
 
-        public abstract Object log_keyon(int chOffs, int opOffs);
+        public abstract Object log_keyOn(int chOffs, int opOffs);
 
         public abstract int lfo_am_offset(int chOffs);
 
@@ -265,7 +263,7 @@ abstract class Fm {
          * helper to encode four operator numbers into a 32-bit value in the
          * operator maps for each register class
          */
-        public static int operator_list() {
+        protected static int operator_list() {
             return operator_list(0xff, 0xff, 0xff, 0xff);
         }
 
@@ -273,7 +271,7 @@ abstract class Fm {
          * helper to encode four operator numbers into a 32-bit value in the
          * operator maps for each register class
          */
-        public static int operator_list(int o1 /* = 0xff */, int o2 /* = 0xff */) {
+        protected static int operator_list(int o1 /* = 0xff */, int o2 /* = 0xff */) {
             return operator_list(o1, o2, 0xff, 0xff);
         }
 
@@ -281,7 +279,7 @@ abstract class Fm {
          * helper to encode four operator numbers into a 32-bit value in the
          * operator maps for each register class
          */
-        public static int operator_list(int o1 /* = 0xff */, int o2 /* = 0xff */, int o3 /* = 0xff */, int o4 /* = 0xff */) {
+        protected static int operator_list(int o1 /* = 0xff */, int o2 /* = 0xff */, int o3 /* = 0xff */, int o4 /* = 0xff */) {
             return o1 | (o2 << 8) | (o3 << 16) | (o4 << 24);
         }
 
@@ -422,7 +420,7 @@ abstract class Fm {
             // get the absolute value of the sin, as attenuation, as a 4.8 fixed point value
             int sin_attenuation = m_cache.waveform[phase & (RegistersBase.WAVEFORM_LENGTH - 1)];
 
-            // get the attenuation from the evelope generator as a 4.6 value, shifted up to 4.8
+            // get the attenuation from the envelope generator as a 4.6 value, shifted up to 4.8
             int env_attenuation = envelope_attenuation(am_offset) << 2;
 
             // combine into a 5.8 value, then convert from attenuation to 13-bit linear volume
@@ -817,7 +815,7 @@ abstract class Fm {
             if (log_keyon.isLoggable(Level.DEBUG) && ((GLOBAL_FM_CHANNEL_MASK >> chnum) & 1) != 0)
                 for (int opNum = 0; opNum < m_op.length; opNum++)
                     if (m_op[opNum] != null)
-                        log_keyon.log(Level.DEBUG, "%c%s".formatted(bitfield(states, opNum) != 0 ? '+' : '-', m_regs.log_keyon(m_choffs, m_op[opNum].opOffs())));
+                        log_keyon.log(Level.DEBUG, "%c%s".formatted(bitfield(states, opNum) != 0 ? '+' : '-', m_regs.log_keyOn(m_choffs, m_op[opNum].opOffs())));
         }
 
         /**
@@ -1341,10 +1339,10 @@ abstract class Fm {
 
                 // call each channel to prepare
                 m_active_channels = 0;
-                for (int chnum = 0; chnum < CHANNELS; chnum++)
-                    if (bitfield(chanMask, chnum) != 0)
-                        if (m_channel[chnum].prepare())
-                            m_active_channels |= 1 << chnum;
+                for (int chNum = 0; chNum < CHANNELS; chNum++)
+                    if (bitfield(chanMask, chNum) != 0)
+                        if (m_channel[chNum].prepare())
+                            m_active_channels |= 1 << chNum;
 
                 // reset the modified channels and prepare count
                 m_modified_channels = m_prepare_count = 0;
@@ -1392,38 +1390,38 @@ abstract class Fm {
                 int phase_select = (bitfield(op13phase, 2) ^ bitfield(op13phase, 7)) | bitfield(op13phase, 3) | (bitfield(op17phase, 5) ^ bitfield(op17phase, 3));
 
                 // sum over all the desired channels
-                for (int chnum = 0; chnum < CHANNELS; chnum++)
-                    if (bitfield(chanmask, chnum) != 0) {
+                for (int chNum = 0; chNum < CHANNELS; chNum++)
+                    if (bitfield(chanmask, chNum) != 0) {
 //#if (YMFM_DEBUG_LOG_WAVFILES)
 //						var reference = output;
 //#endif
-                        if (chnum == 6)
-                            m_channel[chnum].output_rhythm_ch6(output, rshift, clipmax);
-                        else if (chnum == 7)
-                            m_channel[chnum].output_rhythm_ch7(phase_select, output, rshift, clipmax);
-                        else if (chnum == 8)
-                            m_channel[chnum].output_rhythm_ch8(phase_select, output, rshift, clipmax);
-                        else if (m_channel[chnum].is4op())
-                            m_channel[chnum].output_4op(output, rshift, clipmax);
+                        if (chNum == 6)
+                            m_channel[chNum].output_rhythm_ch6(output, rshift, clipmax);
+                        else if (chNum == 7)
+                            m_channel[chNum].output_rhythm_ch7(phase_select, output, rshift, clipmax);
+                        else if (chNum == 8)
+                            m_channel[chNum].output_rhythm_ch8(phase_select, output, rshift, clipmax);
+                        else if (m_channel[chNum].is4op())
+                            m_channel[chNum].output_4op(output, rshift, clipmax);
                         else
-                            m_channel[chnum].output_2op(output, rshift, clipmax);
+                            m_channel[chNum].output_2op(output, rshift, clipmax);
 //#if (YMFM_DEBUG_LOG_WAVFILES)
-//						m_wavfile[chnum].add(output, reference);
+//						m_wavfile[chNum].add(output, reference);
 //#endif
                     }
             } else {
                 // sum over all the desired channels
-                for (int chnum = 0; chnum < CHANNELS; chnum++)
-                    if (bitfield(chanmask, chnum) != 0) {
+                for (int chNum = 0; chNum < CHANNELS; chNum++)
+                    if (bitfield(chanmask, chNum) != 0) {
 //#if (YMFM_DEBUG_LOG_WAVFILES)
 //						var reference = output;
 //#endif
-                        if (m_channel[chnum].is4op())
-                            m_channel[chnum].output_4op(output, rshift, clipmax);
+                        if (m_channel[chNum].is4op())
+                            m_channel[chNum].output_4op(output, rshift, clipmax);
                         else
-                            m_channel[chnum].output_2op(output, rshift, clipmax);
+                            m_channel[chNum].output_2op(output, rshift, clipmax);
 //#if (YMFM_DEBUG_LOG_WAVFILES)
-//						m_wavfile[chnum].add(output, reference);
+//						m_wavfile[chNum].add(output, reference);
 //#endif
                     }
             }

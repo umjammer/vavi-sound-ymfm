@@ -51,6 +51,7 @@ class TestCase {
         if (localPropertiesExists()) {
             PropsEntity.Util.bind(this);
         }
+Debug.println("volume: " + volume);
     }
 
     @Test
