@@ -28,8 +28,8 @@ this is a fork of [ymfm](https://github.com/aaronsgiles/ymfm)
 | YMF288   | OPN3L              |        | 1995: NEC PC-98                                                                       |
 | YM3526   | OPL                |   ✅    | 1984: C64 SFX Sound Expander                                                          |
 | Y8950    | MSX-Audio          |        | 1984: MSX                                                                             |
-| YM3812   | OPL2               |        | 1985: AdLib, Sound Blaster; synths: some Portasound keyboards                         |
-| YMF262   | OPL3               |        | 1988: Sound Blaster Pro 2.0, SB16                                                     |
+| YM3812   | OPL2               |   ✅    | 1985: AdLib, Sound Blaster; synths: some Portasound keyboards                         |
+| YMF262   | OPL3               |   ✅    | 1988: Sound Blaster Pro 2.0, SB16                                                     |
 | YMF289B  | OPL3L              |        |                                                                                       |
 | YMF278B  | OPL4               |        | 1993: MSX Moonsound cartridge                                                         |
 | YM2413   | OPLL               |   ✅    | 1986: Sega Master System, Mark III; MSX; synths: Portasound PSS-140, PSS-170, PSS-270 |
