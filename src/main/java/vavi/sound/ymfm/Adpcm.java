@@ -49,7 +49,7 @@ import static vavi.sound.ymfm.YmFm.bitfield;
 import static vavi.sound.ymfm.YmFm.clamp;
 
 
-public abstract class Adpcm {
+abstract class Adpcm {
 
     private static final Logger logger = getLogger(Adpcm.class.getName());
 
@@ -86,10 +86,10 @@ public abstract class Adpcm {
     protected static class RegistersA {
 
         // constants
-        public static final int OUTPUTS = 2;
-        public static final int CHANNELS = 6;
-        public static final int REGISTERS = 0x30;
-        public static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
+        protected static final int OUTPUTS = 2;
+        protected static final int CHANNELS = 6;
+        protected static final int REGISTERS = 0x30;
+        protected static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
 
         /** Constructor */
         RegistersA() {
@@ -153,24 +153,24 @@ public abstract class Adpcm {
 
         // per-channel registers
 
-        public final int ch_pan_left(int choffs) {
-            return bitfield(m_regdata[choffs + 0x08], 7);
+        public final int ch_pan_left(int chOffs) {
+            return bitfield(m_regdata[chOffs + 0x08], 7);
         }
 
-        public final int ch_pan_right(int choffs) {
-            return bitfield(m_regdata[choffs + 0x08], 6);
+        public final int ch_pan_right(int chOffs) {
+            return bitfield(m_regdata[chOffs + 0x08], 6);
         }
 
-        public final int ch_instrument_level(int choffs) {
-            return bitfield(m_regdata[choffs + 0x08], 0, 5);
+        public final int ch_instrument_level(int chOffs) {
+            return bitfield(m_regdata[chOffs + 0x08], 0, 5);
         }
 
-        public final int ch_start(int choffs) {
-            return m_regdata[choffs + 0x10] | (m_regdata[choffs + 0x18] << 8);
+        public final int ch_start(int chOffs) {
+            return m_regdata[chOffs + 0x10] | (m_regdata[chOffs + 0x18] << 8);
         }
 
-        public final int ch_end(int choffs) {
-            return m_regdata[choffs + 0x20] | (m_regdata[choffs + 0x28] << 8);
+        public final int ch_end(int chOffs) {
+            return m_regdata[chOffs + 0x20] | (m_regdata[chOffs + 0x28] << 8);
         }
 
         // per-channel writes
@@ -397,7 +397,7 @@ logger.log(Level.DEBUG, "adpcmA: %d".formatted(m_curAddress));
     /** EngineA */
     protected static class EngineA {
 
-        public static final int CHANNELS = RegistersA.CHANNELS;
+        protected static final int CHANNELS = RegistersA.CHANNELS;
 
         /**
          * Constructor.
@@ -565,7 +565,7 @@ logger.log(Level.DEBUG, "adpcmA: %d".formatted(m_curAddress));
 
         // constants
 
-        public static final int REGISTERS = 0x11;
+        protected static final int REGISTERS = 0x11;
 
         /** Constructor. */
         public RegistersB() {
@@ -699,7 +699,7 @@ logger.log(Level.DEBUG, "adpcmA: %d".formatted(m_curAddress));
     //
 
     /** ChannelB */
-    static class ChannelB {
+    protected static class ChannelB {
 
         static final int STEP_MIN = 127;
         static final int STEP_MAX = 24576;
@@ -844,7 +844,7 @@ logger.log(Level.DEBUG, "adpcmA: %d".formatted(m_curAddress));
          * Returns the computed output value, with panning applied.
          */
         //template<int NumOutputs>
-        public final void output(YmFm.Output output, int rshift) {
+        public final void output(YmFm.Output output, int rShift) {
             // mask out some channels for debug purposes
             if ((Debug.GLOBAL_ADPCM_B_CHANNEL_MASK & 1) == 0)
                 return;
@@ -853,7 +853,7 @@ logger.log(Level.DEBUG, "adpcmA: %d".formatted(m_curAddress));
             int result = (m_prev_accum * ((m_position ^ 0xffff) + 1) + m_accumulator * m_position) >> 16;
 
             // apply volume (level) in a linear fashion and reduce
-            result = (result * m_regs.level()) >> (8 + rshift);
+            result = (result * m_regs.level()) >> (8 + rShift);
 
             // apply to left/right
             if (output.getNumOutputs() == 1 || m_regs.pan_left() != 0)

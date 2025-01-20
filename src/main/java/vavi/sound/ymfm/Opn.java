@@ -348,7 +348,7 @@ public abstract class Opn {
         }
 
         /** reset the LFO */
-        void reset_lfo() {
+        public void reset_lfo() {
             m_lfo_counter = 0;
         }
 
@@ -488,7 +488,7 @@ public abstract class Opn {
          * Logs a key-on event.
          */
         @Override
-        public String log_keyon(int chOffs, int opOffs) {
+        public String log_keyOn(int chOffs, int opOffs) {
             int chnum = (chOffs & 3) + 3 * bitfield(chOffs, 8);
             int opnum = (opOffs & 15) - ((opOffs & 15) / 4) + 12 * bitfield(opOffs, 8);
 
@@ -731,6 +731,7 @@ public abstract class Opn {
         // internal state
 
         // for serdes (DON'T REMOVE)
+        @SuppressWarnings("unused")
         boolean isOpnA(int seq) {
             return IsOpnA;
         }
@@ -1576,10 +1577,10 @@ public abstract class Opn {
                     return OUTPUTS;
                 }
                 @Override int getFirstOutput() {
-                    return 0;
+                    return 2;
                 }
                 @Override boolean isMixTo1() {
-                    return false;
+                    return true;
                 }
             };
             m_adpcm_a = new Adpcm.EngineA(intf, 0);

@@ -110,7 +110,7 @@ abstract class Pcm {
      * this class holds data that is computed once at the start of clocking
      * and remains static during subsequent sound generation
      */
-    public static class Cache {
+    protected static class Cache {
 
         /** sample position step, as a .16 value */
         int step;
@@ -123,7 +123,7 @@ abstract class Pcm {
         /** sustain level, shifted up to envelope values */
         int eg_sustain;
         /** envelope rate, including KSR */
-        final int[] eg_rate = new int[EG_STATES.ordinal()];
+        final int[] eg_rate = new int[EG_STATES];
         /** stepping value for LFO */
         int lfo_step;
         /** scale value for AM LFO */
@@ -180,7 +180,7 @@ abstract class Pcm {
 
     /** pcm_registers */
     @Serdes
-    public static class Registers {
+    protected static class Registers {
 
         // constants
         protected static final int OUTPUTS = 4;
@@ -189,7 +189,7 @@ abstract class Pcm {
         protected static final int ALL_CHANNELS = (1 << CHANNELS) - 1;
 
         /** Constructor */
-        public Registers() {
+        protected Registers() {
         }
 
         /**
@@ -237,18 +237,18 @@ abstract class Pcm {
         /**
          * Updates the cache with data from the registers.
          */
-        public void cache_channel_data(int choffs, Cache cache) {
-            // compute step from octave and fnumber; the math here implies
+        public void cache_channel_data(int chOffs, Pcm.Cache cache) {
+            // compute step from octave and fNumber; the math here implies
             // a .18 fraction but .16 should be perfectly fine
-            int octave = (ch_octave(choffs) << 4) >> 4;
-            int fnum = ch_fnumber(choffs);
+            int octave = (ch_octave(chOffs) << 4) >> 4;
+            int fnum = ch_fnumber(chOffs);
             cache.step = ((0x400 | fnum) << (octave + 7)) >> 2;
 
             // total level is computed as a .10 value for interpolation
-            cache.total_level = ch_total_level(choffs) << 10;
+            cache.total_level = ch_total_level(chOffs) << 10;
 
             // compute panning values in terms of envelope attenuation
-            int panpot = (ch_panpot(choffs) << 4) >> 4;
+            int panpot = (ch_panpot(chOffs) << 4) >> 4;
             if (panpot >= 0) {
                 cache.pan_left = (panpot == 7) ? 0x3ff : 0x20 * panpot;
                 cache.pan_right = 0;
@@ -258,34 +258,34 @@ abstract class Pcm {
             } else
                 cache.pan_left = cache.pan_right = 0x3ff;
 
-            cache.lfo_step = s_lfo_steps[ch_lfo_speed(choffs)];
+            cache.lfo_step = s_lfo_steps[ch_lfo_speed(chOffs)];
 
-            cache.am_depth = s_am_depth[ch_am_depth(choffs)];
+            cache.am_depth = s_am_depth[ch_am_depth(chOffs)];
 
-            cache.pm_depth = s_pm_depth[ch_vibrato(choffs)];
+            cache.pm_depth = s_pm_depth[ch_vibrato(chOffs)];
 
             // 4-bit sustain level, but 15 means 31 so effectively 5 bits
-            cache.eg_sustain = ch_sustain_level(choffs);
+            cache.eg_sustain = ch_sustain_level(chOffs);
             cache.eg_sustain |= (cache.eg_sustain + 1) & 0x10;
             cache.eg_sustain <<= 5;
 
             // compute the key scaling correction factor; 15 means don't do any correction
-            int correction = ch_rate_correction(choffs);
+            int correction = ch_rate_correction(chOffs);
             if (correction == 15)
                 correction = 0;
             else
                 correction = (octave + correction) * 2 + bitfield(fnum, 9);
 
             // compute the envelope generator rates
-            cache.eg_rate[EG_ATTACK.ordinal()] = effective_rate(ch_attack_rate(choffs), correction);
-            cache.eg_rate[EG_DECAY.ordinal()] = effective_rate(ch_decay_rate(choffs), correction);
-            cache.eg_rate[EG_SUSTAIN.ordinal()] = effective_rate(ch_sustain_rate(choffs), correction);
-            cache.eg_rate[EG_RELEASE.ordinal()] = effective_rate(ch_release_rate(choffs), correction);
+            cache.eg_rate[EG_ATTACK.ordinal()] = effective_rate(ch_attack_rate(chOffs), correction);
+            cache.eg_rate[EG_DECAY.ordinal()] = effective_rate(ch_decay_rate(chOffs), correction);
+            cache.eg_rate[EG_SUSTAIN.ordinal()] = effective_rate(ch_sustain_rate(chOffs), correction);
+            cache.eg_rate[EG_RELEASE.ordinal()] = effective_rate(ch_release_rate(chOffs), correction);
             cache.eg_rate[EG_REVERB.ordinal()] = 5;
 
             // if damping is on, override some things; essentially decay at a hardcoded
             // rate of 48 until -12db (0x80), then at maximum rate for the rest
-            if (ch_damp(choffs) != 0) {
+            if (ch_damp(chOffs) != 0) {
                 cache.eg_rate[EG_DECAY.ordinal()] = 48;
                 cache.eg_rate[EG_SUSTAIN.ordinal()] = 63;
                 cache.eg_rate[EG_RELEASE.ordinal()] = 63;
@@ -430,10 +430,10 @@ abstract class Pcm {
         /** Returns the memory address and increment it */
         public int memory_address_autoinc() {
             int result = memory_address();
-            int newval = result + 1;
-            m_regdata[0x05] = newval >> 0;
-            m_regdata[0x04] = newval >> 8;
-            m_regdata[0x03] = (newval >> 16) & 0x3f;
+            int newVal = result + 1;
+            m_regdata[0x05] = newVal >> 0;
+            m_regdata[0x04] = newVal >> 8;
+            m_regdata[0x03] = (newVal >> 16) & 0x3f;
             return result;
         }
 
@@ -463,27 +463,27 @@ abstract class Pcm {
     //
 
     /** pcm_channel */
-    static class Channel {
+    protected static class Channel {
 
-        static final int KEY_ON = 0x01;
-        static final int KEY_PENDING_ON = 0x02;
-        static final int KEY_PENDING = 0x04;
+        protected static final int KEY_ON = 0x01;
+        protected static final int KEY_PENDING_ON = 0x02;
+        protected static final int KEY_PENDING = 0x04;
 
         // "quiet" value, used to optimize when we can skip doing working
-        static final int EG_QUIET = 0x200;
+        protected static final int EG_QUIET = 0x200;
 
         //using output_data = Output<pcm_registers.OUTPUTS>;
 
         /**
          * Constructor.
          */
-        public Channel(Engine owner, int choffs) {
-            m_choffs = choffs;
-            m_baseaddr = 0;
-            m_endpos = 0;
-            m_looppos = 0;
-            m_curpos = 0;
-            m_nextpos = 0;
+        public Channel(Engine owner, int chOffs) {
+            m_chOffs = chOffs;
+            m_baseAddr = 0;
+            m_endPos = 0;
+            m_loopPos = 0;
+            m_curPos = 0;
+            m_nextPos = 0;
             m_lfo_counter = 0;
             m_eg_state = EG_RELEASE;
             m_env_attenuation = 0x3ff;
@@ -512,11 +512,11 @@ abstract class Pcm {
          * Resets the channel state.
          */
         public void reset() {
-            m_baseaddr = 0;
-            m_endpos = 0;
-            m_looppos = 0;
-            m_curpos = 0;
-            m_nextpos = 0;
+            m_baseAddr = 0;
+            m_endPos = 0;
+            m_loopPos = 0;
+            m_curPos = 0;
+            m_nextPos = 0;
             m_lfo_counter = 0;
             m_eg_state = EG_RELEASE;
             m_env_attenuation = 0x3ff;
@@ -527,7 +527,7 @@ abstract class Pcm {
 
         /** Returns the channel offset */
         public final int choffs() {
-            return m_choffs;
+            return m_chOffs;
         }
 
         /**
@@ -535,7 +535,7 @@ abstract class Pcm {
          */
         public boolean prepare() {
             // cache the data
-            m_regs.cache_channel_data(m_choffs, m_cache);
+            m_regs.cache_channel_data(m_chOffs, m_cache);
 
             // clock the key state
             if ((m_key_state & KEY_PENDING) != 0) {
@@ -550,7 +550,7 @@ abstract class Pcm {
             }
 
             // set the total level directly if not interpolating
-            if (m_regs.ch_level_direct(m_choffs) != 0)
+            if (m_regs.ch_level_direct(m_chOffs) != 0)
                 m_total_level = m_cache.total_level;
 
             // we're active until we're quiet after the release
@@ -581,10 +581,10 @@ abstract class Pcm {
             }
 
             // advance the sample step and loop as needed
-            m_curpos = m_nextpos;
-            m_nextpos = m_curpos + step;
-            if (m_nextpos >= m_endpos)
-                m_nextpos += m_looppos - m_endpos;
+            m_curPos = m_nextPos;
+            m_nextPos = m_curPos + step;
+            if (m_nextPos >= m_endPos)
+                m_nextPos += m_loopPos - m_endPos;
 
             // interpolate total level if needed
             if (m_total_level != m_cache.total_level) {
@@ -628,7 +628,7 @@ abstract class Pcm {
 
             // fetch current sample and add
             int sample = fetch_sample();
-            int outnum = m_regs.ch_output_channel(m_choffs) * 2;
+            int outnum = m_regs.ch_output_channel(m_chOffs) * 2;
             output.data[outnum + 0] += (lvol * sample) >> 15;
             output.data[outnum + 1] += (rvol * sample) >> 15;
         }
@@ -641,34 +641,34 @@ abstract class Pcm {
             m_key_state |= KEY_PENDING | (on ? KEY_PENDING_ON : 0);
 
             // don't log masked channels
-            if ((m_key_state & (KEY_PENDING_ON | KEY_ON)) == KEY_PENDING_ON && ((Debug.GLOBAL_PCM_CHANNEL_MASK >> m_choffs) & 1) != 0) {
+            if ((m_key_state & (KEY_PENDING_ON | KEY_ON)) == KEY_PENDING_ON && ((Debug.GLOBAL_PCM_CHANNEL_MASK >> m_chOffs) & 1) != 0) {
                 log_keyon.log(Level.DEBUG, "KeyOn PCM-%02d: num=%3d oct=%2d fnum=%03X level=%02X%c ADSR=%X/%X/%X/%X SL=%X".formatted(
-                        m_choffs,
-                        m_regs.ch_wave_table_num(m_choffs),
-                        (byte) (m_regs.ch_octave(m_choffs) << 4) >> 4,
-                        m_regs.ch_fnumber(m_choffs),
-                        m_regs.ch_total_level(m_choffs),
-                        m_regs.ch_level_direct(m_choffs) != 0 ? '!' : '/',
-                        m_regs.ch_attack_rate(m_choffs),
-                        m_regs.ch_decay_rate(m_choffs),
-                        m_regs.ch_sustain_rate(m_choffs),
-                        m_regs.ch_release_rate(m_choffs),
-                        m_regs.ch_sustain_level(m_choffs)));
+                        m_chOffs,
+                        m_regs.ch_wave_table_num(m_chOffs),
+                        (byte) (m_regs.ch_octave(m_chOffs) << 4) >> 4,
+                        m_regs.ch_fnumber(m_chOffs),
+                        m_regs.ch_total_level(m_chOffs),
+                        m_regs.ch_level_direct(m_chOffs) != 0 ? '!' : '/',
+                        m_regs.ch_attack_rate(m_chOffs),
+                        m_regs.ch_decay_rate(m_chOffs),
+                        m_regs.ch_sustain_rate(m_chOffs),
+                        m_regs.ch_release_rate(m_chOffs),
+                        m_regs.ch_sustain_level(m_chOffs)));
 
-                if (m_regs.ch_rate_correction(m_choffs) != 15)
-                    log_keyon.log(Level.DEBUG, " RC=%X".formatted(m_regs.ch_rate_correction(m_choffs)));
+                if (m_regs.ch_rate_correction(m_chOffs) != 15)
+                    log_keyon.log(Level.DEBUG, " RC=%X".formatted(m_regs.ch_rate_correction(m_chOffs)));
 
-                if (m_regs.ch_pseudo_reverb(m_choffs) != 0)
+                if (m_regs.ch_pseudo_reverb(m_chOffs) != 0)
                     log_keyon.log(Level.DEBUG, " %s".formatted("REV"));
-                if (m_regs.ch_damp(m_choffs) != 0)
+                if (m_regs.ch_damp(m_chOffs) != 0)
                     log_keyon.log(Level.DEBUG, " %s".formatted("DAMP"));
 
-                if (m_regs.ch_vibrato(m_choffs) != 0 || m_regs.ch_am_depth(m_choffs) != 0) {
-                    if (m_regs.ch_vibrato(m_choffs) != 0)
-                        log_keyon.log(Level.DEBUG, " VIB=%d".formatted(m_regs.ch_vibrato(m_choffs)));
-                    if (m_regs.ch_am_depth(m_choffs) != 0)
-                        log_keyon.log(Level.DEBUG, " AM=%d".formatted(m_regs.ch_am_depth(m_choffs)));
-                    log_keyon.log(Level.DEBUG, " LFO=%d".formatted(m_regs.ch_lfo_speed(m_choffs)));
+                if (m_regs.ch_vibrato(m_chOffs) != 0 || m_regs.ch_am_depth(m_chOffs) != 0) {
+                    if (m_regs.ch_vibrato(m_chOffs) != 0)
+                        log_keyon.log(Level.DEBUG, " VIB=%d".formatted(m_regs.ch_vibrato(m_chOffs)));
+                    if (m_regs.ch_am_depth(m_chOffs) != 0)
+                        log_keyon.log(Level.DEBUG, " AM=%d".formatted(m_regs.ch_am_depth(m_chOffs)));
+                    log_keyon.log(Level.DEBUG, " LFO=%d".formatted(m_regs.ch_lfo_speed(m_chOffs)));
                 }
                 log_keyon.log(Level.DEBUG, "---");
             }
@@ -679,7 +679,7 @@ abstract class Pcm {
          */
         public void load_wavetable() {
             // determine the address of the wave table header
-            int wavnum = m_regs.ch_wave_table_num(m_choffs);
+            int wavnum = m_regs.ch_wave_table_num(m_chOffs);
             int wavheader = 12 * wavnum;
 
             // above 384 it may be in a different bank
@@ -692,27 +692,27 @@ abstract class Pcm {
             // fetch the 22-bit base address and 2-bit format
             int byte_ = read_pcm(wavheader + 0);
             m_format = bitfield(byte_, 6, 2);
-            m_baseaddr = bitfield(byte_, 0, 6) << 16;
-            m_baseaddr |= read_pcm(wavheader + 1) << 8;
-            m_baseaddr |= read_pcm(wavheader + 2) << 0;
+            m_baseAddr = bitfield(byte_, 0, 6) << 16;
+            m_baseAddr |= read_pcm(wavheader + 1) << 8;
+            m_baseAddr |= read_pcm(wavheader + 2) << 0;
 
             // fetch the 16-bit loop position
-            m_looppos = read_pcm(wavheader + 3) << 8;
-            m_looppos |= read_pcm(wavheader + 4);
-            m_looppos <<= 16;
+            m_loopPos = read_pcm(wavheader + 3) << 8;
+            m_loopPos |= read_pcm(wavheader + 4);
+            m_loopPos <<= 16;
 
             // fetch the 16-bit end position, which is stored as a negative value
             // for some reason that is unclear
-            m_endpos = read_pcm(wavheader + 5) << 8;
-            m_endpos |= read_pcm(wavheader + 6);
-            m_endpos = -m_endpos << 16;
+            m_endPos = read_pcm(wavheader + 5) << 8;
+            m_endPos |= read_pcm(wavheader + 6);
+            m_endPos = -m_endPos << 16;
 
             // remaining data values set registers
-            m_owner.write(0x80 + m_choffs, read_pcm(wavheader + 7));
-            m_owner.write(0x98 + m_choffs, read_pcm(wavheader + 8));
-            m_owner.write(0xb0 + m_choffs, read_pcm(wavheader + 9));
-            m_owner.write(0xc8 + m_choffs, read_pcm(wavheader + 10));
-            m_owner.write(0xe0 + m_choffs, read_pcm(wavheader + 11));
+            m_owner.write(0x80 + m_chOffs, read_pcm(wavheader + 7));
+            m_owner.write(0x98 + m_chOffs, read_pcm(wavheader + 8));
+            m_owner.write(0xb0 + m_chOffs, read_pcm(wavheader + 9));
+            m_owner.write(0xc8 + m_chOffs, read_pcm(wavheader + 10));
+            m_owner.write(0xe0 + m_chOffs, read_pcm(wavheader + 11));
 
             // reset the envelope so we don't continue playing mid-sample from previous key ons
             m_env_attenuation = 0x3ff;
@@ -728,7 +728,7 @@ abstract class Pcm {
             m_eg_state = EG_ATTACK;
 
             // reset the LFO if requested
-            if (m_regs.ch_lfo_reset(m_choffs) != 0)
+            if (m_regs.ch_lfo_reset(m_chOffs) != 0)
                 m_lfo_counter = 0;
 
             // if the attack rate == 63 then immediately go to max attenuation
@@ -736,7 +736,7 @@ abstract class Pcm {
                 m_env_attenuation = 0;
 
             // reset the positions
-            m_curpos = m_nextpos = 0;
+            m_curPos = m_nextPos = 0;
         }
 
         /**
@@ -792,7 +792,7 @@ abstract class Pcm {
                     m_env_attenuation = 0x3ff;
 
                 // transition to reverb at -18dB if enabled
-                if (m_env_attenuation >= 0xc0 && m_eg_state.ordinal() < EG_REVERB.ordinal() && m_regs.ch_pseudo_reverb(m_choffs) != 0)
+                if (m_env_attenuation >= 0xc0 && m_eg_state.ordinal() < EG_REVERB.ordinal() && m_regs.ch_pseudo_reverb(m_chOffs) != 0)
                     m_eg_state = EG_REVERB;
             }
         }
@@ -801,8 +801,8 @@ abstract class Pcm {
          * Fetches a sample at the current position.
          */
         private final int fetch_sample() {
-            int addr = m_baseaddr;
-            int pos = m_curpos >> 16;
+            int addr = m_baseAddr;
+            int pos = m_curPos >> 16;
 
             // 8-bit PCM: shift up by 8
             if (m_format == 0)
@@ -832,22 +832,22 @@ abstract class Pcm {
         // internal state
 
         /** channel offset */
-        private final int m_choffs;
+        private final int m_chOffs;
         /** base address */
         @Element(sequence = 0)
-        private int m_baseaddr;
+        private int m_baseAddr;
         /** ending position */
         @Element(sequence = 1)
-        private int m_endpos;
+        private int m_endPos;
         /** loop position */
         @Element(sequence = 2)
-        private int m_looppos;
+        private int m_loopPos;
         /** current position */
         @Element(sequence = 3)
-        private int m_curpos;
+        private int m_curPos;
         /** next position */
         @Element(sequence = 4)
-        private int m_nextpos;
+        private int m_nextPos;
         /** LFO counter */
         @Element(sequence = 5)
         private int m_lfo_counter;
@@ -882,9 +882,9 @@ abstract class Pcm {
     @Serdes
     protected static class Engine {
 
-        public static final int OUTPUTS = Pcm.Registers.OUTPUTS;
-        public static final int CHANNELS = Pcm.Registers.CHANNELS;
-        static final int ALL_CHANNELS = Pcm.Registers.ALL_CHANNELS;
+        protected  static final int OUTPUTS = Pcm.Registers.OUTPUTS;
+        protected  static final int CHANNELS = Pcm.Registers.CHANNELS;
+        protected static final int ALL_CHANNELS = Pcm.Registers.ALL_CHANNELS;
 
         //using output_data = pcm_channel.output_data;
 
@@ -940,16 +940,16 @@ abstract class Pcm {
         /**
          * Master clocking function.
          */
-        public void clock(int chanmask) {
+        public void clock(int chanMask) {
             // if something was modified, prepare
             // also prepare every 4k samples to catch ending notes
             if (m_modified_channels != 0 || m_prepare_count++ >= 4096) {
                 // call each channel to prepare
                 m_active_channels = 0;
-                for (int chnum = 0; chnum < CHANNELS; chnum++)
-                    if (bitfield(chanmask, chnum) != 0)
-                        if (m_channel[chnum].prepare())
-                            m_active_channels |= 1 << chnum;
+                for (int chNum = 0; chNum < CHANNELS; chNum++)
+                    if (bitfield(chanMask, chNum) != 0)
+                        if (m_channel[chNum].prepare())
+                            m_active_channels |= 1 << chNum;
 
                 // reset the modified channels and prepare count
                 m_modified_channels = m_prepare_count = 0;
@@ -962,41 +962,41 @@ abstract class Pcm {
             m_env_counter++;
 
             // now update the state of all the channels and operators
-            for (int chnum = 0; chnum < CHANNELS; chnum++)
-                if (bitfield(chanmask, chnum) != 0)
-                    m_channel[chnum].clock(m_env_counter >> 1);
+            for (int chNum = 0; chNum < CHANNELS; chNum++)
+                if (bitfield(chanMask, chNum) != 0)
+                    m_channel[chNum].clock(m_env_counter >> 1);
         }
 
         /**
          * Master update function.
          */
-        public void output(YmFm.Output output, int chanmask) {
+        public void output(YmFm.Output output, int chanMask) {
             // mask out some channels for debug purposes
-            chanmask &= Debug.GLOBAL_PCM_CHANNEL_MASK;
+            chanMask &= Debug.GLOBAL_PCM_CHANNEL_MASK;
 
             // compute the output of each channel
             for (int chnum = 0; chnum < CHANNELS; chnum++)
-                if (bitfield(chanmask, chnum) != 0)
+                if (bitfield(chanMask, chnum) != 0)
                     m_channel[chnum].output(output);
         }
 
         /**
          * Handles reads from the PCM registers.
          */
-        public int read(int regnum) {
+        public int read(int regNum) {
             // handle reads from the data register
-            if (regnum == 0x06 && m_regs.memory_access_mode() != 0)
+            if (regNum == 0x06 && m_regs.memory_access_mode() != 0)
                 return m_intf.ymfm_external_read(PCM, m_regs.memory_address_autoinc());
 
-            return m_regs.read(regnum);
+            return m_regs.read(regNum);
         }
 
         /**
          * Handles writes to the PCM registers.
          */
-        public void write(int regnum, int data) {
+        public void write(int regNum, int data) {
             // handle reads to the data register
-            if (regnum == 0x06 && m_regs.memory_access_mode() != 0) {
+            if (regNum == 0x06 && m_regs.memory_access_mode() != 0) {
                 m_intf.ymfm_external_write(PCM, m_regs.memory_address_autoinc(), data);
                 return;
             }
@@ -1005,15 +1005,15 @@ abstract class Pcm {
             m_modified_channels = ALL_CHANNELS;
 
             // most writes are passive, consumed only when needed
-            m_regs.write(regnum, data);
+            m_regs.write(regNum, data);
 
             // however, process keyons immediately
-            if (regnum >= 0x68 && regnum <= 0x7f)
-                m_channel[regnum - 0x68].keyOnOff(bitfield(data, 7) != 0);
+            if (regNum >= 0x68 && regNum <= 0x7f)
+                m_channel[regNum - 0x68].keyOnOff(bitfield(data, 7) != 0);
 
                 // and also wavetable writes
-            else if (regnum >= 0x08 && regnum <= 0x1f)
-                m_channel[regnum - 0x08].load_wavetable();
+            else if (regNum >= 0x08 && regNum <= 0x1f)
+                m_channel[regNum - 0x08].load_wavetable();
         }
 
         /** Returns a reference to our interface */

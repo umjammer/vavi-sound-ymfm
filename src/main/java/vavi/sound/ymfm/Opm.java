@@ -465,7 +465,7 @@ public abstract class Opm {
          * Logs a key-on event.
          */
         @Override
-        public String log_keyon(int chOffs, int opOffs) {
+        public String log_keyOn(int chOffs, int opOffs) {
             int chNum = chOffs;
             int opNum = opOffs;
 
@@ -736,6 +736,12 @@ public abstract class Opm {
     // OPM IMPLEMENTATION CLASSES
     //
 
+    /** opm variants */
+    protected enum Variant {
+        YM2151,
+        YM2164
+    }
+
     //
     // YM2151
     //
@@ -764,7 +770,7 @@ public abstract class Opm {
         }
 
         public Ym2151(YmFm.Interface intf) {
-            this(intf, OpmVariant.YM2151);
+            this(intf, Opm.Variant.YM2151);
         }
 
         /**
@@ -895,16 +901,10 @@ public abstract class Opm {
             }
         }
 
-        /** opm variants */
-        protected enum OpmVariant {
-            YM2151,
-            YM2164
-        }
-
         /**
          * Constructor.
          */
-        protected Ym2151(YmFm.Interface intf, OpmVariant variant) {
+        protected Ym2151(YmFm.Interface intf, Opm.Variant variant) {
             m_variant = variant;
             m_address = 0;
             m_fm = new FmEngine(intf);
@@ -913,7 +913,7 @@ public abstract class Opm {
         // internal state
 
         /** chip variant */
-        protected final OpmVariant m_variant;
+        protected final Opm.Variant m_variant;
         /** address register */
         protected int m_address;
         /** core FM engine */
@@ -935,7 +935,7 @@ public abstract class Opm {
 
         /** Constructor. */
         public Ym2164(YmFm.Interface intf) {
-            super(intf, OpmVariant.YM2164);
+            super(intf, Opm.Variant.YM2164);
         }
     }
 }

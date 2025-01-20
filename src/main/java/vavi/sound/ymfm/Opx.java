@@ -209,7 +209,7 @@ abstract class Opx {
 
         // log a key-on event */
         @Override
-        public String log_keyon(int chOffs, int opOffs) {
+        public String log_keyOn(int chOffs, int opOffs) {
             return null;
         }
 

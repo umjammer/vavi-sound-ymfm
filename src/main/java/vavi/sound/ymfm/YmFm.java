@@ -50,6 +50,7 @@ import vavi.util.serdes.Element;
 import vavi.util.serdes.Serdes;
 
 import static java.lang.System.getLogger;
+import static vavi.sound.ymfm.YmFm.AccessClass.CLASSES;
 import static vavi.sound.ymfm.YmFm.AccessClass.PCM;
 
 
@@ -63,18 +64,20 @@ public abstract class YmFm {
 
     public abstract static class Debug {
 
-        private Debug() {
-            logger.log(Level.DEBUG, "GLOBAL_FM_CHANNEL_MASK: %08x".formatted(GLOBAL_FM_CHANNEL_MASK));
-            logger.log(Level.DEBUG, "GLOBAL_ADPCM_A_CHANNEL_MASK: %08x".formatted(GLOBAL_ADPCM_A_CHANNEL_MASK));
-            logger.log(Level.DEBUG, "GLOBAL_ADPCM_B_CHANNEL_MASK: %08x".formatted(GLOBAL_ADPCM_B_CHANNEL_MASK));
-            logger.log(Level.DEBUG, "GLOBAL_PCM_CHANNEL_MASK: %08x".formatted(GLOBAL_PCM_CHANNEL_MASK));
-        }
+        private Debug() {}
 
         // masks to help isolate specific channels
-        public static int GLOBAL_FM_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.fm", "0xffffffff"));
-        public static int GLOBAL_ADPCM_A_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.adpcmA", "0xffffffff"));
-        public static int GLOBAL_ADPCM_B_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.adpcmB", "0xffffffff"));
-        public static int GLOBAL_PCM_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.pcm", "0xffffffff"));
+        public static final int GLOBAL_FM_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.fm", "0xffffffff"));
+        public static final int GLOBAL_ADPCM_A_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.adpcmA", "0xffffffff"));
+        public static final int GLOBAL_ADPCM_B_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.adpcmB", "0xffffffff"));
+        public static final int GLOBAL_PCM_CHANNEL_MASK = (int) (long) Long.decode(System.getProperty("ymfm.channel.mask.pcm", "0xffffffff"));
+
+        static {
+            if (GLOBAL_FM_CHANNEL_MASK != 0xffff_ffff) logger.log(Level.WARNING, "GLOBAL_FM_CHANNEL_MASK: %08x".formatted(GLOBAL_FM_CHANNEL_MASK));
+            if (GLOBAL_ADPCM_A_CHANNEL_MASK != 0xffff_ffff) logger.log(Level.WARNING, "GLOBAL_ADPCM_A_CHANNEL_MASK: %08x".formatted(GLOBAL_ADPCM_A_CHANNEL_MASK));
+            if (GLOBAL_ADPCM_B_CHANNEL_MASK != 0xffff_ffff) logger.log(Level.WARNING, "GLOBAL_ADPCM_B_CHANNEL_MASK: %08x".formatted(GLOBAL_ADPCM_B_CHANNEL_MASK));
+            if (GLOBAL_PCM_CHANNEL_MASK != 0xffff_ffff) logger.log(Level.WARNING, "GLOBAL_PCM_CHANNEL_MASK: %08x".formatted(GLOBAL_PCM_CHANNEL_MASK));
+        }
 
         // types of logging
 
@@ -238,8 +241,8 @@ public abstract class YmFm {
         EG_SUSTAIN,
         EG_RELEASE,
         /** OPQ/OPZ only; set EG_HAS_REVERB to enable */
-        EG_REVERB,
-        EG_STATES
+        EG_REVERB;
+        static final int EG_STATES = values().length;
     }
 
     /** external I/O access classes */
@@ -247,8 +250,8 @@ public abstract class YmFm {
         IO,
         ADPCM_A,
         ADPCM_B,
-        PCM,
-        CLASSES
+        PCM;
+        static final int CLASSES = values().length;
     }
 
     //
@@ -304,7 +307,7 @@ public abstract class YmFm {
 
     /**
      * WavFile.
-     *
+     * <p>
      * this class is a debugging helper that accumulates data and writes it to wav files.
      */
     public abstract static class WavFile implements AutoCloseable {
@@ -389,7 +392,7 @@ public abstract class YmFm {
 
     /**
      * EngineCallbacks
-     *
+     * <p>
      * This class represents functions in the engine that the YmFmInterface
      * needs to be able to call; it is represented here as a separate interface
      * that is independent of the actual engine implementation.
@@ -408,7 +411,7 @@ public abstract class YmFm {
 
     /**
      * YmFmInterface
-     *
+     * <p>
      * This class represents the interface between the fm_engine and the outside
      * world; it provides hooks for timers, synchronization, and I/O.
      */
@@ -876,7 +879,7 @@ logger.log(Level.DEBUG, "%s: d:%d (%d) <- s:%d, %d".formatted(type, base, m_data
         protected final Class<? extends YmFm.Chip> m_type;
         protected String m_name;
         /** @see #ymfm_external_read */
-        protected final YmFm.Output[] m_data = new YmFm.Output[AccessClass.values().length];
+        protected final YmFm.Output[] m_data = new YmFm.Output[CLASSES];
         protected int m_pcm_offset;
     }
 
