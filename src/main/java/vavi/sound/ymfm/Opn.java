@@ -1577,10 +1577,10 @@ public abstract class Opn {
                     return OUTPUTS;
                 }
                 @Override int getFirstOutput() {
-                    return 0;
+                    return 2;
                 }
                 @Override boolean isMixTo1() {
-                    return false;
+                    return true;
                 }
             };
             m_adpcm_a = new Adpcm.EngineA(intf, 0);
