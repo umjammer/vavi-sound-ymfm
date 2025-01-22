@@ -52,15 +52,15 @@ public abstract class Misc {
 
     /**
      * ym2149
-     *
+     * <p>
      * ym2149 is just an SSG with no FM part, but we expose FM-like parts so that it
      * integrates smoothly with everything else; they just don't do anything
      */
     @Serdes
     public static class Ym2149 implements YmFm.Chip {
 
-        private static final int OUTPUTS = Ssg.Engine.OUTPUTS;
-        public static final int SSG_OUTPUTS = Ssg.Engine.OUTPUTS;
+        protected static final int SSG_OUTPUTS = Ssg.Engine.OUTPUTS;
+        protected static final int OUTPUTS = SSG_OUTPUTS;
 
         //using output_data = ymfm_output<OUTPUTS>;
         @Override
@@ -83,7 +83,7 @@ public abstract class Misc {
 
         // configuration
 
-        void ssg_override(Ssg.Override intf) {
+        public void ssg_override(Ssg.Override intf) {
             m_ssg.override(intf);
         }
 
@@ -124,7 +124,7 @@ public abstract class Misc {
         /**
          * Reads the data register.
          */
-        int read_data() {
+        public int read_data() {
             return m_ssg.read(m_address & 0x0f);
         }
 
@@ -133,7 +133,7 @@ public abstract class Misc {
          */
         @Override
         public int read(int offset) {
-            int result = (byte) 0xff;
+            int result = 0xff;
             switch (offset & 3) { // BC2,BC1
                 case 0: // inactive
                     break;
@@ -151,7 +151,7 @@ public abstract class Misc {
         /**
          * Handles a write to the address register.
          */
-        void write_address(int data) {
+        public void write_address(int data) {
             // just set the address
             m_address = data;
         }
@@ -159,7 +159,7 @@ public abstract class Misc {
         /**
          * Handle a write to the register interface.
          */
-        void write_data(int data) {
+        public void write_data(int data) {
             m_ssg.write(m_address & 0x0f, data);
         }
 

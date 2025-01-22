@@ -194,24 +194,24 @@ abstract class Ssg {
 
         // per-channel registers
 
-        public final int ch_noise_enable_n(int choffs) {
-            return bitfield(m_regdata[0x07], 3 + choffs);
+        public final int ch_noise_enable_n(int chOffs) {
+            return bitfield(m_regdata[0x07], 3 + chOffs);
         }
 
-        public final int ch_tone_enable_n(int choffs) {
-            return bitfield(m_regdata[0x07], 0 + choffs);
+        public final int ch_tone_enable_n(int chOffs) {
+            return bitfield(m_regdata[0x07], 0 + chOffs);
         }
 
-        public final int ch_tone_period(int choffs) {
-            return m_regdata[0x00 + 2 * choffs] | (bitfield(m_regdata[0x01 + 2 * choffs], 0, 4) << 8);
+        public final int ch_tone_period(int chOffs) {
+            return m_regdata[0x00 + 2 * chOffs] | (bitfield(m_regdata[0x01 + 2 * chOffs], 0, 4) << 8);
         }
 
-        public final int ch_envelope_enable(int choffs) {
-            return bitfield(m_regdata[0x08 + choffs], 4);
+        public final int ch_envelope_enable(int chOffs) {
+            return bitfield(m_regdata[0x08 + chOffs], 4);
         }
 
-        public final int ch_amplitude(int choffs) {
-            return bitfield(m_regdata[0x08 + choffs], 0, 4);
+        public final int ch_amplitude(int chOffs) {
+            return bitfield(m_regdata[0x08 + chOffs], 0, 4);
         }
 
         // internal state
@@ -273,7 +273,7 @@ abstract class Ssg {
             m_regs.reset();
 
             // reset engine state
-            for (int chan = 0; chan < 3; chan++) {
+            for (int chan = 0; chan < CHANNELS; chan++) {
                 m_tone_count[chan] = 0;
                 m_tone_state[chan] = 0;
             }
@@ -312,7 +312,7 @@ abstract class Ssg {
             // clock tones; tone period units are clock/16 but since we run at clock/8
             // that works out for us to toggle the state (50% duty cycle) at twice the
             // programmed period
-            for (int chan = 0; chan < 3; chan++) {
+            for (int chan = 0; chan < CHANNELS; chan++) {
                 m_tone_count[chan]++;
                 if (m_tone_count[chan] >= m_regs.ch_tone_period(chan)) {
                     m_tone_state[chan] ^= 1;

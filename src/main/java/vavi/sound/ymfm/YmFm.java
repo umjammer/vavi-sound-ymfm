@@ -110,11 +110,11 @@ public abstract class YmFm {
     /**
      * Clamps between the minimum and maximum values provided.
      */
-    static int clamp(int value, int minval, int maxval) {
-        if (value < minval)
-            return minval;
-        if (value > maxval)
-            return maxval;
+    static int clamp(int value, int minVal, int maxVal) {
+        if (value < minVal)
+            return minVal;
+        if (value > maxVal)
+            return maxVal;
         return value;
     }
 
@@ -164,10 +164,10 @@ public abstract class YmFm {
 
         // we need to count the number of leading sign bits after the sign
         // we can use count_leading_zeros if we invert negative values
-        int scanvalue = value ^ (value >> 31);
+        int scanValue = value ^ (value >> 31);
 
         // exponent is related to the number of leading bits starting from bit 14
-        int exponent = 7 - count_leading_zeros(scanvalue << 17);
+        int exponent = 7 - count_leading_zeros(scanValue << 17);
 
         // smallest exponent value allowed is 1
         exponent = Math.max(exponent, 1);
