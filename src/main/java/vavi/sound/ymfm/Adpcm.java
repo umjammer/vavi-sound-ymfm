@@ -176,13 +176,13 @@ abstract class Adpcm {
         // per-channel writes
 
         public void write_start(int chOffs, int address) {
-            write(chOffs + 0x10, address);
-            write(chOffs + 0x18, address >> 8);
+            write(chOffs + 0x10, address & 0xff);
+            write(chOffs + 0x18, (address & 0xff00) >> 8);
         }
 
         public void write_end(int chOffs, int address) {
-            write(chOffs + 0x20, address);
-            write(chOffs + 0x28, address >> 8);
+            write(chOffs + 0x20, address & 0xff);
+            write(chOffs + 0x28, (address & 0xff00) >> 8);
         }
 
         // internal state
@@ -351,7 +351,7 @@ logger.log(Level.DEBUG, "adpcmA: %d".formatted(m_curAddress));
 
             // m_accumulator is a 12-bit value; shift up to sign-extend;
             // the downshift is incorporated into 'shift'
-            int value = (((m_accumulator << 4) * mul) >> shift) & ~3;
+            int value = ((((short) (m_accumulator << 4)) * mul) >> shift) & ~3;
 
             // apply to left/right as appropriate
             if (output.getNumOutputs() == 1 || m_regs.ch_pan_left(m_chOffs) != 0)
