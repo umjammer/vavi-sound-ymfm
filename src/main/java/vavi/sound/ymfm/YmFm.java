@@ -758,7 +758,7 @@ public abstract class YmFm {
         eff_freq += delta;
 
         // handle over/underflow by adjusting the block:
-        if (eff_freq >= 768) {
+        if ((eff_freq & 0xffff_ffffL) >= 768L) {
             // minimum delta is -512 (PM), so we can only underflow by 1 octave
             if (eff_freq < 0) {
                 eff_freq += 768;
