@@ -886,6 +886,8 @@ logger.log(Level.DEBUG, "%s: d:%d (%d) <- s:%d, %d".formatted(type, base, m_data
     /**
      * actual chip-specific implementation class; includes implementation of the
      * YmFmInterface as needed for vgmplay purposes
+     *
+     * TODO should be bean? (use default constructor and init method)
      */
     public static class VgmChip extends VgmChipBase {
 
