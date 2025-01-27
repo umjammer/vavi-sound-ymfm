@@ -864,14 +864,11 @@ public abstract class Opm {
             m_fm.intf().ymfm_set_busy_end(32 * m_fm.clock_prescale());
         }
 
-//int CC = 0;
-
         /**
          * Handles a write to the register interface.
          */
         @Override
         public void write(int offset, int data) {
-//System.out.printf("%d: %d, %d%n", CC++, offset, data);
             switch (offset & 1) {
                 case 0: // address port
                     write_address(data);
