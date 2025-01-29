@@ -513,10 +513,10 @@ abstract class Opx {
     @Serdes
     public static class YmF271 implements YmFm.Chip {
 
-        protected static class FmEngine extends EngineBase<Opz.Registers> {
+        protected static class FmEngine extends EngineBase<Opx.Registers> {
 
             public FmEngine(YmFm.Interface intf) {
-                super(intf, Opz.Registers.class);
+                super(intf, Opx.Registers.class);
             }
         }
 
