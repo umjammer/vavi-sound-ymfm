@@ -3217,7 +3217,7 @@ public abstract class Opn {
          * Generate one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output[] output, int numSamples) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
             for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock((int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));
