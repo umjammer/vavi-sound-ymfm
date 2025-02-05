@@ -680,13 +680,13 @@ public abstract class Opq {
         // internal state
 
         /** LFO counter */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         protected int m_lfo_counter;
         /** current LFO AM value */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         protected int m_lfo_am;
         /** register data */
-        @Element(sequence = 2)
+        @Element(sequence = 3)
         protected final int[] m_regdata = new int[REGISTERS];
         /** waveforms */
         protected final int[][] m_waveform = new int[WAVEFORMS][WAVEFORM_LENGTH];

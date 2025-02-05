@@ -834,37 +834,37 @@ abstract class Pcm {
         /** channel offset */
         private final int m_chOffs;
         /** base address */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         private int m_baseAddr;
         /** ending position */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         private int m_endPos;
         /** loop position */
-        @Element(sequence = 2)
+        @Element(sequence = 3)
         private int m_loopPos;
         /** current position */
-        @Element(sequence = 3)
+        @Element(sequence = 4)
         private int m_curPos;
         /** next position */
-        @Element(sequence = 4)
+        @Element(sequence = 5)
         private int m_nextPos;
         /** LFO counter */
-        @Element(sequence = 5)
+        @Element(sequence = 6)
         private int m_lfo_counter;
         /** envelope state */
-        @Element(sequence = 6)
+        @Element(sequence = 7)
         private EnvelopeState m_eg_state;
         /** computed envelope attenuation */
-        @Element(sequence = 7)
+        @Element(sequence = 8)
         private int m_env_attenuation;
         /** total level with as 7.10 for interp */
-        @Element(sequence = 8)
+        @Element(sequence = 9)
         private int m_total_level;
         /** sample format */
-        @Element(sequence = 9)
+        @Element(sequence = 10)
         private int m_format;
         /** current key state */
-        @Element(sequence = 10)
+        @Element(sequence = 11)
         private int m_key_state;
         /** cached data */
         private final Pcm.Cache m_cache = new Pcm.Cache();

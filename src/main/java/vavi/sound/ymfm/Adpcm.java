@@ -367,22 +367,22 @@ logger.log(Level.DEBUG, "adpcmA: %d".formatted(m_curAddress));
         /** address bits shift-left */
         private final int m_address_shift;
         /** currently playing? */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         private boolean m_playing;
         /** index of the current nibble */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         private int m_curNibble;
         /** current byte of data */
-        @Element(sequence = 2)
+        @Element(sequence = 3)
         private int m_curByte;
         /** current address */
-        @Element(sequence = 3)
+        @Element(sequence = 4)
         private int m_curAddress;
         /** accumulator */
-        @Element(sequence = 4)
+        @Element(sequence = 5)
         private int m_accumulator;
         /** index in the stepping table */
-        @Element(sequence = 5)
+        @Element(sequence = 6)
         private int m_step_index;
         /** reference to registers */
         private final Adpcm.RegistersA m_regs;
@@ -1015,31 +1015,31 @@ logger.log(Level.DEBUG, "adpcmA: %d".formatted(m_curAddress));
         /** address bits shift-left */
         private final int m_address_shift;
         /** currently playing? */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         private int m_status;
         /** index of the current nibble */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         private int m_curNibble;
         /** current byte of data */
-        @Element(sequence = 2)
+        @Element(sequence = 3)
         private int m_curByte;
         /** dummy read tracker */
-        @Element(sequence = 3)
+        @Element(sequence = 4)
         private int m_dummy_read;
         /** current fractional position */
-        @Element(sequence = 4)
+        @Element(sequence = 5)
         private int m_position;
         /** current address */
-        @Element(sequence = 5)
+        @Element(sequence = 6)
         private int m_curAddress;
         /** accumulator */
-        @Element(sequence = 6)
+        @Element(sequence = 7)
         private int m_accumulator;
         /** previous accumulator (for linear interp) */
-        @Element(sequence = 7)
+        @Element(sequence = 8)
         private int m_prev_accum;
         /** next forecast */
-        @Element(sequence = 8)
+        @Element(sequence = 9)
         private int m_adpcm_step;
         /** reference to registers */
         private final Adpcm.RegistersB m_regs;

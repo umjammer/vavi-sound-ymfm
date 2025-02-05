@@ -821,19 +821,19 @@ public abstract class Opl {
         // internal state
 
         /** LFO AM counter */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         protected int m_lfo_am_counter;
         /** LFO PM counter */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         protected int m_lfo_pm_counter;
         /** noise LFSR state */
         @Element(sequence = 3)
         protected int m_noise_lfsr;
         /** current LFO AM value */
-        @Element(sequence = 2)
+        @Element(sequence = 4)
         protected int m_lfo_am;
         /** register data */
-        @Element(sequence = 4)
+        @Element(sequence = 5)
         protected final int[] m_regdata;
         /** waveforms */
         protected final int[][] m_waveform;
@@ -1485,23 +1485,23 @@ public abstract class Opl {
         // internal state
 
         /** LFO AM counter */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         private int m_lfo_am_counter;
         /** LFO PM counter */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         private int m_lfo_pm_counter;
         /** noise LFSR state */
         @Element(sequence = 3)
         private int m_noise_lfsr;
         /** current LFO AM value */
-        @Element(sequence = 2)
+        @Element(sequence = 4)
         private int m_lfo_am;
         /** pointer to instrument data for each channel */
         private final int[][] m_chinst = new int[CHANNELS][];
         /** pointer to instrument data for each operator */
         private final int[][] m_opinst = new int[OPERATORS][];
         /** register data */
-        @Element(sequence = 4)
+        @Element(sequence = 5)
         private final int[] m_regdata = new int[REGISTERS];
         /** instrument data */
         private final int[] m_instdata = new int[INSTDATA_SIZE];
@@ -1931,10 +1931,10 @@ public abstract class Opl {
         // internal state
 
         /** address register */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         protected int m_address;
         /** data direction register for I/O */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         protected int m_io_ddr;
         /** core FM engine */
         protected final FmEngine m_fm;
@@ -2868,16 +2868,16 @@ public abstract class Opl {
         // internal state
 
         /** address register */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         protected int m_address;
         /** FM resampling position */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         protected int m_fm_pos;
         /** how many more samples until LD flag clears */
-        @Element(sequence = 2)
+        @Element(sequence = 3)
         protected int m_load_remaining;
         /** flag to track which status ID to return */
-        @Element(sequence = 3)
+        @Element(sequence = 4)
         protected boolean m_next_status_id;
         /** core FM engine */
         protected final FmEngine m_fm;
