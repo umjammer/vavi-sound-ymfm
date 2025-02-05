@@ -170,7 +170,7 @@ public abstract class Opm {
 
             // create the waveforms
             for (int index = 0; index < WAVEFORM_LENGTH; index++)
-                m_waveform[0][index] = abs_sin_attenuation(index) | (bitfield(index, 9) << 15);
+                m_waveform[0][index] = (abs_sin_attenuation(index) & 0xefff) | ((bitfield(index, 9) & 1) << 15);
 
             // create the LFO waveforms; AM in the low 8 bits, PM in the upper 8
             // waveforms are adjusted to match the pictures in the application manual
@@ -178,17 +178,17 @@ public abstract class Opm {
                 // waveform 0 is a sawtooth
                 int am = index ^ 0xff;
                 int pm = index;
-                m_lfo_waveform[0][index] = am | (pm << 8);
+                m_lfo_waveform[0][index] = (am & 0xff) | ((pm & 0xff) << 8);
 
                 // waveform 1 is a square wave
                 am = bitfield(index, 7) != 0 ? 0 : 0xff;
                 pm = am ^ 0x80;
-                m_lfo_waveform[1][index] = am | (pm << 8);
+                m_lfo_waveform[1][index] = (am & 0xff) | ((pm & 0xff) << 8);
 
                 // waveform 2 is a triangle wave
                 am = bitfield(index, 7) != 0 ? (index << 1) : ((index ^ 0xff) << 1);
                 pm = bitfield(index, 6) != 0 ? am : ~am;
-                m_lfo_waveform[2][index] = am | (pm << 8);
+                m_lfo_waveform[2][index] = (am & 0xff) | ((pm & 0xff) << 8);
 
                 // waveform 3 is noise; it is filled in dynamically
                 m_lfo_waveform[3][index] = 0;

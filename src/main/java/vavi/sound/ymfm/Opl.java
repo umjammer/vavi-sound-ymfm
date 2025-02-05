@@ -59,7 +59,7 @@ public abstract class Opl {
 
     private Opl() {}
 
-    private static final byte[] fnum_to_atten = {0, 24, 32, 37, 40, 43, 45, 47, 48, 50, 51, 52, 53, 54, 55, 56};
+    private static final int[] fnum_to_atten = {0, 24, 32, 37, 40, 43, 45, 47, 48, 50, 51, 52, 53, 54, 55, 56};
 
     /**
      * Converts an OPL concatenated block (3 bits) and fnum
@@ -412,10 +412,10 @@ public abstract class Opl {
 
             // AM value is the upper bits of the value, inverted across the midpoint
             // to produce a triangle
-            lfo_am[0] = ((am_counter < 105 * 64) ? am_counter : (210 * 64 + 63 - am_counter)) >> shift;
+            lfo_am[0] = (((am_counter < 105 * 64) ? am_counter : (210 * 64 + 63 - am_counter)) >> shift) & 0xff;
 
             // the PM LFO has 8192 steps, or a nominal period of 6.1Hz
-            int pm_counter = lfo_pm_counter[0]++;
+            int pm_counter = (lfo_pm_counter[0] + 1) & 0xffff;
 
             // PM LFO is broken into 8 chunks, each lasting 1024 steps; the PM value
             // depends on the upper bits of FNUM, so this value is a fraction and
@@ -1197,9 +1197,9 @@ public abstract class Opl {
             // the instrument data. In this case, Relief Pitcher's credit sound bears out
             // that the Release Rate is used during sustain, and that the constant RR
             // (or RS) is used during the release phase.
-            final byte DP = 12 * 4;
-            final byte RR = 7 * 4;
-            final byte RS = 5 * 4;
+            final int DP = 12 * 4;
+            final int RR = 7 * 4;
+            final int RS = 5 * 4;
 
             // determine KSR adjustment for envelope rates
             int ksrVal = keycode >> (2 * (op_ksr(opOffs) ^ 1));
@@ -1703,10 +1703,10 @@ public abstract class Opl {
             return (int) m_fm.getRegisterType().getParams().get("OUTPUTS");
         }
 
-        public static final byte STATUS_ADPCM_B_PLAYING = 0x01;
-        public static final byte STATUS_ADPCM_B_BRDY = 0x08;
-        public static final byte STATUS_ADPCM_B_EOS = 0x10;
-        public static final byte ALL_IRQS = STATUS_ADPCM_B_BRDY | STATUS_ADPCM_B_EOS | OplRegisters.STATUS_TIMERA | OplRegisters.STATUS_TIMERB;
+        public static final int STATUS_ADPCM_B_PLAYING = 0x01;
+        public static final int STATUS_ADPCM_B_BRDY = 0x08;
+        public static final int STATUS_ADPCM_B_EOS = 0x10;
+        public static final int ALL_IRQS = STATUS_ADPCM_B_BRDY | STATUS_ADPCM_B_EOS | OplRegisters.STATUS_TIMERA | OplRegisters.STATUS_TIMERB;
 
         /**
          * Constructor.
@@ -2322,7 +2322,7 @@ public abstract class Opl {
     @Serdes
     public static class Ymf289b implements YmFm.Chip {
 
-        protected static final byte STATUS_BUSY_FLAGS = 0x05;
+        protected static final int STATUS_BUSY_FLAGS = 0x05;
 
         protected static class FmEngine extends EngineBase<Opl3Registers> {
 
@@ -2581,8 +2581,8 @@ public abstract class Opl {
             return OUTPUTS;
         }
 
-        protected static final byte STATUS_BUSY = 0x01;
-        protected static final byte STATUS_LD = 0x02;
+        protected static final int STATUS_BUSY = 0x01;
+        protected static final int STATUS_LD = 0x02;
 
         /**
          * Constructor.
@@ -2970,7 +2970,7 @@ public abstract class Opl {
         }
 
         /** Doesn't really have any, but provide these for consistency */
-        public byte read_status() {
+        public int read_status() {
             return 0x00;
         }
 
