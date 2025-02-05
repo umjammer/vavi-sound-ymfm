@@ -509,14 +509,14 @@ abstract class Opx {
     // IMPLEMENTATION CLASSES
     //
 
-    /** ym2414 */
+    /** ymf271 */
     @Serdes
-    public static class Ym2414 implements YmFm.Chip {
+    public static class YmF271 implements YmFm.Chip {
 
-        protected static class FmEngine extends EngineBase<Opz.Registers> {
+        protected static class FmEngine extends EngineBase<Opx.Registers> {
 
             public FmEngine(YmFm.Interface intf) {
-                super(intf, Opz.Registers.class);
+                super(intf, Opx.Registers.class);
             }
         }
 
@@ -536,7 +536,7 @@ abstract class Opx {
         /**
          * Constructor.
          */
-        public Ym2414(YmFm.Interface intf) {
+        public YmF271(YmFm.Interface intf) {
             m_address = 0;
             m_fm = new FmEngine(intf);
 
@@ -713,10 +713,10 @@ abstract class Opx {
                 // clock the system
                 m_fm.clock(Opz.Registers.ALL_CHANNELS);
 
-                // update the FM content; YM2414 is full 14-bit with no intermediate clipping
+                // update the FM content; YMF271 is full 14-bit with no intermediate clipping
                 m_fm.output(output[samp].clear(), 0, 32767, Opz.Registers.ALL_CHANNELS);
 
-                // unsure about YM2414 outputs; assume it is like YM2151
+                // unsure about YMF271 outputs; assume it is like YM2151
                 output[samp].roundtrip_fp();
             }
         }

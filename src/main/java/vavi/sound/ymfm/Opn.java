@@ -737,13 +737,13 @@ public abstract class Opn {
         }
 
         /** LFO counter */
-        @Element(sequence = 0, condition = "isOpnA")
+        @Element(sequence = 1, condition = "isOpnA")
         protected int m_lfo_counter;
         /** current LFO AM value */
-        @Element(sequence = 1, condition = "isOpnA")
+        @Element(sequence = 2, condition = "isOpnA")
         protected int m_lfo_am;
         /** register data */
-        @Element(sequence = 2)
+        @Element(sequence = 3)
         protected final int[] m_regdata;
         /** waveforms */
         protected final int[][] m_waveform = new int[WAVEFORMS][WAVEFORM_LENGTH];
@@ -1156,11 +1156,11 @@ public abstract class Opn {
         // internal state
 
         private final Ssg.Engine m_ssg;
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         private int m_sampleIndex;
         // resample_func
         private BiConsumer<Output[], Integer> m_resampler;
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         private final YmFm.Output m_last;
     }
 
@@ -1508,12 +1508,12 @@ public abstract class Opn {
         /** configured fidelity */
         protected Fidelity m_fidelity;
         /** address register */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         protected int m_address;
         /** how many samples to repeat */
         protected int m_fm_samples_per_output;
         /** last FM output */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         protected final YmFm.Output m_last_fm;
         /** core FM engine */
         protected final FmEngine m_fm;
@@ -2018,18 +2018,18 @@ public abstract class Opn {
         /** configured fidelity */
         protected Fidelity m_fidelity;
         /** address register */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         protected int m_address;
         /** how many samples to repeat */
         protected int m_fm_samples_per_output;
         /** IRQ enable register */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         protected int m_irq_enable;
         /** flag control register */
-        @Element(sequence = 2)
+        @Element(sequence = 3)
         protected int m_flag_control;
         /** last FM output */
-        @Element(sequence = 3)
+        @Element(sequence = 4)
         protected final YmFm.Output m_last_fm;
         /** core FM engine */
         protected final FmEngine m_fm;
@@ -2481,18 +2481,18 @@ public abstract class Opn {
         /** configured fidelity */
         protected Opn.Fidelity m_fidelity;
         /** address register */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         protected int m_address;
         /** how many samples to repeat */
         protected int m_fm_samples_per_output;
         /** IRQ enable register */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         protected int m_irq_enable;
         /** flag control register */
-        @Element(sequence = 2)
+        @Element(sequence = 3)
         protected int m_flag_control;
         /** last FM output */
-        @Element(sequence = 3)
+        @Element(sequence = 4)
         protected final YmFm.Output m_last_fm;
         /** core FM engine */
         protected final FmEngine m_fm;
@@ -2888,17 +2888,17 @@ public abstract class Opn {
         /** configured fidelity */
         protected Fidelity m_fidelity;
         /** address register */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         protected int m_address;
         /** FM channel mask */
         protected final int m_fm_mask;
         /** how many samples to repeat */
         protected int m_fm_samples_per_output;
         /** end-of-sample signals */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         protected int m_eos_status;
         /** flag mask control */
-        @Element(sequence = 2)
+        @Element(sequence = 3)
         protected int m_flag_mask;
         /** last FM output */
         protected final YmFm.Output m_last_fm;
@@ -3158,13 +3158,13 @@ public abstract class Opn {
         // internal state
 
         /** address register */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         protected int m_address;
         /** 9-bit DAC data */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         protected int m_dac_data;
         /** DAC enabled? */
-        @Element(sequence = 2)
+        @Element(sequence = 3)
         protected int m_dac_enable;
         /** core FM engine */
         protected final FmEngine m_fm;
@@ -3217,7 +3217,7 @@ public abstract class Opn {
          * Generate one sample of sound.
          */
         @Override
-        public void generate(YmFm.Output[] output, int numSamples) {
+        public void generate(YmFm.Output[] output, int numSamples /* = 1 */) {
             for (int samp = 0; samp < numSamples; samp++) {
                 // clock the system
                 m_fm.clock((int) m_fm.getRegisterType().getParams().get("ALL_CHANNELS"));

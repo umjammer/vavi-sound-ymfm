@@ -464,22 +464,22 @@ abstract class Ssg {
         /** reference to the interface */
         private final YmFm.Interface m_intf;
         /** current tone counter */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         private final int[] m_tone_count = new int[3];
         /** current tone state */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         private final int[] m_tone_state = new int[3];
         /** envelope counter */
-        @Element(sequence = 2)
+        @Element(sequence = 3)
         private int m_envelope_count;
         /** envelope state */
-        @Element(sequence = 3)
+        @Element(sequence = 4)
         private int m_envelope_state;
         /** current noise counter */
-        @Element(sequence = 4)
+        @Element(sequence = 5)
         private int m_noise_count;
         /** current noise state */
-        @Element(sequence = 5)
+        @Element(sequence = 6)
         private int m_noise_state;
         /** registers */
         private final Ssg.Registers m_regs;

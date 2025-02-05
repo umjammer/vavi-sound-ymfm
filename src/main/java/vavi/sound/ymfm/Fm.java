@@ -710,22 +710,22 @@ abstract class Fm {
         /** operator offset in registers */
         private final int m_opoffs;
         /** current phase value (10.10 format) */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         private int m_phase;
         /** computed envelope attenuation (4.6 format) */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         private int m_env_attenuation;
         /** current envelope state */
-        @Element(sequence = 2)
+        @Element(sequence = 3)
         private EnvelopeState m_env_state;
         /** non-zero if the output should be inverted (bit 0) */
-        @Element(sequence = 3)
+        @Element(sequence = 4)
         private boolean m_ssg_inverted;
         /** current key state: on or off (bit 0) */
-        @Element(sequence = 4)
+        @Element(sequence = 5)
         private int m_key_state;
         /** live key on state (bit 0 = direct, bit 1 = rhythm, bit 2 = CSM) */
-        @Element(sequence = 5)
+        @Element(sequence = 6)
         private int m_keyon_live;
         /** cached values for performance */
         private final OpDataCache m_cache = new OpDataCache();
@@ -1142,10 +1142,10 @@ abstract class Fm {
         /** channel offset in registers */
         private final int m_choffs;
         /** feedback memory for operator 1 */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         private final int[] m_feedback = new int[2];
         /** next input value for op 1 feedback (set in output) */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         private int m_feedback_in;
         /** up to 4 operators */
         private final Fm.Operator<RegisterType>[] m_op = new Fm.Operator[4];
@@ -1649,25 +1649,25 @@ assert map[0].length == CHANNELS;
         /** reference to the system interface */
         protected final YmFm.Interface m_intf;
         /** envelope counter; low 2 bits are sub-counter */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         protected int m_env_counter;
         /** current status register */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         protected int m_status;
         /** prescale factor (2/3/6) */
-        @Element(sequence = 2)
+        @Element(sequence = 3)
         protected int m_clock_prescale;
         /** mask of which bits signal IRQs */
-        @Element(sequence = 3)
+        @Element(sequence = 4)
         protected int m_irq_mask;
         /** current IRQ state */
-        @Element(sequence = 4)
+        @Element(sequence = 5)
         protected int m_irq_state;
         /** current timer running state */
-        @Element(sequence = 5)
+        @Element(sequence = 6)
         protected final int[] m_timer_running = new int[2];
         /** low 8 bits of the total number of clocks processed */
-        @Element(sequence = 6)
+        @Element(sequence = 7)
         protected int m_total_clocks;
         /** mask of active channels (computed by prepare) */
         protected int m_active_channels;

@@ -1012,28 +1012,28 @@ public abstract class Opz {
         // internal state
 
         /** LFO counter */
-        @Element(sequence = 0)
+        @Element(sequence = 1)
         protected final int[] m_lfo_counter = new int[2];
         /** noise LFSR state */
-        @Element(sequence = 2)
+        @Element(sequence = 3)
         protected int m_noise_lfsr;
         /** noise counter */
-        @Element(sequence = 3)
+        @Element(sequence = 4)
         protected int m_noise_counter;
         /** latched noise state */
-        @Element(sequence = 4)
+        @Element(sequence = 5)
         protected int m_noise_state;
         /** latched LFO noise value */
-        @Element(sequence = 5)
+        @Element(sequence = 6)
         protected int m_noise_lfo;
         /** current LFO AM value */
-        @Element(sequence = 1)
+        @Element(sequence = 2)
         protected final int[] m_lfo_am = new int[2];
         /** register data */
-        @Element(sequence = 6)
+        @Element(sequence = 7)
         protected final int[] m_regdata = new int[REGISTERS];
         /** phase substep for fixed frequency */
-        @Element(sequence = 7)
+        @Element(sequence = 8)
         protected final int[] m_phase_substep = new int[OPERATORS];
         /** LFO waveforms; AM in low 8, PM in upper 8 */
         protected final int[][] m_lfo_waveform = new int[4][LFO_WAVEFORM_LENGTH];
