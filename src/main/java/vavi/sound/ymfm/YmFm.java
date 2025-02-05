@@ -556,7 +556,7 @@ public abstract class YmFm {
      * is needed; also the order is reversed to save a NOT on the input
      */
     private static int X(int a) {
-        return a | 0x400 << 2;
+        return (a | 0x400) << 2;
     }
 
     static final int[] s_power_table = {
