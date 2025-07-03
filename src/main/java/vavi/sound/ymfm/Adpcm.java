@@ -814,7 +814,7 @@ logger.log(Level.DEBUG, "adpcmA: %d".formatted(m_curAddress));
                         // otherwise, advance the current address
                     else {
                         m_curAddress++;
-                        m_curAddress &= 0xffffff;
+                        m_curAddress &= 0xff_ffff;
                     }
                 }
 
