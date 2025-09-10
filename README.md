@@ -13,32 +13,32 @@ this is a fork of [ymfm](https://github.com/aaronsgiles/ymfm)
 
 ### Status
 
-| name     | common name        | status | comment                                                                               |
-|----------|--------------------|:------:|---------------------------------------------------------------------------------------|
-| YM2149   | SSG                |   🚧   | 1983: MSX; Atari ST                                                                   |
-| YM2151   | OPM                |  ✅️*   | 1983: Sharp X1, X68000; MSX; synths: DX21, DX27, DX100                                |
-| YM2164   | OPP                |        | 1985: FB-01 MIDI Expander; IBM Music Feature Card; MSX; synths: Korg DS-8, 707        |
-| YM2203   | OPN                |   ✅    | 1984: NEC PC-88, PC-98, NEC PC-6001mkII SR, PC-6601 SR                                |
-| YM2608   | OPNA               |   ✅    | 1985: NEC PC-88, PC-98                                                                |
-| YM2610   | OPNB               |   ✅    | 1987: Neo Geo                                                                         |
-| YM2610B  | OPNB2              |        |                                                                                       |
-| YM2612   | OPN2               |   ✅    | 1988: Sega Mega Drive/Genesis; FM Towns                                               |
-| YM3438   | OPN2C              |        |                                                                                       |
-| YMF276   | OPN2L              |        |                                                                                       |
-| YMF288   | OPN3L              |        | 1995: NEC PC-98                                                                       |
-| YM3526   | OPL                |   ✅    | 1984: C64 SFX Sound Expander                                                          |
-| Y8950    | MSX-Audio          |  ✅ 🚧  | 1984: MSX                                                                             |
-| YM3812   | OPL2               |   ✅    | 1985: AdLib, Sound Blaster; synths: some Portasound keyboards                         |
-| YMF262   | OPL3               |   ✅*   | 1988: Sound Blaster Pro 2.0, SB16                                                     |
-| YMF289B  | OPL3L              |        |                                                                                       |
-| YMF278B  | OPL4               |  ✅ 🚧  | 1993: MSX Moonsound cartridge                                                         |
-| YM2413   | OPLL               |   ✅    | 1986: Sega Master System, Mark III; MSX; synths: Portasound PSS-140, PSS-170, PSS-270 |
-| YM2423   | OPLL-X             |        |                                                                                       |
-| YMF281   | OPLLP              |        |                                                                                       |
-| DS1001   | Konami 053982/VRC7 |        | 1991: Famicom cartridge Lagrange Point                                                |
-| YM3806   | OPQ                |        | synths: PSR-60/70                                                                     |
-| YMF271   | OPX                |        |                                                                                       |
-| YM2414   | OPZ                |        | 1987: synths: TX81Z, DX11, YS200; Korg Z3 guitar synth                                |
+| name     | common name        | addendum       | status | comment                                                                               |
+|----------|--------------------|----------------|:------:|---------------------------------------------------------------------------------------|
+| YM2149   | SSG                |                | ✅️ 🚧  | 1983: MSX; Atari ST                                                                   |
+| YM2151   | OPM                |                |   ✅️   | 1983: Sharp X1, X68000; MSX; synths: DX21, DX27, DX100                                |
+| YM2164   | OPP                |                |        | 1985: FB-01 MIDI Expander; IBM Music Feature Card; MSX; synths: Korg DS-8, 707        |
+| YM2203   | OPN                | SSG            |   ✅    | 1984: NEC PC-88, PC-98, NEC PC-6001mkII SR, PC-6601 SR                                |
+| YM2608   | OPNA               | SSG, ADPCM-A,B |   ✅    | 1985: NEC PC-88, PC-98                                                                |
+| YM2610   | OPNB               | SSG, ADPCM-A,B |   ✅    | 1987: Neo Geo                                                                         |
+| YM2610B  | OPNB2              | SSG, ADPCM-A,B |   ✅    |                                                                                       |
+| YM2612   | OPN2               |                |   ✅    | 1988: Sega Mega Drive/Genesis; FM Towns                                               |
+| YM3438   | OPN2C              |                |        |                                                                                       |
+| YMF276   | OPN2L              |                |        |                                                                                       |
+| YMF288   | OPN3L              | SSG, ADPCM-A   |        | 1995: NEC PC-98                                                                       |
+| YM3526   | OPL                |                |   ✅    | 1984: C64 SFX Sound Expander                                                          |
+| Y8950    | MSX-Audio          | ADPCM-B        |  ✅ 🚧  | 1984: MSX                                                                             |
+| YM3812   | OPL2               |                |   ✅    | 1985: AdLib, Sound Blaster; synths: some Portasound keyboards                         |
+| YMF262   | OPL3               |                |   ✅    | 1988: Sound Blaster Pro 2.0, SB16                                                     |
+| YMF289B  | OPL3L              |                |        |                                                                                       |
+| YMF278B  | OPL4               | PCM            |   ✅    | 1993: MSX Moonsound cartridge                                                         |
+| YM2413   | OPLL               |                |   ✅    | 1986: Sega Master System, Mark III; MSX; synths: Portasound PSS-140, PSS-170, PSS-270 |
+| YM2423   | OPLL-X             |                |        |                                                                                       |
+| YMF281   | OPLLP              |                |        |                                                                                       |
+| DS1001   | Konami 053982/VRC7 |                |        | 1991: Famicom cartridge Lagrange Point                                                |
+| YM3806   | OPQ                |                |        | synths: PSR-60/70                                                                     |
+| YMF271   | OPX                |                |        |                                                                                       |
+| YM2414   | OPZ                |                |        | 1987: synths: TX81Z, DX11, YS200; Korg Z3 guitar synth                                |
 
 ## Install
 
@@ -46,7 +46,22 @@ this is a fork of [ymfm](https://github.com/aaronsgiles/ymfm)
 
 ## Usage
 
+### system property
+
+ * \[YM2608] `mdsound.pcm.path` ... `ym2608_adpcm_rom.bin` location
+
+### raw api
+
  * [sample](src/test/java/TestCase.java)
+
+### spi
+
+```java
+AudioInputStream ais = AudioSystem.getAudioInputStream(Paths.get(vgm).toFile());
+Clip clip = AudioSystem.getClip();
+clip.open(AudioSystem.getAudioInputStream(new AudioFormat(44100, 16, 2, true, false), ais));
+clip.loop(Clip.LOOP_CONTINUOUSLY);
+```
 
 ### original
 
@@ -62,13 +77,14 @@ $ ./vgmrender input.vgz -o out.wav
 ## References
 
  * https://blog.hiroaki.jp/blog/2021/07/11/s98player-using-ymfm/
+ * https://github.com/superctr/adpcm
 
 ## TODO
 
  * serialize ... [vavi-util-serdes](https://github.com/umjammer/vavi-util-serdes)
- * spi
+ * ~~spi~~
  * debug
-   * 2149 sounds but noisy ... same as the original (02 Vampire Killer.vgz)
+   * 2149 sounds but noisy ... same as the origi}nal (02 Vampire Killer.vgz)
    * ~~2151 noise sound? taste is different from other impls ... original is ok (01 Magical Sound Shower.vgz)~~
    * ~~2608 ssg, adpcm not sound~~
    * ~~2610 adpcm not correct ... original is fine~~
