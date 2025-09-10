@@ -191,7 +191,7 @@ logger.log(Level.DEBUG, rom + " loaded, " + chipName + ", " + temp.length);
             return data_start;
         clock = parse_uint32(buffer, offset);
         if (version >= 0x151 && clock != 0) {
-            if ((clock & 0x80000000) != 0)
+            if ((clock & 0x8000_0000) != 0)
                 add_chips(clock, "YM2610B", Ym2610b.class);
             else
                 add_chips(clock, "YM2610", Ym2610.class);
@@ -632,7 +632,7 @@ logger.log(Level.DEBUG, rom + " loaded, " + chipName + ", " + temp.length);
                     int[] tmp = new int[] {offset};
                     int size = parse_uint32(buffer, tmp);
                     offset = tmp[0];
-                    int[] localoffset = new int[] {offset};
+                    int[] localOffset = new int[] {offset};
 
                     switch (type) {
                         case 0x01: // RF5C68 PCM data for use with associated commands
@@ -648,29 +648,29 @@ logger.log(Level.DEBUG, rom + " loaded, " + chipName + ", " + temp.length);
                         {
                             VgmChip chip = find_chip(Ym2612.class, 0);
                             if (chip != null)
-                                chip.write_data(PCM, 0, size - 8, buffer, localoffset[0]);
+                                chip.write_data(PCM, 0, size - 8, buffer, localOffset[0]);
                             break;
                         }
 
                         case 0x82: // YM2610 ADPCM ROM data
-                            add_rom_data(Ym2610.class, ADPCM_A, buffer, localoffset, size - 8);
+                            add_rom_data(Ym2610.class, ADPCM_A, buffer, localOffset, size - 8);
                             break;
 
                         case 0x81: // YM2608 DELTA-T ROM data
-                            add_rom_data(Ym2608.class, ADPCM_B, buffer, localoffset, size - 8);
+                            add_rom_data(Ym2608.class, ADPCM_B, buffer, localOffset, size - 8);
                             break;
 
                         case 0x83: // YM2610 DELTA-T ROM data
-                            add_rom_data(Ym2610.class, ADPCM_B, buffer, localoffset, size - 8);
+                            add_rom_data(Ym2610.class, ADPCM_B, buffer, localOffset, size - 8);
                             break;
 
                         case 0x84: // YMF278B ROM data
                         case 0x87: // YMF278B RAM data
-                            add_rom_data(Ymf278b.class, PCM, buffer, localoffset, size - 8);
+                            add_rom_data(Ymf278b.class, PCM, buffer, localOffset, size - 8);
                             break;
 
                         case 0x88: // Y8950 DELTA-T ROM data
-                            add_rom_data(Y8950.class, ADPCM_B, buffer, localoffset, size - 8);
+                            add_rom_data(Y8950.class, ADPCM_B, buffer, localOffset, size - 8);
                             break;
 
                         case 0x80: // Sega PCM ROM data

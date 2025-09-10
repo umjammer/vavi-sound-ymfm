@@ -1,0 +1,5 @@
+vavi.test.volume=0.5
+
+mdsound.pcm.path=/Users/foo/.config/ym2608/rom/
+
+file=tmp/vgm/sample.vgm
