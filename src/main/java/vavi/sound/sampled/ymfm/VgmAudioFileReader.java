@@ -21,23 +21,22 @@ import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.UnsupportedAudioFileException;
 import javax.sound.sampled.spi.AudioFileReader;
 
-import vavi.util.Debug;
 import vavi.util.archive.Archives;
 
 import static java.lang.System.getLogger;
 
 
 /**
- * Provider for Ymfm audio file reading services. This implementation can parse
- * the format information from Ymfm audio file, and can produce audio input
+ * Provider for VGM audio file reading services. This implementation can parse
+ * the format information from VGM audio file, and can produce audio input
  * streams from files of this type.
  *
  * @author <a href="mailto:umjammer@gmail.com">Naohide Sano</a> (nsano)
  * @version 0.00 250824 nsano initial version <br>
  */
-public class YmfmAudioFileReader extends AudioFileReader {
+public class VgmAudioFileReader extends AudioFileReader {
 
-    private static final Logger logger = getLogger(YmfmAudioFileReader.class.getName());
+    private static final Logger logger = getLogger(VgmAudioFileReader.class.getName());
 
     @Override
     public AudioFileFormat getAudioFileFormat(File file) throws UnsupportedAudioFileException, IOException {
@@ -61,16 +60,16 @@ public class YmfmAudioFileReader extends AudioFileReader {
     /**
      * Return the AudioFileFormat from the given InputStream. Implementation.
      *
-     * @param bitStream
-     * @param mediaLength
+     * @param bitStream the audio stream
+     * @param mediaLength the audio media length
      * @return an AudioInputStream object based on the audio file data contained
      *         in the input stream.
      * @exception UnsupportedAudioFileException if the File does not point to a
      *                valid audio file data recognized by the system.
      * @exception IOException if an I/O exception occurs.
      */
-    protected AudioFileFormat getAudioFileFormat(InputStream bitStream, int mediaLength) throws UnsupportedAudioFileException, IOException {
-        InputStream is = null;
+    protected static AudioFileFormat getAudioFileFormat(InputStream bitStream, int mediaLength) throws UnsupportedAudioFileException, IOException {
+        InputStream is;
         try {
             bitStream.mark(1024); // using 1024 because of Archives#getInputStream() brakes mark/reset (consumes 522 bytes)
             is = new BufferedInputStream(Archives.getInputStream(bitStream));
@@ -90,7 +89,7 @@ logger.log(Level.TRACE, e.getMessage(), e);
                 logger.log(Level.TRACE, e.toString());
             }
         }
-        AudioFormat format = new AudioFormat(YmfmEncoding.YMFM, 44100, 16, 2, AudioSystem.NOT_SPECIFIED, AudioSystem.NOT_SPECIFIED, false);
+        AudioFormat format = new AudioFormat(VgmEncoding.VGM, 44100, 16, 2, AudioSystem.NOT_SPECIFIED, AudioSystem.NOT_SPECIFIED, false);
         return new AudioFileFormat(VgmFileFormatType.VGM, format, AudioSystem.NOT_SPECIFIED);
     }
 
@@ -117,15 +116,15 @@ logger.log(Level.TRACE, e.getMessage(), e);
      *
      * @param inputStream the input stream from which the AudioInputStream
      *            should be constructed.
-     * @param medialength
+     * @param mediaLength the audio media length
      * @return an AudioInputStream object based on the audio file data contained
      *         in the input stream.
      * @exception UnsupportedAudioFileException if the File does not point to a
      *                valid audio file data recognized by the system.
      * @exception IOException if an I/O exception occurs.
      */
-    protected AudioInputStream getAudioInputStream(InputStream inputStream, int medialength) throws UnsupportedAudioFileException, IOException {
-        AudioFileFormat audioFileFormat = getAudioFileFormat(inputStream, medialength);
+    protected static AudioInputStream getAudioInputStream(InputStream inputStream, int mediaLength) throws UnsupportedAudioFileException, IOException {
+        AudioFileFormat audioFileFormat = getAudioFileFormat(inputStream, mediaLength);
         return new AudioInputStream(inputStream, audioFileFormat.getFormat(), audioFileFormat.getFrameLength());
     }
 }

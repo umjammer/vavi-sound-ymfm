@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static vavi.sound.SoundUtil.volume;
-import static vavi.sound.sampled.ymfm.YmfmEncoding.YMFM;
+import static vavi.sound.sampled.ymfm.VgmEncoding.VGM;
 import static vavix.util.DelayedWorker.later;
 
 
@@ -78,7 +78,7 @@ Debug.println("volume: " + volume);
 
         Path path = Path.of(vgm);
 Debug.println(vgm);
-        AudioInputStream sourceAis = new YmfmAudioFileReader().getAudioInputStream(new BufferedInputStream(Files.newInputStream(path)));
+        AudioInputStream sourceAis = new VgmAudioFileReader().getAudioInputStream(new BufferedInputStream(Files.newInputStream(path)));
 
         AudioFormat inAudioFormat = sourceAis.getFormat();
 Debug.println("IN: " + inAudioFormat);
@@ -95,7 +95,7 @@ Debug.println("OUT: " + outAudioFormat);
 
         assertTrue(AudioSystem.isConversionSupported(outAudioFormat, inAudioFormat));
 
-        AudioInputStream pcmAis = new YmfmFormatConversionProvider().getAudioInputStream(outAudioFormat, sourceAis);
+        AudioInputStream pcmAis = new VgmFormatConversionProvider().getAudioInputStream(outAudioFormat, sourceAis);
         DataLine.Info info = new DataLine.Info(SourceDataLine.class, pcmAis.getFormat());
         SourceDataLine line = (SourceDataLine) AudioSystem.getLine(info);
         line.open(pcmAis.getFormat());
@@ -118,7 +118,7 @@ Debug.println("OUT: " + outAudioFormat);
     }
 
     @Test
-    @DisplayName("as spi")
+    @DisplayName("via spi")
     void test1() throws Exception {
 
         Path path = Path.of(vgm);
@@ -170,7 +170,7 @@ Debug.println("OUT: " + outAudioFormat);
     void test2() throws Exception {
         URL url = Paths.get(vgm).toUri().toURL();
         AudioInputStream ais = AudioSystem.getAudioInputStream(url);
-        assertEquals(YMFM, ais.getFormat().getEncoding());
+        assertEquals(VGM, ais.getFormat().getEncoding());
     }
 
     @Test
@@ -178,7 +178,7 @@ Debug.println("OUT: " + outAudioFormat);
     void test3() throws Exception {
         File file = Paths.get(vgm).toFile();
         AudioInputStream ais = AudioSystem.getAudioInputStream(file);
-        assertEquals(YMFM, ais.getFormat().getEncoding());
+        assertEquals(VGM, ais.getFormat().getEncoding());
     }
 
     @Test

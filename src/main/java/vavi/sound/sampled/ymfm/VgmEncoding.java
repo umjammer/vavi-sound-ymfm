@@ -6,27 +6,26 @@
 
 package vavi.sound.sampled.ymfm;
 
-
 import javax.sound.sampled.AudioFormat;
 
 
 /**
- * Encodings used by the Ymfm audio decoder.
+ * Encodings used by the VGM audio decoder.
  *
  * @author <a href="mailto:umjammer@gmail.com">Naohide Sano</a> (nsano)
  * @version 0.00 250909 nsano initial version <br>
  */
-public class YmfmEncoding extends AudioFormat.Encoding {
+public class VgmEncoding extends AudioFormat.Encoding {
 
     /** Specifies any Ymfm encoded data. */
-    public static final YmfmEncoding YMFM = new YmfmEncoding("Ymfm");
+    public static final VgmEncoding VGM = new VgmEncoding("vgm");
 
     /**
      * Constructs a new encoding.
      *
-     * @param name Name of the Ymfm encoding.
+     * @param name Name of the VGM encoding.
      */
-    private YmfmEncoding(String name) {
+    private VgmEncoding(String name) {
         super(name);
     }
 }

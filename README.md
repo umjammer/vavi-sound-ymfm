@@ -91,6 +91,7 @@ $ ./vgmrender input.vgz -o out.wav
    * ~~2612 taste is bit a different from other impls (09 - Sticker.vgz)~~
    * ~~f262 taste is different from other impls ... original is ok (05 Tomboyish Girl in Love.vgz)~~
    * ~~F278B fm ok, others not sounds? ... same as libvgm~~
+ * ~~separate the vgm parser from the input stream~~
 
 ----
 

@@ -17,16 +17,16 @@ import static javax.sound.sampled.AudioSystem.NOT_SPECIFIED;
 
 
 /**
- * YmfmFormatConversionProvider.
+ * VgmFormatConversionProvider.
  *
  * @author <a href="mailto:umjammer@gmail.com">Naohide Sano</a> (nsano)
  * @version 0.00 250909 nsano initial version <br>
  */
-public class YmfmFormatConversionProvider extends FormatConversionProvider {
+public class VgmFormatConversionProvider extends FormatConversionProvider {
 
     @Override
     public Encoding[] getSourceEncodings() {
-        return new Encoding[] { YmfmEncoding.YMFM };
+        return new Encoding[] { VgmEncoding.VGM};
     }
 
     @Override
@@ -36,7 +36,7 @@ public class YmfmFormatConversionProvider extends FormatConversionProvider {
 
     @Override
     public Encoding[] getTargetEncodings(AudioFormat sourceFormat) {
-        if (sourceFormat.getEncoding() instanceof YmfmEncoding) {
+        if (sourceFormat.getEncoding() instanceof VgmEncoding) {
             return new Encoding[] { PCM_SIGNED };
         } else {
             return new Encoding[0];
@@ -45,7 +45,7 @@ public class YmfmFormatConversionProvider extends FormatConversionProvider {
 
     @Override
     public AudioFormat[] getTargetFormats(Encoding targetEncoding, AudioFormat sourceFormat) {
-        if (sourceFormat.getEncoding() instanceof YmfmEncoding && targetEncoding.equals(PCM_SIGNED)) {
+        if (sourceFormat.getEncoding() instanceof VgmEncoding && targetEncoding.equals(PCM_SIGNED)) {
             return new AudioFormat[] {
                 new AudioFormat(sourceFormat.getSampleRate(),
                                 16,             // sample size in bits
@@ -68,9 +68,9 @@ public class YmfmFormatConversionProvider extends FormatConversionProvider {
                     AudioFormat targetFormat = formats[0];
                     if (sourceFormat.equals(targetFormat)) {
                         return sourceStream;
-                    } else if (sourceFormat.getEncoding() instanceof YmfmEncoding && targetFormat.getEncoding().equals(PCM_SIGNED)) {
-                        return new Ymfm2PcmAudioInputStream(sourceStream, targetFormat, NOT_SPECIFIED, targetFormat.properties());
-                    } else if (sourceFormat.getEncoding().equals(PCM_SIGNED) && targetFormat.getEncoding() instanceof YmfmEncoding) {
+                    } else if (sourceFormat.getEncoding() instanceof VgmEncoding && targetFormat.getEncoding().equals(PCM_SIGNED)) {
+                        return new Vgm2PcmAudioInputStream(sourceStream, targetFormat, NOT_SPECIFIED, targetFormat.properties());
+                    } else if (sourceFormat.getEncoding().equals(PCM_SIGNED) && targetFormat.getEncoding() instanceof VgmEncoding) {
                         throw new IllegalArgumentException("unable to convert " + sourceFormat + " to " + targetFormat);
                     } else {
                         throw new IllegalArgumentException("unable to convert " + sourceFormat + " to " + targetFormat.toString());
@@ -95,10 +95,10 @@ public class YmfmFormatConversionProvider extends FormatConversionProvider {
                     AudioFormat sourceFormat = sourceStream.getFormat();
                     if (sourceFormat.equals(targetFormat)) {
                         return sourceStream;
-                    } else if (sourceFormat.getEncoding() instanceof YmfmEncoding &&
+                    } else if (sourceFormat.getEncoding() instanceof VgmEncoding &&
                                targetFormat.getEncoding().equals(PCM_SIGNED)) {
-                        return new Ymfm2PcmAudioInputStream(sourceStream, targetFormat, NOT_SPECIFIED, targetFormat.properties());
-                    } else if (sourceFormat.getEncoding().equals(PCM_SIGNED) && targetFormat.getEncoding() instanceof YmfmEncoding) {
+                        return new Vgm2PcmAudioInputStream(sourceStream, targetFormat, NOT_SPECIFIED, targetFormat.properties());
+                    } else if (sourceFormat.getEncoding().equals(PCM_SIGNED) && targetFormat.getEncoding() instanceof VgmEncoding) {
                         throw new IllegalArgumentException("unable to convert " + sourceFormat + " to " + targetFormat);
                     } else {
                         throw new IllegalArgumentException("unable to convert " + sourceFormat + " to " + targetFormat);

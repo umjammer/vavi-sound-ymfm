@@ -17,6 +17,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+
+import vavi.sound.sampled.ymfm.Vgm2PcmAudioInputStream.VgmRenderer;
+import vavi.sound.sampled.ymfm.YmfmVgmRenderer;
 import vavi.util.ByteUtil;
 import vavi.util.Debug;
 import vavi.util.archive.Archives;
@@ -63,7 +66,7 @@ Debug.println(file);
     }
 
     @Test
-    @DisplayName("play")
+    @DisplayName("play by prototype")
     @EnabledIfSystemProperty(named = "vavi.test", matches = "ide")
     void test2() throws Exception {
 Debug.println(file);
@@ -83,6 +86,47 @@ Debug.println(file);
             ByteUtil.writeLeShort((short) (int) r, b, 2);
             line.write(b, 0, b.length);
         });
+
+        line.drain();
+        line.close();
+
+        renderer.close();
+    }
+
+    @Test
+    @DisplayName("play by proper renderer")
+    @EnabledIfSystemProperty(named = "vavi.test", matches = "ide")
+    void test3() throws Exception {
+        Debug.println(file);
+        Path path = Path.of(file);
+        InputStream is = Archives.getInputStream(path);
+
+        AudioFormat format = new AudioFormat(44100, 16, 2, true, false);
+        SourceDataLine line = (SourceDataLine) AudioSystem.getLine(new DataLine.Info(SourceDataLine.class, format));
+        line.open(format);
+        volume(line, volume);
+        line.start();
+
+        VgmRenderer renderer = new YmfmVgmRenderer();
+        renderer.start(is, (int) format.getSampleRate());
+
+        while (true) {
+            if (renderer.isRenderable()) {
+                int delay = renderer.update();
+
+                while (delay-- != 0) {
+                    int[] outputs = new int[2];
+                    renderer.render(outputs);
+
+                    byte[] b = new byte[4];
+                    ByteUtil.writeLeShort((short) outputs[0], b, 0);
+                    ByteUtil.writeLeShort((short) outputs[1], b, 2);
+                    line.write(b, 0, b.length);
+                }
+            } else {
+                break;
+            }
+        }
 
         line.drain();
         line.close();
