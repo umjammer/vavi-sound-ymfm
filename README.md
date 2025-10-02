@@ -7,7 +7,7 @@
 
 <img alt="yamaha logo" src="https://github.com/user-attachments/assets/93abfce7-45f3-478b-b48f-6a68302fcc92" width="160"> &nbsp;&nbsp;&nbsp;<sub>© YAMAHA Corporation</sub>
 
-Yamaha FM sound cores (OPM, OPN, OPL, and others).
+Yamaha FM sound cores Java sound SPI (OPM, OPN, OPL, and others).
 
 this is a fork of [ymfm](https://github.com/aaronsgiles/ymfm)
 
