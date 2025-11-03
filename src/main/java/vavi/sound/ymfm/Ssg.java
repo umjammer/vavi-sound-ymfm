@@ -217,7 +217,7 @@ abstract class Ssg {
         // internal state
 
         /** register data */
-        @Element
+        @Element(sequence = 1)
         private final int[] m_regdata = new int[REGISTERS];
     }
 

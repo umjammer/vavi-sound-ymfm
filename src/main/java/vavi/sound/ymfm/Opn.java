@@ -126,7 +126,7 @@ public abstract class Opn {
 
     /** opn_registers_base */
     @Serdes
-    abstract static class RegistersBase extends Fm.RegistersBase {
+    public abstract static class RegistersBase extends Fm.RegistersBase {
 
         //template<boolean IsOpnA>
         protected final boolean IsOpnA;
@@ -732,7 +732,7 @@ public abstract class Opn {
 
         // for serdes (DON'T REMOVE)
         @SuppressWarnings("unused")
-        boolean isOpnA(int seq) {
+        public boolean isOpnA(int seq) {
             return IsOpnA;
         }
 
@@ -750,7 +750,7 @@ public abstract class Opn {
     }
 
     //using opn_registers = opn_registers_base<false>;
-    static class OpnRegisters extends RegistersBase {
+    public static class OpnRegisters extends RegistersBase {
 
         OpnRegisters() {
             super(false);
@@ -2915,6 +2915,7 @@ public abstract class Opn {
     }
 
     /** ym2610b */
+    @Serdes
     public static class Ym2610b extends Ym2610 implements YmFm.Chip {
 
         // constructor
@@ -3171,6 +3172,7 @@ public abstract class Opn {
     }
 
     /** ym3438 */
+    @Serdes
     public static class Ym3438 extends Ym2612 implements YmFm.Chip {
 
         public Ym3438(YmFm.Interface intf) {
@@ -3207,6 +3209,7 @@ public abstract class Opn {
     }
 
     /** ymf276 */
+    @Serdes
     public static class Ymf276 extends Ym2612 implements YmFm.Chip {
 
         public Ymf276(YmFm.Interface intf) {

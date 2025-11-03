@@ -454,7 +454,7 @@ abstract class Pcm {
         // internal state
 
         /** register data */
-        @Element
+        @Element(sequence = 1)
         private final int[] m_regdata = new int[REGISTERS];
     }
 
@@ -463,6 +463,7 @@ abstract class Pcm {
     //
 
     /** pcm_channel */
+    @Serdes
     protected static class Channel {
 
         protected static final int KEY_ON = 0x01;
@@ -1031,7 +1032,7 @@ abstract class Pcm {
         /** reference to the interface */
         private final Interface m_intf;
         /** envelope counter */
-        @Element
+        @Element(sequence = 1)
         private int m_env_counter;
         /** bitmask of modified channels */
         private int m_modified_channels;

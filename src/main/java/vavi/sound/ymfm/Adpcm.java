@@ -188,7 +188,7 @@ abstract class Adpcm {
         // internal state
 
         /** register data */
-        @Element
+        @Element(sequence = 1)
         private final int[] m_regdata = new int[REGISTERS];
     }
 
@@ -197,6 +197,7 @@ abstract class Adpcm {
     //
 
     /** ChannelA */
+    @Serdes
     static class ChannelA {
 
         /**
@@ -690,7 +691,7 @@ logger.log(Level.DEBUG, "adpcmA: %d".formatted(m_curAddress));
         // internal state
 
         /** register data */
-        @Element
+        @Element(sequence = 1)
         private final int[] m_regData = new int[REGISTERS];
     }
 
@@ -699,6 +700,7 @@ logger.log(Level.DEBUG, "adpcmA: %d".formatted(m_curAddress));
     //
 
     /** ChannelB */
+    @Serdes
     protected static class ChannelB {
 
         static final int STEP_MIN = 127;

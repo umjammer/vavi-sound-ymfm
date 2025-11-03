@@ -747,6 +747,7 @@ public abstract class Opm {
     //
 
     /** ym2151 */
+    @Serdes
     public static class Ym2151 implements YmFm.Chip {
 
         protected static class FmEngine extends EngineBase<Opm.Registers> {
@@ -928,6 +929,7 @@ public abstract class Opm {
      * it apparently has some mystery registers in the 00-07 range, and timer
      * B's frequency is half that of the 2151
      */
+    @Serdes
     public static class Ym2164 extends Ym2151 implements YmFm.Chip {
 
         /** Constructor. */

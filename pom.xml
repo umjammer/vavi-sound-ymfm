@@ -88,7 +88,7 @@
     <dependency>
       <groupId>com.github.umjammer</groupId> <!-- vavi / com.github.umjammer -->
       <artifactId>vavi-util-serdes</artifactId>
-      <version>1.0.8</version>
+      <version>1.0.9</version>
     </dependency>
 
     <dependency>

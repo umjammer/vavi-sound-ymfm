@@ -304,6 +304,7 @@ abstract class Fm {
      *
      * @param <RegisterType> register type
      */
+    @Serdes
     protected static class Operator<RegisterType extends RegistersBase> {
 
         /** "quiet" value, used to optimize when we can skip doing work */
@@ -713,19 +714,19 @@ abstract class Fm {
         @Element(sequence = 1)
         private int m_phase;
         /** computed envelope attenuation (4.6 format) */
-        @Element(sequence = 2)
+        @Element(sequence = 2, value = "unsigned short")
         private int m_env_attenuation;
         /** current envelope state */
-        @Element(sequence = 3)
+        @Element(sequence = 3, value = "int")
         private EnvelopeState m_env_state;
         /** non-zero if the output should be inverted (bit 0) */
-        @Element(sequence = 4)
+        @Element(sequence = 4, value = "unsigned byte")
         private boolean m_ssg_inverted;
         /** current key state: on or off (bit 0) */
-        @Element(sequence = 5)
+        @Element(sequence = 5, value = "unsigned byte")
         private int m_key_state;
         /** live key on state (bit 0 = direct, bit 1 = rhythm, bit 2 = CSM) */
-        @Element(sequence = 6)
+        @Element(sequence = 6, value = "unsigned byte")
         private int m_keyon_live;
         /** cached values for performance */
         private final OpDataCache m_cache = new OpDataCache();
