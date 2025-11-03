@@ -301,7 +301,7 @@ public abstract class YmFm {
 
         // internal state
 
-        @Element
+        @Element(sequence = 1)
         public int[] data;
     }
 

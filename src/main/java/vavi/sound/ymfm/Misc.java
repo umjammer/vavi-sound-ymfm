@@ -200,7 +200,7 @@ public abstract class Misc {
         // internal state
 
         /** address register */
-        @Element
+        @Element(sequence = 1)
         protected int m_address;
         /** SSG engine */
         protected final Ssg.Engine m_ssg;

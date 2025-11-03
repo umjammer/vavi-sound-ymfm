@@ -97,7 +97,7 @@ Debug.println(file);
     @DisplayName("play by proper renderer")
     @EnabledIfSystemProperty(named = "vavi.test", matches = "ide")
     void test3() throws Exception {
-        Debug.println(file);
+Debug.println(file);
         Path path = Path.of(file);
         InputStream is = Archives.getInputStream(path);
 

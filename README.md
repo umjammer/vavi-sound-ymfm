@@ -81,10 +81,11 @@ $ ./vgmrender input.vgz -o out.wav
 
 ## TODO
 
- * serialize ... [vavi-util-serdes](https://github.com/umjammer/vavi-util-serdes)
+ * ~~serialize ~~
+   * set type ... [vavi-util-serdes](https://github.com/umjammer/vavi-util-serdes)
  * ~~spi~~
  * debug
-   * 2149 sounds but noisy ... same as the origi}nal (02 Vampire Killer.vgz)
+   * 2149 sounds but noisy ... same as the ori@Serdesginal (02 Vampire Killer.vgz)
    * ~~2151 noise sound? taste is different from other impls ... original is ok (01 Magical Sound Shower.vgz)~~
    * ~~2608 ssg, adpcm not sound~~
    * ~~2610 adpcm not correct ... original is fine~~

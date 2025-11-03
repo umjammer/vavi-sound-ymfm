@@ -147,6 +147,7 @@ public abstract class Opl {
     //
 
     /** OplRegistersBase */
+    @Serdes
     protected abstract static class OplRegistersBase extends RegistersBase {
 
         protected final int revision;
@@ -1671,7 +1672,7 @@ public abstract class Opl {
         // internal state
 
         /** address register */
-        @Element
+        @Element(sequence = 1)
         protected int m_address;
         /** core FM engine */
         protected final FmEngine m_fm;
@@ -1682,6 +1683,7 @@ public abstract class Opl {
     //
 
     /** y8950 */
+    @Serdes
     public static class Y8950 implements YmFm.Chip {
 
         //using fm_engine = fm_engine_base<opl_registers>;
@@ -2103,7 +2105,7 @@ public abstract class Opl {
         // internal state
 
         /** address register */
-        @Element
+        @Element(sequence = 1)
         protected int m_address;
         /** core FM engine */
         protected final FmEngine m_fm;
@@ -2532,7 +2534,7 @@ public abstract class Opl {
         // internal state
 
         /** address register */
-        @Element
+        @Element(sequence = 1)
         protected int m_address;
         /** core FM engine */
         protected final FmEngine m_fm;
@@ -3041,7 +3043,7 @@ public abstract class Opl {
         // internal state
 
         /** address register */
-        @Element
+        @Element(sequence = 1)
         protected int m_address;
         /** core FM engine */
         protected final FmEngine m_fm;
@@ -3052,6 +3054,7 @@ public abstract class Opl {
     //
 
     /** ym2413 */
+    @Serdes
     public static class Ym2413 extends OpllBase implements YmFm.Chip {
 
         /** table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches */
@@ -3094,6 +3097,7 @@ public abstract class Opl {
     //
 
     /** ym2413 */
+    @Serdes
     public static class Ym2423 extends OpllBase implements YmFm.Chip {
 
         /** table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches */
@@ -3138,6 +3142,7 @@ public abstract class Opl {
     //
 
     /** ymf281 */
+    @Serdes
     public static class Ymf281 extends OpllBase implements YmFm.Chip {
 
         /** table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches */
@@ -3180,6 +3185,7 @@ public abstract class Opl {
     //
 
     /** Ds1001 */
+    @Serdes
     public static class Ds1001 extends OpllBase implements YmFm.Chip {
 
         /** table below taken from https://github.com/plgDavid/misc/wiki/Copyright-free-OPLL(x)-ROM-patches */

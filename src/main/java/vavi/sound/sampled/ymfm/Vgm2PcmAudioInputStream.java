@@ -37,6 +37,7 @@ public class Vgm2PcmAudioInputStream extends AudioInputStream {
         super(new OutputEngineInputStream(new VgmOutputEngine(stream, format, props)), format, length);
     }
 
+    /** the renderer api */
     public interface VgmRenderer {
 
         void start(InputStream is, int sampleRate) throws IOException;
@@ -50,7 +51,7 @@ public class Vgm2PcmAudioInputStream extends AudioInputStream {
         void close();
     }
 
-    /** */
+    /** decodes vgm using the api */
     private static class VgmOutputEngine implements OutputEngine {
 
         private OutputStream out;

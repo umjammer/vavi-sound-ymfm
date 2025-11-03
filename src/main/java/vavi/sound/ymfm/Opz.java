@@ -1264,7 +1264,7 @@ public abstract class Opz {
         // internal state
 
         /** address register */
-        @Element
+        @Element(sequence = 1)
         protected int m_address;
         /** core FM engine */
         protected final FmEngine m_fm;

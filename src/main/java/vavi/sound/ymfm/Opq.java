@@ -704,6 +704,7 @@ public abstract class Opq {
     @Serdes
     public static class Ym3806 implements Chip {
 
+        @Serdes
         protected static class FmEngine extends EngineBase<Opq.Registers> {
 
             public FmEngine(YmFm.Interface intf) {
@@ -835,11 +836,12 @@ public abstract class Opq {
         // internal state
 
         /** core FM engine */
-        @Element
+        @Element(sequence = 1)
         protected final FmEngine m_fm;
     }
 
     /** ym3533 */
+    @Serdes
     public static class Ym3533 extends Ym3806 implements Chip {
 
         /** Constructor */
