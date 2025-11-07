@@ -1464,7 +1464,7 @@ public abstract class Opl {
         }
 
         /** Returns a bitfield extracted from a pair of bytes, MSBs listed first */
-        private final int word(int offset1, int start1, int count1, int offset2, int start2, int count2, int extra_offset /* = 0 */) {
+        private int word(int offset1, int start1, int count1, int offset2, int start2, int count2, int extra_offset /* = 0 */) {
             return (byte_(offset1, start1, count1, extra_offset) << count2) | byte_(offset2, start2, count2, extra_offset);
         }
 

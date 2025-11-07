@@ -220,15 +220,25 @@ public abstract class YmFm {
     // HELPER CLASSES
     //
 
+    /** Represents chips used in this library. */
     public interface Chip {
+        /** Gets the output factory. */
         YmFm.Output outputFactory();
+        /** Gets the output size. */
         int getOutputs();
+        /** Computes sample rate. */
         int sample_rate(int clock);
+        /** Resets the chip state. */
         void reset();
+        /** Serializes chip state to {@code os}. */
         void save(OutputStream os) throws IOException;
+        /** Deserializes chip state from {@code is}. */
         void restore(InputStream is) throws IOException;
+        /** Reads chip state at {@code offset}. */
         int read(int offset);
+        /** Writes chip state at {@code offset}. */
         void write(int offset, int data);
+        /** Generate sound data. */
         void generate(YmFm.Output[] output, int numSamples);
     }
 
@@ -961,6 +971,7 @@ logger.log(Level.TRACE, "%10.5f: %s %03X=%02X".formatted((double) output_start /
 if (first) { logger.log(Level.DEBUG, m_type.getSimpleName() + ", " + OUTPUTS + ", " + m_output.data.length); first = false; }
             int p = 0; // buffer
             // add the final result to the buffer
+            // TODO not oop
             if (m_type == Ym2203.class) {
                 int out0 = m_output.data[0];
                 int out1 = m_output.data[1 % OUTPUTS];

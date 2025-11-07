@@ -686,7 +686,7 @@ abstract class Fm {
         /**
          * Returns the effective attenuation of the envelope.
          */
-        private final int envelope_attenuation(int am_offset) {
+        private int envelope_attenuation(int am_offset) {
             int result = m_env_attenuation >> m_cache.eg_shift;
 
             // invert if necessary due to SSG-EG
