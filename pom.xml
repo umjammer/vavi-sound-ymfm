@@ -46,7 +46,16 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.12.1</version>
         <configuration>
-          <release>17</release>
+          <source>21</source> <!-- TODO release causes compilation failure why? -->
+          <target>21</target>
+          <compilerArgs>
+            <arg>--add-exports</arg>
+            <arg>java.desktop/com.sun.media.sound=ALL-UNNAMED</arg>
+            <arg>--add-exports</arg>
+            <arg>java.base/sun.nio.ch=ALL-UNNAMED</arg>
+          </compilerArgs>
+          <!-- https://stackoverflow.com/a/30472473 -->
+          <fork>true</fork>
         </configuration>
       </plugin>
       <plugin>
@@ -98,6 +107,12 @@
     </dependency>
 
     <dependency>
+      <groupId>com.github.umjammer</groupId> <!-- com.github.umjammer / vavi -->
+      <artifactId>vavi-sound</artifactId>
+      <version>1.0.21</version>
+    </dependency>
+
+    <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
       <scope>test</scope>
@@ -115,13 +130,6 @@
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-params</artifactId>
-      <scope>test</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>com.github.umjammer</groupId> <!-- com.github.umjammer / vavi -->
-      <artifactId>vavi-sound</artifactId>
-      <version>1.0.21</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

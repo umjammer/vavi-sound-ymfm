@@ -1,22 +1,54 @@
+/*
+ * BSD 3-Clause License
+ *
+ * Copyright (c) 2021-2024, Devin Acker
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 package vavi.sound.midi.ymfm;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
-import vavi.sound.midi.ymfm.OPLPatch.PatchVoice;
-import vavi.sound.ymfm.Opl;
+import vavi.sound.midi.ymfm.OplPatch.PatchVoice;
 import vavi.sound.ymfm.Opl.Ymf262;
 import vavi.sound.ymfm.YmFm;
 
 
-public class OPLPlayer extends YmFm.Interface {
+/**
+ * @see "https://github.com/devinacker/ymfmidi"
+ */
+public class OplPlayer extends YmFm.Interface {
 
     static class MIDIChannel {
 
@@ -41,7 +73,7 @@ public class OPLPlayer extends YmFm.Interface {
 
         public int chip = 0;
         public MIDIChannel channel = null;
-        public OPLPatch patch = null;
+        public OplPatch patch = null;
         public PatchVoice patchVoice = null;
 
         public int num = 0;
@@ -117,54 +149,53 @@ public class OPLPlayer extends YmFm.Interface {
     /** remaining samples until next midi event */
     private int m_samplesLeft;
     /** output sample data */
-    private final YmFm.Output m_output = new YmFm.Output(1);
+    private final YmFm.Output m_output = new YmFm.Output(2);
     /** if we need to clock one of the OPLs between register writes, save the resulting sample */
     private final List<Queue<YmFm.Output[]>> m_sampleFIFO;
 
     /** last output for downsampling */
-    private int[] m_lastOut = {0, 0};
+    private final int[] m_lastOut = {0, 0};
     /** recursive highpass filter to remove/reduce DC offset */
     private double m_hpFilterFreq;
     private double m_hpFilterCoef;
-    private int[] m_hpLastIn = {0, 0};
-    private int[] m_hpLastOut = {0, 0};
-    private float[] m_hpLastInF = {0.0f, 0.0f};
-    private float[] m_hpLastOutF = {0.0f, 0.0f};
+    private final int[] m_hpLastIn = {0, 0};
+    private final int[] m_hpLastOut = {0, 0};
+    private final float[] m_hpLastInF = {0.0f, 0.0f};
+    private final float[] m_hpLastOutF = {0.0f, 0.0f};
 
-    private boolean m_looping;
+    private final boolean m_looping;
     private boolean m_timePassed;
 
-    private MIDIChannel[] m_channels = new MIDIChannel[16];
-    private java.util.List<OPLVoice> m_voices;
+    private final MIDIChannel[] m_channels = new MIDIChannel[16];
+    private final List<OPLVoice> m_voices;
     private MIDIType m_midiType;
 
-    private Sequence m_sequence;
-    private Map<Integer, OPLPatch> m_patches = new HashMap<>();
-
+    private final OplSequence m_sequence;
+    private Map<Integer, OplPatch> m_patches = new HashMap<>();
 
     /** */
-    public OPLPlayer(int numChips, ChipType type) {
+    public OplPlayer(int numChips, ChipType type) {
         m_chipType = type;
         if (type == ChipType.ChipOPL3) {
             m_numChips = numChips;
-            m_voices = new java.util.ArrayList<>(numChips * 18);
+            m_voices = new ArrayList<>(numChips * 18);
             for (int i = 0; i < numChips * 18; i++) m_voices.add(new OPLVoice());
             m_stereo = true;
         } else {
             // simulate two OPL2 on one OPL3, etc
             m_numChips = (numChips + 1) / 2;
-            m_voices = new java.util.ArrayList<>(numChips * 9);
+            m_voices = new ArrayList<>(numChips * 9);
             for (int i = 0; i < numChips * 9; i++) m_voices.add(new OPLVoice());
             m_stereo = false;
         }
 
-        m_opl3 = new java.util.ArrayList<>(m_numChips);
+        m_opl3 = new ArrayList<>(m_numChips);
         for (int i = 0; i < m_numChips; i++) {
             m_opl3.add(new Ymf262(this));
         }
         m_sampleFIFO = new ArrayList<>(m_numChips);
         for (int i = 0; i < m_numChips; i++) {
-            m_sampleFIFO.add(new LinkedList<>());
+            m_sampleFIFO.add(new ConcurrentLinkedQueue<>());
         }
 
         m_sequence = null;
@@ -178,11 +209,20 @@ public class OPLPlayer extends YmFm.Interface {
         m_looping = false;
 
         reset();
+
+        tmp1 = new YmFm.Output[m_opl3.getFirst().getOutputs()];
+        for (int i = 0; i < tmp1.length; i++) tmp1[i] = m_opl3.getFirst().outputFactory();
+
+        tmp2 = new YmFm.Output[m_opl3.getFirst().getOutputs()];
+        for (int i = 0; i < tmp2.length; i++) tmp2[i] = m_opl3.getFirst().outputFactory();
     }
+
+    private final YmFm.Output[] tmp1;
+    private final YmFm.Output[] tmp2;
 
     /** */
     public void setSampleRate(int rate) {
-        int rateOPL = m_opl3.get(0).sample_rate(masterClock);
+        int rateOPL = m_opl3.getFirst().sample_rate(masterClock);
         m_sampleStep = (double) rate / rateOPL;
         m_sampleRate = rate;
 
@@ -202,8 +242,7 @@ public class OPLPlayer extends YmFm.Interface {
         if (m_hpFilterFreq <= 0.0) {
             m_hpFilterCoef = 1.0;
         } else {
-            final double pi = 3.14159265358979323846;
-            m_hpFilterCoef = 1.0 / ((2 * pi * cutoff) / m_sampleRate + 1);
+            m_hpFilterCoef = 1.0 / ((2 * Math.PI * cutoff) / m_sampleRate + 1);
         }
 //logger.log(Level.DEBUG, "sample rate = %u / cutoff %f Hz / filter coef %f".formatted(m_sampleRate, cutoff, m_hpFilterCoef);
     }
@@ -215,56 +254,15 @@ public class OPLPlayer extends YmFm.Interface {
     public void setStereo(boolean on) {
         if (m_chipType == ChipType.ChipOPL3) {
             m_stereo = on;
-            updateChannelVoices((byte) -1, (voice) -> updatePanning(voice));
+            updateChannelVoices((byte) -1, this::updatePanning);
         }
     }
 
     /**
-     * load MIDI data from the specified path
+     * set instrument patches
      */
-    public boolean loadSequence(String path) throws IOException {
-        m_sequence = Sequence.load(path);
-        return m_sequence != null;
-    }
-
-    /**
-     * load MIDI data from an already opened file, optionally at a given offset
-     * if 'size' is 0, the full file will be read (starting from 'offset')
-     */
-    public boolean loadSequence(InputStream file, int offset, int size) throws IOException {
-        m_sequence = Sequence.load(file);
-        return m_sequence != null;
-    }
-
-    /**
-     * load MIDI data from a block of memory
-     */
-    public boolean loadSequence(byte[] data, int size) {
-        m_sequence = Sequence.load(data);
-        return m_sequence != null;
-    }
-
-    /**
-     * load instrument patches from the specified path
-     */
-    public void loadPatches(String path) throws IOException {
-        OPLPatch.load(m_patches, path);
-    }
-
-    /**
-     * load instrument patches from an already opened file,
-     * optionally at a given offset
-     * if 'size' is 0, the full file will be read (starting from 'offset')
-     */
-    public void loadPatches(InputStream file, int offset, int size) throws IOException {
-        OPLPatch.load(m_patches, file, offset, size);
-    }
-
-    /**
-     * load instrument patches from a block of memory
-     */
-    public void loadPatches(byte[] data, int size) {
-        OPLPatch.load(m_patches, data, size);
+    public void setPatches(Map<Integer, OplPatch> patches) {
+        this.m_patches = patches;
     }
 
     /**
@@ -287,7 +285,7 @@ public class OPLPlayer extends YmFm.Interface {
 
                 if (m_hpFilterCoef < 1.0) {
                     for (int i = 0; i < 2; i++) {
-                        final float lastIn = m_hpLastInF[i];
+                        float lastIn = m_hpLastInF[i];
                         m_hpLastInF[i] = data[samp + i];
 
                         m_hpLastOutF[i] = (float) (m_hpFilterCoef * (m_hpLastOutF[i] + data[samp + i] - lastIn));
@@ -304,9 +302,9 @@ public class OPLPlayer extends YmFm.Interface {
     }
 
     /**
-     // render the audio output during playback.
-     // note: regardless of sound settings, output stream is always stereo (two floats or int16s per sample)
-     *  */
+     * render the audio output during playback.
+     * note: regardless of sound settings, output stream is always stereo (two floats or int16s per sample)
+     */
     public void generate(short[] data, int numSamples) {
         int samp = 0;
 
@@ -316,7 +314,7 @@ public class OPLPlayer extends YmFm.Interface {
             while (m_samplePos >= 1.0 && samp < numSamples * 2) {
                 if (m_hpFilterCoef < 1.0) {
                     for (int i = 0; i < 2; i++) {
-                        final int lastIn = m_hpLastIn[i];
+                        int lastIn = m_hpLastIn[i];
                         m_hpLastIn[i] = m_output.data[i];
 
                         m_hpLastOut[i] = (int) (m_hpFilterCoef * (m_hpLastOut[i] + m_output.data[i] - lastIn));
@@ -341,7 +339,7 @@ public class OPLPlayer extends YmFm.Interface {
             // time to update midi playback
             m_samplesLeft = (int) m_sequence.update(this);
             for (OPLVoice voice : m_voices) {
-                if (voice.duration < Integer.MAX_VALUE) // Using Integer.MAX_VALUE as C++ UINT_MAX for duration
+                if (voice.duration < Integer.MAX_VALUE)
                     voice.duration++;
                 voice.justChanged = false;
             }
@@ -358,15 +356,15 @@ public class OPLPlayer extends YmFm.Interface {
         m_output.data[1] = m_lastOut[1];
 
         while (m_samplePos < 1.0) {
-            YmFm.Output[] output = new YmFm.Output[1];
+            YmFm.Output[] output;
             int[] samples = {0, 0};
 
             for (int i = 0; i < m_numChips; i++) {
-                Queue<YmFm.Output[]> fifo = m_sampleFIFO.get(i);
-                if (fifo.isEmpty()) {
-                    m_opl3.get(i).generate(output, 1);
+                if (m_sampleFIFO.get(i).isEmpty()) {
+                    m_opl3.get(i).generate(tmp1, 1);
+                    output = tmp1;
                 } else {
-                    output = fifo.poll();
+                    output = m_sampleFIFO.get(i).poll();
                 }
 
                 samples[0] += output[0].data[0];
@@ -384,7 +382,7 @@ public class OPLPlayer extends YmFm.Interface {
                 // partial input sample (if downsampling):
                 // apply a fraction of the sample value now and save the rest for later
                 // based on how far past the output sample point we are
-                final double remainder = (m_samplePos - (int) m_samplePos) / m_sampleStep;
+                double remainder = (m_samplePos - (int) m_samplePos) / m_sampleStep;
                 m_output.data[0] += (int) (samples[0] * (1.0 - remainder));
                 m_output.data[1] += (int) (samples[1] * (1.0 - remainder));
                 m_lastOut[0] = (int) (samples[0] * remainder);
@@ -393,7 +391,7 @@ public class OPLPlayer extends YmFm.Interface {
         }
 
         // apply gain and use sample rate in/out ratio to scale all accumulated samples
-        final double step = Math.min(m_sampleStep, 1.0);
+        double step = Math.min(m_sampleStep, 1.0);
         m_output.data[0] = (int) (m_output.data[0] * m_sampleGain * step);
         m_output.data[1] = (int) (m_output.data[1] * m_sampleGain * step);
     }
@@ -418,8 +416,8 @@ public class OPLPlayer extends YmFm.Interface {
         System.out.printf("Chn | Patch Name                       | Vol | Pan | Active Voices: %d/%-6d\n", totalVoices, m_voices.size());
         System.out.println("----+----------------------------------+-----+-----+---------------------------");
         for (int i = 0; i < 16; i++) {
-            final MIDIChannel channel = m_channels[i];
-            final OPLPatch patch = findPatch((byte) i, (byte) 0); // Assuming 0 for note when channel is not percussion
+            MIDIChannel channel = m_channels[i];
+            OplPatch patch = findPatch(i, 0); // Assuming 0 for note when channel is not percussion
 
             System.out.printf("%3d | %-32.32s | %3d | %3d | ", i + 1,
                     channel.percussion ? "Percussion" : (patch != null ? patch.name : ""),
@@ -440,7 +438,7 @@ public class OPLPlayer extends YmFm.Interface {
 
     /** */
     public void displayVoices() {
-        final int numRows = Math.min(18, m_voices.size());
+        int numRows = Math.min(18, m_voices.size());
         for (int i = 0; i < numRows; i++) {
             if (m_voices.size() <= 18) {
                 System.out.printf("voice %2d: ", i + 1);
@@ -494,8 +492,8 @@ public class OPLPlayer extends YmFm.Interface {
     }
 
     /**
-     // reached end of song?
-     *  */
+     * reached end of song?
+     */
     public boolean atEnd() {
         // rewind song at end only if looping is enabled
         // AND if the song played for at least one sample,
@@ -508,8 +506,8 @@ public class OPLPlayer extends YmFm.Interface {
     }
 
     /**
-     // song selection (for files with multiple songs)
-     *  */
+     * song selection (for files with multiple songs)
+     */
     public void setSongNum(int num) {
         if (m_sequence != null)
             m_sequence.setSongNum(num);
@@ -531,8 +529,8 @@ public class OPLPlayer extends YmFm.Interface {
     }
 
     /**
-     // reset OPL and midi file
-     *  */
+     * reset OPL and midi file
+     */
     public void reset() {
         for (int i = 0; i < m_opl3.size(); i++) {
             m_opl3.get(i).reset();
@@ -549,71 +547,37 @@ public class OPLPlayer extends YmFm.Interface {
         m_channels[9].percussion = true;
 
         for (int i = 0; i < m_voices.size(); i++) {
-            OPLVoice voice = new OPLVoice(); // Create a new instance
+            OPLVoice voice = m_voices.get(i);
             voice.chip = i / 18;
             voice.num = voice_num[i % 18];
             voice.op = oper_num[i % 18];
+            voice.on = false;
+            voice.justChanged = false;
+            voice.note = 0;
+            voice.velocity = 0;
+            voice.channel = null;
+            voice.patch = null;
+            voice.patchVoice = null;
+            voice.duration = Integer.MAX_VALUE;
 
-            // configure 4op voices (OPL3 mode only)
-            if (m_chipType != ChipType.ChipOPL3) {
-                m_voices.set(i, voice); // Update list with new voice, skip 4op logic
-                continue;
-            }
-
-            // OPL3 4-op voice linking logic
-            int indexInChip = i % 18;
-            if (indexInChip < 6) { // Only first 6 voices on a chip can be 4op
-                switch (indexInChip % 9) { // Modulo 9 to cover 0-8 for one half-chip
-                    case 0:
-                    case 1:
-                    case 2:
-                        voice.fourOpPrimary = true;
-                        if (i + 3 < m_voices.size()) {
-                            voice.fourOpOther = m_voices.get(i + 3);
-                        } else {
-                            // Should not happen if m_voices is sized correctly
-                            voice.fourOpOther = null;
-                        }
-                        break;
-                    case 3:
-                    case 4:
-                    case 5:
-                        voice.fourOpPrimary = false;
-                        if (i - 3 >= 0) {
-                            voice.fourOpOther = m_voices.get(i - 3);
-                        } else {
-                            // Should not happen if m_voices is sized correctly
-                            voice.fourOpOther = null;
-                        }
-                        break;
-                    default:
-                        voice.fourOpPrimary = false;
-                        voice.fourOpOther = null;
-                        break;
-                }
-            } else {
-                voice.fourOpPrimary = false;
-                voice.fourOpOther = null;
-            }
-            m_voices.set(i, voice); // Update list with new voice
-        }
-
-        // Now link up the secondary voices:
-        if (m_chipType == ChipType.ChipOPL3) {
-            for (int i = 0; i < m_voices.size(); i++) {
-                OPLVoice voice = m_voices.get(i);
-                int indexInChip = i % 18;
-                if (voice.fourOpPrimary) {
-                    if (indexInChip >= 0 && indexInChip <= 2) {
-                        if (i + 3 < m_voices.size()) {
-                            voice.fourOpOther = m_voices.get(i + 3);
-                        }
-                    }
-                } else if (indexInChip >= 3 && indexInChip <= 5) {
-                    if (i - 3 >= 0) {
-                        voice.fourOpOther = m_voices.get(i - 3);
-                    }
-                }
+            if (m_chipType != ChipType.ChipOPL3) continue;
+            switch (i % 9) {
+                case 0:
+                case 1:
+                case 2:
+                    voice.fourOpPrimary = true;
+                    voice.fourOpOther = m_voices.get(i + 3);
+                    break;
+                case 3:
+                case 4:
+                case 5:
+                    voice.fourOpPrimary = false;
+                    voice.fourOpOther = m_voices.get(i - 3);
+                    break;
+                default:
+                    voice.fourOpPrimary = false;
+                    voice.fourOpOther = null;
+                    break;
             }
         }
 
@@ -628,25 +592,24 @@ public class OPLPlayer extends YmFm.Interface {
         // add some delay between register writes where needed
         // (i.e. when forcing a voice off, changing 4op flags, etc.)
         while (count-- > 0) {
-            YmFm.Output[] output = new YmFm.Output[1];
-            m_opl3.get(chip).generate(output, 1);
-            m_sampleFIFO.get(chip).add(output);
+            m_opl3.get(chip).generate(tmp2, 1);
+            m_sampleFIFO.get(chip).add(tmp2);
         }
     }
 
     /** */
     private void write(int chip, int addr, byte data) {
 //if (addr != 0x104)
-// logger.log(Level.DEBUG, "write reg %03x val %02x".formatted(addr, data);
+//logger.log(Level.DEBUG, "write reg %03x val %02x".formatted(addr, data));
         if (addr < 0x100)
-            m_opl3.get(chip).write_address((byte) addr);
+            m_opl3.get(chip).write_address(addr);
         else
-            m_opl3.get(chip).write_address_hi((byte) addr);
-        m_opl3.get(chip).write_data(data);
+            m_opl3.get(chip).write_address_hi(addr & 0xff);
+        m_opl3.get(chip).write_data(data & 0xff);
     }
 
     /** */
-    private OPLVoice findVoice(int channel, final OPLPatch patch, int note) {
+    private OPLVoice findVoice(int channel, OplPatch patch, int note) {
         OPLVoice found = null;
         long duration = 0;
 
@@ -660,8 +623,8 @@ public class OPLPlayer extends YmFm.Interface {
                 return voice;
 
             if (!voice.on && !voice.justChanged) {
-                if (voice.channel.num == channel && voice.note == note
-                        && voice.duration < Integer.MAX_VALUE) {
+                if (voice.channel.num == channel && voice.note == note &&
+                        voice.duration < Integer.MAX_VALUE) {
                     // found an old voice that was using the same note and patch
                     // don't immediately use it, but make it a high priority candidate for later
                     // (to help avoid pop/click artifacts when retriggering a recently off note)
@@ -698,6 +661,9 @@ public class OPLPlayer extends YmFm.Interface {
             if (!useFourOp(patch) && voice.on && useFourOp(voice.patch))
                 continue;
 
+            if (voice.justChanged)
+                continue;
+
             if (voice.duration > duration) {
                 found = voice;
                 duration = voice.duration;
@@ -711,10 +677,10 @@ public class OPLPlayer extends YmFm.Interface {
     private OPLVoice findVoice(int channel, int note, boolean justChanged /* = false */) {
         channel &= 15;
         for (OPLVoice voice : m_voices) {
-            if (voice.on
-                    && voice.justChanged == justChanged
-                    && voice.channel == m_channels[channel]
-                    && voice.note == note) {
+            if (voice.on &&
+                    voice.justChanged == justChanged &&
+                    voice.channel == m_channels[channel] &&
+                    voice.note == note) {
                 return voice;
             }
         }
@@ -723,9 +689,9 @@ public class OPLPlayer extends YmFm.Interface {
     }
 
     /** */
-    private OPLPatch findPatch(byte channel, int note) {
+    private OplPatch findPatch(int channel, int note) {
         int key;
-        final MIDIChannel ch = m_channels[channel & 15];
+        OplPlayer.MIDIChannel ch = m_channels[channel & 15];
 
         if (ch.percussion)
             key = 0x80 | (note & 0x7f) | (ch.patchNum << 8);
@@ -746,8 +712,8 @@ public class OPLPlayer extends YmFm.Interface {
     }
 
     /** */
-    private boolean useFourOp(final OPLPatch patch) {
-        if (m_chipType == ChipType.ChipOPL3 && patch != null)
+    private boolean useFourOp(OplPatch patch) {
+        if (m_chipType == ChipType.ChipOPL3)
             return patch.fourOp;
         return false;
     }
@@ -755,7 +721,7 @@ public class OPLPlayer extends YmFm.Interface {
     /** */
     private boolean[] activeCarriers(OPLVoice voice) {
         boolean[] scale = {false, false};
-        final PatchVoice patchVoice = voice.patchVoice;
+        PatchVoice patchVoice = voice.patchVoice;
 
         if (patchVoice == null) {
             scale[0] = scale[1] = false;
@@ -776,8 +742,8 @@ public class OPLPlayer extends YmFm.Interface {
             // 4op AM+FM (1, 0): scale op 4 only
             // 4op FM+AM (0, 1): scale op 4 only
             // 4op AM+AM (1, 1): scale op 3 and 4
-            scale[0] = (voice.patch.voice[0].conn & 1) == 1
-                    && (voice.patch.voice[1].conn & 1) == 1;
+            scale[0] = (voice.patch.voice[0].conn & 1) == 1 &&
+                       (voice.patch.voice[1].conn & 1) == 1;
             scale[1] = true;
         }
 
@@ -798,10 +764,10 @@ public class OPLPlayer extends YmFm.Interface {
     }
 
     /** */
-    private void updatePatch(OPLVoice voice, final OPLPatch newPatch, int numVoice) {
+    private void updatePatch(OPLVoice voice, OplPatch newPatch, int numVoice) {
         // assign the MIDI channel's current patch (or the current drum patch) to this voice
 
-        final PatchVoice patchVoice = newPatch.voice[numVoice];
+        PatchVoice patchVoice = newPatch.voice[numVoice];
 
         if (voice.patchVoice != patchVoice) {
             boolean oldFourOp = voice.patch != null ? useFourOp(voice.patch) : false;
@@ -813,24 +779,23 @@ public class OPLPlayer extends YmFm.Interface {
             if (useFourOp(newPatch) != oldFourOp) {
                 // if going from part of a 4op patch to a 2op one, kill the other one
                 OPLVoice other = voice.fourOpOther;
-                if (other != null && other.patch != null
-                        && useFourOp(other.patch) && !useFourOp(newPatch)) {
+                if (other != null && other.patch != null &&
+                        useFourOp(other.patch) && !useFourOp(newPatch)) {
                     silenceVoice(other);
                 }
 
-                int enable = 0x00;
-                int bit = 0x01;
+                byte enable = 0x00;
+                byte bit = 0x01;
                 for (int i = voice.chip * 18; i < voice.chip * 18 + 18; i++) {
-                    OPLVoice currentVoice = m_voices.get(i);
-                    if (currentVoice.fourOpPrimary) {
-                        if (currentVoice.patch != null && useFourOp(currentVoice.patch))
+                    if (m_voices.get(i).fourOpPrimary) {
+                        if (m_voices.get(i).patch != null && useFourOp(m_voices.get(i).patch))
                             enable |= bit;
                         bit <<= 1;
                     }
                 }
 
-                write(voice.chip, REG_4OP, (byte) enable);
-                //	runSamples(voice.chip, 1);
+                write(voice.chip, REG_4OP, enable);
+                //runSamples(voice.chip, 1);
             }
 
             // kill an existing voice, then send the chip far enough forward in time to let the envelope die off
@@ -840,58 +805,57 @@ public class OPLPlayer extends YmFm.Interface {
             runSamples(voice.chip, 48);
 
             // 0x20: vibrato, sustain, multiplier
-            write(voice.chip, REG_OP_MODE + voice.op, (byte) patchVoice.op_mode[0]);
-            write(voice.chip, REG_OP_MODE + voice.op + 3, (byte) patchVoice.op_mode[1]);
+            write(voice.chip, REG_OP_MODE + voice.op, patchVoice.op_mode[0]);
+            write(voice.chip, REG_OP_MODE + voice.op + 3, patchVoice.op_mode[1]);
             // 0x60: attack/decay
-            write(voice.chip, REG_OP_AD + voice.op, (byte) patchVoice.op_ad[0]);
-            write(voice.chip, REG_OP_AD + voice.op + 3, (byte) patchVoice.op_ad[1]);
+            write(voice.chip, REG_OP_AD + voice.op, patchVoice.op_ad[0]);
+            write(voice.chip, REG_OP_AD + voice.op + 3, patchVoice.op_ad[1]);
             // 0xe0: waveform
             if (m_chipType == ChipType.ChipOPL2) {
                 write(voice.chip, REG_OP_WAVEFORM + voice.op, (byte) (patchVoice.op_wave[0] & 3));
                 write(voice.chip, REG_OP_WAVEFORM + voice.op + 3, (byte) (patchVoice.op_wave[1] & 3));
             } else if (m_chipType == ChipType.ChipOPL3) {
-                write(voice.chip, REG_OP_WAVEFORM + voice.op, (byte) patchVoice.op_wave[0]);
-                write(voice.chip, REG_OP_WAVEFORM + voice.op + 3, (byte) patchVoice.op_wave[1]);
+                write(voice.chip, REG_OP_WAVEFORM + voice.op, patchVoice.op_wave[0]);
+                write(voice.chip, REG_OP_WAVEFORM + voice.op + 3, patchVoice.op_wave[1]);
             }
         }
 
         // 0x80: sustain/release
         // update even for the same patch in case silenceVoice was called from somewhere else on this voice
-        write(voice.chip, REG_OP_SR + voice.op, (byte) patchVoice.op_sr[0]);
-        write(voice.chip, REG_OP_SR + voice.op + 3, (byte) patchVoice.op_sr[1]);
+        write(voice.chip, REG_OP_SR + voice.op, patchVoice.op_sr[0]);
+        write(voice.chip, REG_OP_SR + voice.op + 3, patchVoice.op_sr[1]);
     }
+
+    // lookup table shamelessly stolen from Nuke.YKT
+    private static final byte[] opl_volume_map = {
+            80, 63, 40, 36, 32, 28, 23, 21,
+            19, 17, 15, 14, 13, 12, 11, 10,
+            9, 8, 7, 6, 5, 5, 4, 4,
+            3, 3, 2, 2, 1, 1, 0, 0
+    };
 
     /** */
     private void updateVolume(OPLVoice voice) {
-        // lookup table shamelessly stolen from Nuke.YKT
-        final byte[] opl_volume_map =
-                {
-                        80, 63, 40, 36, 32, 28, 23, 21,
-                        19, 17, 15, 14, 13, 12, 11, 10,
-                        9, 8, 7, 6, 5, 5, 4, 4,
-                        3, 3, 2, 2, 1, 1, 0, 0
-                };
-
         if (voice.patch == null || voice.channel == null) return;
 
-        int atten = opl_volume_map[(voice.velocity * voice.channel.volume) >> 9] & 0xFF;
+        int atten = opl_volume_map[(voice.velocity * voice.channel.volume) >> 9] & 0xff;
         int level;
 
-        final PatchVoice patchVoice = voice.patchVoice;
-        final boolean[] scale = activeCarriers(voice);
+        PatchVoice patchVoice = voice.patchVoice;
+        boolean[] scale = activeCarriers(voice);
 
         // 0x40: key scale / volume
         if (scale[0])
-            level = Math.min(0x3f, patchVoice.op_level[0] + atten);
+            level = Math.min(0x3f, (patchVoice.op_level[0] & 0xff) + atten);
         else
-            level = patchVoice.op_level[0];
-        write(voice.chip, REG_OP_LEVEL + voice.op, (byte) (level | patchVoice.op_ksr[0]));
+            level = patchVoice.op_level[0] & 0xff;
+        write(voice.chip, REG_OP_LEVEL + voice.op, (byte) (level | (patchVoice.op_ksr[0] & 0xc0)));
 
         if (scale[1])
-            level = Math.min(0x3f, patchVoice.op_level[1] + atten);
+            level = Math.min(0x3f, (patchVoice.op_level[1] & 0xff) + atten);
         else
-            level = patchVoice.op_level[1];
-        write(voice.chip, REG_OP_LEVEL + voice.op + 3, (byte) (level | patchVoice.op_ksr[1]));
+            level = patchVoice.op_level[1] & 0xff;
+        write(voice.chip, REG_OP_LEVEL + voice.op + 3, (byte) (level | (patchVoice.op_ksr[1] & 0xc0)));
     }
 
     /** */
@@ -907,21 +871,21 @@ public class OPLPlayer extends YmFm.Interface {
                 pan = 0x20;
         }
 
-        write(voice.chip, REG_VOICE_CNT + voice.num, (byte) (voice.patchVoice.conn | pan));
+        write(voice.chip, REG_VOICE_CNT + voice.num, (byte) ((voice.patchVoice.conn & 0xff) | pan));
     }
+
+    private static final short[] noteFreq = {
+            // calculated from A440
+            345, 365, 387, 410, 435, 460, 488, 517, 547, 580, 615, 651
+    };
 
     /** */
     private void updateFrequency(OPLVoice voice) {
-        final short[] noteFreq = {
-                // calculated from A440
-                345, 365, 387, 410, 435, 460, 488, 517, 547, 580, 615, 651
-        };
-
         if (voice.patch == null || voice.channel == null) return;
         if (useFourOp(voice.patch) && !voice.fourOpPrimary) return;
 
-        int note = (!voice.channel.percussion ? voice.note : voice.patch.fixedNote)
-                + voice.patchVoice.tune;
+        int note = (!voice.channel.percussion ? voice.note : (voice.patch.fixedNote & 0xff)) +
+                voice.patchVoice.tune;
 
         int octave = note / 12;
         note %= 12;
@@ -933,9 +897,7 @@ public class OPLPlayer extends YmFm.Interface {
         else if (octave > 0)
             freq <<= octave;
 
-        // Apply pitch and fine-tune
-        double freqDouble = (double) freq * voice.channel.pitch * voice.patchVoice.finetune / 10000.0;
-        freq = (int) freqDouble;
+        freq *= (int) (voice.channel.pitch * voice.patchVoice.finetune);
 
         // convert the calculated frequency back to a block and F-number
         octave = 0;
@@ -944,7 +906,7 @@ public class OPLPlayer extends YmFm.Interface {
             octave++;
         }
         octave = Math.min(7, octave);
-        voice.freq = freq | (octave << 10);
+        voice.freq = (freq | (octave << 10)) & 0xffff;
 
         write(voice.chip, REG_VOICE_FREQL + voice.num, (byte) (voice.freq & 0xff));
         write(voice.chip, REG_VOICE_FREQH + voice.num, (byte) ((voice.freq >> 8) | (voice.on ? (1 << 5) : 0)));
@@ -968,6 +930,7 @@ public class OPLPlayer extends YmFm.Interface {
         int channel = status & 15;
         double pitch;
 
+//logger.log(Level.TRACE, "c: %d, st: %02x, d0: %02x, d1: %02x".formatted(channel, status & 0xf0, data0, data1));
         switch (status >> 4) {
             case 8: // note off (ignore velocity)
                 midiNoteOff(channel, data0);
@@ -992,8 +955,8 @@ public class OPLPlayer extends YmFm.Interface {
                 break;
 
             case 14: // pitch bend
-                int pitchVal = ((data0 & 0xff) | ((data1 & 0xff) << 7)) - 8192;
-                midiPitchControl(channel, (double) pitchVal / 8192.0);
+                pitch = (short) ((data0 & 0xff) | ((data1 & 0xff) << 7)) - 8192;
+                midiPitchControl(channel, pitch / 8192.0);
                 break;
         }
     }
@@ -1007,16 +970,18 @@ public class OPLPlayer extends YmFm.Interface {
         if (findVoice(channel, note, true) != null)
             return;
 
-        if (velocity == 0)
+        if (velocity == 0) {
             midiNoteOff(channel, note);
+            return;
+        }
 
 //logger.log(Level.DEBUG, "midiNoteOn: chn %u, note %u".formatted(channel, note);
-        final OPLPatch newPatch = findPatch((byte) channel, note);
+        OplPatch newPatch = findPatch(channel, note);
         if (newPatch == null) return;
 
         int numVoices = ((useFourOp(newPatch) || newPatch.dualTwoOp) ? 2 : 1);
 
-        OPLPlayer.OPLVoice voice = null;
+        OPLVoice voice = null;
         for (int i = 0; i < numVoices; i++) {
             if (voice != null && useFourOp(newPatch) && voice.fourOpOther != null)
                 voice = voice.fourOpOther;
@@ -1030,7 +995,7 @@ public class OPLPlayer extends YmFm.Interface {
             voice.channel = m_channels[channel & 15];
             voice.on = voice.justChanged = true;
             voice.note = note;
-            voice.velocity = (byte) YmFm.clamp((velocity & 0xFF) + newPatch.velocity, 0, 127);
+            voice.velocity = YmFm.clamp((byte) velocity + newPatch.velocity, 0, 127);
             voice.duration = 0;
 
             updateVolume(voice);
@@ -1039,7 +1004,7 @@ public class OPLPlayer extends YmFm.Interface {
             // for 4op instruments, don't key on until we've written both voices...
             if (!useFourOp(newPatch)) {
                 updateFrequency(voice);
-            } else if (i > 0 && voice.fourOpOther != null) {
+            } else if (i > 0) {
                 updateFrequency(voice.fourOpOther);
             }
         }
@@ -1055,18 +1020,20 @@ public class OPLPlayer extends YmFm.Interface {
             voice.justChanged = voice.on;
             voice.on = false;
 
-            write(voice.chip, REG_VOICE_FREQH + voice.num, (byte) (voice.freq >> 8));
+            write(voice.chip, REG_VOICE_FREQH + voice.num, (byte) (voice.freq >>> 8));
         }
     }
 
-    /** */
+    /**
+     * @param pitch range is -1.0 to 1.0
+     */
     public void midiPitchControl(int channel, double pitch) {
 //logger.log(Level.DEBUG, "midiPitchControl: chn %u, val %.02f".formatted(channel, pitch);
         MIDIChannel ch = m_channels[channel & 15];
 
         ch.basePitch = pitch;
         ch.pitch = midiCalcBend(pitch * ch.bendRange);
-        updateChannelVoices(channel, (voice) -> updateFrequency(voice));
+        updateChannelVoices(channel, this::updateFrequency);
     }
 
     /** */
@@ -1094,25 +1061,25 @@ public class OPLPlayer extends YmFm.Interface {
 
             case 6:
                 if (ch.rpn == 0) {
-                    ch.bendRange = value & 0xFF;
+                    ch.bendRange = value;
                     midiPitchControl(channel, ch.basePitch);
                 }
                 break;
 
             case 7:
-                ch.volume = value & 0xFF;
+                ch.volume = value;
                 updateChannelVoices(channel, this::updateVolume);
                 break;
 
             case 10:
-                ch.pan = value & 0xFF;
+                ch.pan = value;
                 if (m_stereo)
                     updateChannelVoices(channel, this::updatePanning);
                 break;
 
             case 32:
                 if (m_midiType == MIDIType.YamahaXG || m_midiType == MIDIType.GeneralMIDI2)
-                    ch.bank = value & 0xFF;
+                    ch.bank = value;
                 break;
 
             case 98:
@@ -1122,12 +1089,12 @@ public class OPLPlayer extends YmFm.Interface {
 
             case 100:
                 ch.rpn &= 0x3f80;
-                ch.rpn |= (value & 0xFF);
+                ch.rpn |= value;
                 break;
 
             case 101:
                 ch.rpn &= 0x7f;
-                ch.rpn |= ((value & 0xFF) << 7);
+                ch.rpn |= (value << 7);
                 break;
         }
     }
@@ -1135,8 +1102,8 @@ public class OPLPlayer extends YmFm.Interface {
     /**
      * sysex data (data and length *don't* include the opening 0xF0)
      */
-    public void midiSysEx(final byte[] data, int length) {
-        int offset = 0;
+    public void midiSysEx(byte[] data, int length) {
+        int offset = 0; // data
         if (length > 0 && data[0] == (byte) 0xF0) {
             offset = 1;
             length--;
@@ -1152,8 +1119,8 @@ public class OPLPlayer extends YmFm.Interface {
                 else if (data[offset + 3] == 0x03)
                     m_midiType = MIDIType.GeneralMIDI2;
             }
-        } else if (data[offset] == 0x41 && length >= 10 // Roland
-                && data[offset + 2] == 0x42 && data[offset + 3] == 0x12) {
+        } else if (data[offset] == 0x41 && length >= 10 && // Roland
+                data[offset + 2] == 0x42 && data[offset + 3] == 0x12) {
             // if we received one of these, assume GS mode
             // (some MIDIs seem to e.g. send drum map messages without a GS reset)
             m_midiType = MIDIType.RolandGS;
@@ -1170,9 +1137,9 @@ public class OPLPlayer extends YmFm.Interface {
             // Roland GS part parameters
             if ((address & 0xfff0ff) == 0x401015) // set drum map
                 m_channels[channel].percussion = (data[offset + 7] != 0x00);
-        } else if (length >= 8) {
+        } else if (length >= 8 && data.length - offset > 8) {
             byte[] yamahaSig = {(byte) 0x43, (byte) 0x10, (byte) 0x4c, (byte) 0x00, (byte) 0x00, (byte) 0x7e, (byte) 0x00, (byte) 0xf7};
-            if (Arrays.equals(Arrays.copyOfRange(data, offset, offset + 8), yamahaSig)) {
+            if (Arrays.compare(data, offset, offset + 8, yamahaSig, 0, yamahaSig.length) == 0) {
                 m_midiType = MIDIType.YamahaXG;
             }
         }
@@ -1192,7 +1159,7 @@ public class OPLPlayer extends YmFm.Interface {
         return m_sampleRate;
     }
 
-    public ChipType chipType() {
+    public OplPlayer.ChipType chipType() {
         return m_chipType;
     }
 

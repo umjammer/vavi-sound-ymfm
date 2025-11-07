@@ -1,16 +1,63 @@
+/*
+ * BSD 3-Clause License
+ *
+ * Copyright (c) 2021-2024, Devin Acker
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 package vavi.sound.midi.ymfm;
 
 import java.util.Arrays;
+import javax.sound.midi.InvalidMidiDataException;
 
 
-/** */
-public class SequenceMUS extends Sequence {
+/**
+ * @see "https://github.com/devinacker/ymfmidi"
+ */
+public class MusSequence extends OplSequence {
 
-    private byte[] m_data = new byte[1 << 16];
-    private int m_pos; // uint16_t in C++
-    private byte[] m_lastVol = new byte[16]; // uint8_t[16] in C++
+    private final byte[] m_data = new byte[1 << 16];
+    private int m_pos;
+    private final byte[] m_lastVol = new byte[16];
 
-    public SequenceMUS() {
+    /** */
+    public MusSequence(float divisionType, int resolution) throws InvalidMidiDataException {
+        super(divisionType, resolution);
+        init();
+    }
+
+    /** */
+    public MusSequence(float divisionType, int resolution, int numTracks) throws InvalidMidiDataException {
+        super(divisionType, resolution, numTracks);
+        init();
+    }
+
+    private void init() {
         Arrays.fill(m_data, (byte) 0x60);
         setDefaults();
     }
@@ -55,7 +102,7 @@ public class SequenceMUS extends Sequence {
     }
 
     @Override
-    public long update(OPLPlayer player) {
+    public long update(OplPlayer player) {
         int event, channel, data, param;
         int lastPos;
 

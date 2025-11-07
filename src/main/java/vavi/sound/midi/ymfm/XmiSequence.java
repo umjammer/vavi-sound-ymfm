@@ -1,15 +1,51 @@
+/*
+ * BSD 3-Clause License
+ *
+ * Copyright (c) 2021-2024, Devin Acker
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 package vavi.sound.midi.ymfm;
 
 import java.nio.charset.StandardCharsets;
+import javax.sound.midi.InvalidMidiDataException;
 
 import vavi.util.ByteUtil;
 
 
-public class SequenceXMI extends SequenceMID {
+/**
+ * @see "https://github.com/devinacker/ymfmidi"
+ */
+public class XmiSequence extends MidSequence {
 
     static class XMITrack extends MIDTrack {
 
-        public XMITrack(byte[] data, int size, SequenceXMI sequence) {
+        public XMITrack(byte[] data, int size, XmiSequence sequence) {
             super(data, size, sequence);
             m_initDelay = false;
             m_useRunningStatus = false;
@@ -36,8 +72,19 @@ public class SequenceXMI extends SequenceMID {
         }
     }
 
-    public SequenceXMI() {
-        super();
+    /** */
+    public XmiSequence(float divisionType, int resolution) throws InvalidMidiDataException {
+        super(divisionType, resolution);
+        init();
+    }
+
+    /** */
+    public XmiSequence(float divisionType, int resolution, int numTracks) throws InvalidMidiDataException {
+        super(divisionType, resolution, numTracks);
+        init();
+    }
+
+    private void init() {
         m_type = 2;
         m_ticksPerBeat = 0; // unused
         m_ticksPerSec = 120;
@@ -70,47 +117,46 @@ public class SequenceXMI extends SequenceMID {
     @Override
     public void read(byte[] data) {
         int size = data.length;
-        long chunkSize;
+        int chunkSize;
         int currentPos = 0;
         int remainingSize = size;
 
         while ((chunkSize = readRootChunk(data, currentPos, remainingSize)) != 0) {
-            currentPos += (int) chunkSize;
-            remainingSize -= (int) chunkSize;
+            currentPos += chunkSize;
+            remainingSize -= chunkSize;
         }
     }
 
     /** */
-    private long readRootChunk(byte[] data, int offset, int size) {
+    private int readRootChunk(byte[] data, int offset, int size) {
         // need at least a root chunk and one subchunk (and its contents)
         if (size > 12 + 8) {
             // length of the root chunk
-            long rootLen = ByteUtil.readBeInt(data, offset + 4);
+            int rootLen = ByteUtil.readBeInt(data, offset + 4);
             if (rootLen % 2 != 0) {
                 rootLen++;
             }
             // offset to the current sub-chunk
-            long subChunkOffset = offset + 12;
+            int subChunkOffset = offset + 12;
             // offset to the data after the root chunk
-            long rootEnd = Math.min(rootLen + 8, (long) size);
+            int rootEnd = Math.min(rootLen + 8, size);
 
             String chunkID = new String(data, offset, 4, StandardCharsets.US_ASCII);
 
             if (chunkID.equals("FORM")) {
-                long chunkLen;
+                int chunkLen;
 
                 while (subChunkOffset < offset + rootEnd) {
-                    int bytesOffset = (int) subChunkOffset;
+                    int bytesOffset = subChunkOffset;
 
                     chunkID = new String(data, bytesOffset, 4, StandardCharsets.US_ASCII);
                     chunkLen = ByteUtil.readBeInt(data, bytesOffset + 4);
-                    // chunkLen = (chunkLen + 1) & ~1; // C++ padding
                     if (chunkLen % 2 != 0) {
                         chunkLen++;
                     }
 
                     // move to next subchunk
-                    long nextSubChunkOffset = subChunkOffset + chunkLen + 8;
+                    int nextSubChunkOffset = subChunkOffset + chunkLen + 8;
                     if (nextSubChunkOffset > offset + rootEnd) {
                         // try to handle a malformed/truncated chunk
                         chunkLen -= (nextSubChunkOffset - (offset + rootEnd));
@@ -119,7 +165,7 @@ public class SequenceXMI extends SequenceMID {
 
                     if (chunkID.equals("EVNT")) {
                         int dataStart = bytesOffset + 8;
-                        int trackDataLen = (int) chunkLen;
+                        int trackDataLen = chunkLen;
 
                         if (dataStart + trackDataLen <= data.length) {
                             byte[] trackData = new byte[trackDataLen];
@@ -132,7 +178,7 @@ public class SequenceXMI extends SequenceMID {
                 }
             } else if (chunkID.equals("CAT ")) {
                 while (subChunkOffset < offset + rootEnd) {
-                    subChunkOffset += readRootChunk(data, (int) subChunkOffset, size - (int) (subChunkOffset - offset));
+                    subChunkOffset += readRootChunk(data, subChunkOffset, size - (subChunkOffset - offset));
                 }
             }
 

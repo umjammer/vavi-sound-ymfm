@@ -1,13 +1,50 @@
+/*
+ * BSD 3-Clause License
+ *
+ * Copyright (c) 2021-2024, Devin Acker
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 package vavi.sound.midi.ymfm;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import javax.sound.midi.InvalidMidiDataException;
+
 import vavi.util.ByteUtil;
 
 
-public class SequenceMID extends Sequence {
+/**
+ * @see "https://github.com/devinacker/ymfmidi"
+ */
+public class MidSequence extends OplSequence {
 
     public static class MIDTrack {
 
@@ -18,23 +55,27 @@ public class SequenceMID extends Sequence {
             int delay;
         }
 
-        protected SequenceMID m_sequence;
+        protected MidSequence m_sequence;
         protected byte[] m_data;
         protected int m_pos;
         protected int m_size;
         protected int m_delay;
         protected boolean m_atEnd;
-        protected byte m_status; // for MIDI running status
+        /** for MIDI running status */
+        protected byte m_status;
 
         // these are used for format-specific track data details
-        protected boolean m_initDelay; // true if there is an initial delay value at the start of the track
-        protected boolean m_useRunningStatus; // true if running status is supported by this format
-        protected boolean m_useNoteDuration; // true if note on events are followed by a length
+        /** true if there is an initial delay value at the start of the track */
+        protected boolean m_initDelay;
+        /** true if running status is supported by this format */
+        protected boolean m_useRunningStatus;
+        /** true if note on events are followed by a length */
+        protected boolean m_useNoteDuration;
 
         protected List<MIDNote> m_notes = new ArrayList<>();
 
         /** */
-        public MIDTrack(byte[] data, int size, SequenceMID sequence) {
+        public MIDTrack(byte[] data, int size, MidSequence sequence) {
             // Deep copy of data array
             m_data = Arrays.copyOf(data, size);
             m_size = size;
@@ -100,7 +141,7 @@ public class SequenceMID extends Sequence {
         }
 
         /** */
-        public long update(OPLPlayer player) {
+        public long update(OplPlayer player) {
             if (m_initDelay && m_pos == 0) {
                 m_delay = readDelay();
             }
@@ -176,13 +217,13 @@ public class SequenceMID extends Sequence {
         }
 
         /** */
-        protected boolean metaEvent(OPLPlayer player) {
+        protected boolean metaEvent(OplPlayer player) {
             int len; // int is used for uint32_t
 
-            if ((m_status & 0xFF) != 0xFF) {
+            if ((m_status & 0xff) != 0xff) {
                 len = readVLQ();
                 if (m_pos + len < m_size) {
-                    if ((m_status & 0xFF) == 0xf0) {
+                    if ((m_status & 0xff) == 0xf0) {
                         byte[] sysexData = Arrays.copyOfRange(m_data, m_pos, m_pos + len);
                         player.midiSysEx(sysexData, len);
                     }
@@ -198,11 +239,11 @@ public class SequenceMID extends Sequence {
                 len = readVLQ();
 
                 // end-of-track marker (or data just ran out)
-                if ((data & 0xFF) == 0x2F || (m_pos + len >= m_size)) {
+                if ((data & 0xff) == 0x2f || (m_pos + len >= m_size)) {
                     return false;
                 }
                 // tempo change
-                if ((data & 0xFF) == 0x51) {
+                if ((data & 0xff) == 0x51) {
                     m_sequence.setTimePerBeat(ByteUtil.readBe24(m_data, m_pos));
                 }
             }
@@ -225,7 +266,19 @@ public class SequenceMID extends Sequence {
     protected double m_ticksPerSec;
 
     /** */
-    public SequenceMID() {
+    public MidSequence(float divisionType, int resolution) throws InvalidMidiDataException {
+        super(divisionType, resolution);
+        init();
+    }
+
+    /** */
+    public MidSequence(float divisionType, int resolution, int numTracks) throws InvalidMidiDataException {
+        super(divisionType, resolution, numTracks);
+        init();
+    }
+
+    /** */
+    private void init() {
         m_type = 0;
         m_ticksPerBeat = 24;
         m_ticksPerSec = 48;
@@ -341,7 +394,7 @@ public class SequenceMID extends Sequence {
     }
 
     @Override
-    public long update(OPLPlayer player) {
+    public long update(OplPlayer player) {
         long tickDelay = 0xffff_ffffL; // UINT_MAX;
 
         boolean tracksAtEnd = true;

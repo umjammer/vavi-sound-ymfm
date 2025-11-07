@@ -1,7 +1,7 @@
 [![Release](https://jitpack.io/v/umjammer/vavi-sound-ymfm.svg)](https://jitpack.io/#umjammer/vavi-sound-ymfm)
 [![Java CI](https://github.com/umjammer/vavi-sound-ymfm/actions/workflows/maven.yml/badge.svg)](https://github.com/umjammer/vavi-sound-ymfm/actions/workflows/maven.yml)
 [![CodeQL](https://github.com/umjammer/vavi-sound-ymfm/actions/workflows/codeql.yml/badge.svg)](https://github.com/umjammer/vavi-sound-ymfm/actions/workflows/codeql.yml)
-![Java](https://img.shields.io/badge/Java-17-b07219)
+![Java](https://img.shields.io/badge/Java-21-b07219)
 
 # vavi-sound-ymfm
 

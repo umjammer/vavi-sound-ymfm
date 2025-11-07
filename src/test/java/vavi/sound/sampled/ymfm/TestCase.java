@@ -53,7 +53,7 @@ class TestCase {
     }
 
     @Property(name = "file")
-    String vgm = "src/test/resources/test.vgm";
+    String vgm = "src/test/resources/test.vgm"; // TODO this sample doesn't use rhythms so this works w/o rhythms system property
 
     @Property(name = "track")
     int track = 1;
