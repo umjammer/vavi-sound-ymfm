@@ -110,7 +110,7 @@ public abstract class YmFm {
     /**
      * Clamps between the minimum and maximum values provided.
      */
-    static int clamp(int value, int minVal, int maxVal) {
+    public static int clamp(int value, int minVal, int maxVal) {
         if (value < minVal)
             return minVal;
         if (value > maxVal)
