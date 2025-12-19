@@ -178,7 +178,7 @@ try {
         int lineBufferPos = 0;
         for (int i = 0; i < initialSamples; i++) {
             for (int c = 0; c < audioFormat.getChannels(); c++) {
-                ByteUtil.writeLeShort(buf[c * audioFormat.getChannels() + i], lineBuffer, lineBufferPos + (c * 2));
+                ByteUtil.writeLeShort(buf[i * audioFormat.getChannels() + c], lineBuffer, lineBufferPos + (c * 2));
             }
             lineBufferPos += audioFormat.getChannels() * 2;
         }
@@ -222,7 +222,7 @@ logger.log(Level.TRACE, "isOpen: " + isOpen);
                 lineBufferPos = 0;
                 for (int i = 0; i < samplesToGenerate; i++) {
                     for (int c = 0; c < audioFormat.getChannels(); c++) {
-                        ByteUtil.writeLeShort(buf[c * audioFormat.getChannels() + i], lineBuffer, lineBufferPos + (c * 2));
+                        ByteUtil.writeLeShort(buf[i * audioFormat.getChannels() + c], lineBuffer, lineBufferPos + (c * 2));
                     }
                     lineBufferPos += audioFormat.getChannels() * 2;
                 }
