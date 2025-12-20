@@ -92,7 +92,7 @@ public class OplPlayer extends YmFm.Interface {
         public int freq = 0;
 
         /** how long has this note been playing (incremented each midi update) */
-        public long duration = Integer.MAX_VALUE;
+        public long duration = 0xffff_ffffL;
     }
 
     public enum MIDIType {
@@ -893,7 +893,7 @@ public class OplPlayer extends YmFm.Interface {
         // calculate base frequency (and apply pitch bend / patch detune)
         int freq = (note >= 0) ? noteFreq[note] : (noteFreq[note + 12] >> 1);
         if (octave < 0)
-            freq >>= -octave;
+            freq >>>= -octave;
         else if (octave > 0)
             freq <<= octave;
 
@@ -902,14 +902,14 @@ public class OplPlayer extends YmFm.Interface {
         // convert the calculated frequency back to a block and F-number
         octave = 0;
         while (freq > 0x3ff) {
-            freq >>= 1;
+            freq >>>= 1;
             octave++;
         }
         octave = Math.min(7, octave);
         voice.freq = (freq | (octave << 10)) & 0xffff;
 
         write(voice.chip, REG_VOICE_FREQL + voice.num, (byte) (voice.freq & 0xff));
-        write(voice.chip, REG_VOICE_FREQH + voice.num, (byte) ((voice.freq >> 8) | (voice.on ? (1 << 5) : 0)));
+        write(voice.chip, REG_VOICE_FREQH + voice.num, (byte) ((voice.freq >>> 8) | (voice.on ? (1 << 5) : 0)));
     }
 
     /** */
@@ -920,7 +920,7 @@ public class OplPlayer extends YmFm.Interface {
 
         write(voice.chip, REG_OP_SR + voice.op, (byte) 0xff);
         write(voice.chip, REG_OP_SR + voice.op + 3, (byte) 0xff);
-        write(voice.chip, REG_VOICE_FREQH + voice.num, (byte) (voice.freq >> 8));
+        write(voice.chip, REG_VOICE_FREQH + voice.num, (byte) (voice.freq >>> 8));
     }
 
     /**
@@ -955,7 +955,7 @@ public class OplPlayer extends YmFm.Interface {
                 break;
 
             case 14: // pitch bend
-                pitch = (short) ((data0 & 0xff) | ((data1 & 0xff) << 7)) - 8192;
+                pitch = (short) (((data0 & 0xff) | ((data1 & 0xff) << 7)) - 8192);
                 midiPitchControl(channel, pitch / 8192.0);
                 break;
         }
