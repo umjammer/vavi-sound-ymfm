@@ -54,13 +54,27 @@ this is a fork of [ymfm](https://github.com/aaronsgiles/ymfm)
 
  * [sample](src/test/java/TestCase.java)
 
-### spi
+### sampled spi
 
 ```java
 AudioInputStream ais = AudioSystem.getAudioInputStream(Paths.get(vgm).toFile());
 Clip clip = AudioSystem.getClip();
 clip.open(AudioSystem.getAudioInputStream(new AudioFormat(44100, 16, 2, true, false), ais));
 clip.loop(Clip.LOOP_CONTINUOUSLY);
+```
+
+### midi spi
+
+```java
+System.setProperty("javax.sound.midi.Synthesizer", "#YmFm OPL3 MIDI Synthesizer");
+Sequence sequence = MidiSystem.getSequence(new BufferedInputStream(Files.newInputStream(Paths.get(midi))));
+Sequencer sequencer = MidiSystem.getSequencer(false);
+sequencer.open();
+Synthesizer synthesizer = MidiSystem.getSynthesizer();
+synthesizer.open();
+sequencer.getTransmitter().setReceiver(synthesizer.getReceiver());
+sequencer.setSequence(sequence);
+sequencer.start();
 ```
 
 ### original
@@ -78,14 +92,15 @@ $ ./vgmrender input.vgz -o out.wav
 
  * https://blog.hiroaki.jp/blog/2021/07/11/s98player-using-ymfm/
  * https://github.com/superctr/adpcm
+ * https://github.com/devinacker/ymfmidi
 
 ## TODO
 
- * ~~serialize ~~
-   * set type ... [vavi-util-serdes](https://github.com/umjammer/vavi-util-serdes)
+ * ~~serialize~~
+   * set type and make it compatible as the original ... [vavi-util-serdes](https://github.com/umjammer/vavi-util-serdes)
  * ~~spi~~
  * debug
-   * 2149 sounds but noisy ... same as the ori@Serdesginal (02 Vampire Killer.vgz)
+   * 2149 sounds but noisy ... same as the original (02 Vampire Killer.vgz)
    * ~~2151 noise sound? taste is different from other impls ... original is ok (01 Magical Sound Shower.vgz)~~
    * ~~2608 ssg, adpcm not sound~~
    * ~~2610 adpcm not correct ... original is fine~~
@@ -93,6 +108,8 @@ $ ./vgmrender input.vgz -o out.wav
    * ~~f262 taste is different from other impls ... original is ok (05 Tomboyish Girl in Love.vgz)~~
    * ~~F278B fm ok, others not sounds? ... same as libvgm~~
  * ~~separate the vgm parser from the input stream~~
+ * ~~midi spi (wip)~~
+   * make other sequences and patch loaders work 
 
 ----
 
