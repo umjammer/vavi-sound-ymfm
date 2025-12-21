@@ -558,7 +558,7 @@ public class OplPlayer extends YmFm.Interface {
             voice.channel = null;
             voice.patch = null;
             voice.patchVoice = null;
-            voice.duration = Integer.MAX_VALUE;
+            voice.duration = 0xffff_ffffL;
 
             if (m_chipType != ChipType.ChipOPL3) continue;
             switch (i % 9) {
@@ -599,8 +599,6 @@ public class OplPlayer extends YmFm.Interface {
 
     /** */
     private void write(int chip, int addr, byte data) {
-//if (addr != 0x104)
-//logger.log(Level.DEBUG, "write reg %03x val %02x".formatted(addr, data));
         if (addr < 0x100)
             m_opl3.get(chip).write_address(addr);
         else
@@ -624,7 +622,7 @@ public class OplPlayer extends YmFm.Interface {
 
             if (!voice.on && !voice.justChanged) {
                 if (voice.channel.num == channel && voice.note == note &&
-                        voice.duration < Integer.MAX_VALUE) {
+                        voice.duration < 0xffff_ffffL) {
                     // found an old voice that was using the same note and patch
                     // don't immediately use it, but make it a high priority candidate for later
                     // (to help avoid pop/click artifacts when retriggering a recently off note)
@@ -916,7 +914,7 @@ public class OplPlayer extends YmFm.Interface {
     private void silenceVoice(OPLVoice voice) {
         voice.on = false;
         voice.justChanged = true;
-        voice.duration = Integer.MAX_VALUE;
+        voice.duration = 0xffff_ffffL;
 
         write(voice.chip, REG_OP_SR + voice.op, (byte) 0xff);
         write(voice.chip, REG_OP_SR + voice.op + 3, (byte) 0xff);
@@ -930,8 +928,8 @@ public class OplPlayer extends YmFm.Interface {
         int channel = status & 15;
         double pitch;
 
-//logger.log(Level.TRACE, "c: %d, st: %02x, d0: %02x, d1: %02x".formatted(channel, status & 0xf0, data0, data1));
-        switch (status >> 4) {
+//if (CC++ < 300) { System.out.printf("%03d: c: %d, st: %02x, D0: %02x, D1: %02x%n", CC, channel, status & 0xf0, data0, data1); }
+        switch (status >>> 4) {
             case 8: // note off (ignore velocity)
                 midiNoteOff(channel, data0);
                 break;
