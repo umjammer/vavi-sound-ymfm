@@ -1,0 +1,4 @@
+#vavi.sound.midi.ymfm.HmiMidiFileReader
+#vavi.sound.midi.ymfm.HmpMidiFileReader
+#vavi.sound.midi.ymfm.MusMidiFileReader
+#vavi.sound.midi.ymfm.XmiMidiFileReader

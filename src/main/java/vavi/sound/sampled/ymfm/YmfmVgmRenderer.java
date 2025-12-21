@@ -80,7 +80,7 @@ public class YmfmVgmRenderer implements VgmRenderer {
     @Override
     public int update() {
         return processCommand();
-    };
+    }
 
     @Override
     public void render(int[] outputs) {

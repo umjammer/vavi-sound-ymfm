@@ -801,7 +801,7 @@ abstract class Pcm {
         /**
          * Fetches a sample at the current position.
          */
-        private final int fetch_sample() {
+        private int fetch_sample() {
             int addr = m_baseAddr;
             int pos = m_curPos >> 16;
 
