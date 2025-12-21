@@ -904,7 +904,7 @@ public class OplPlayer extends YmFm.Interface {
         else if (octave > 0)
             freq <<= octave;
 
-        freq *= (int) (voice.channel.pitch * voice.patchVoice.finetune);
+        freq = (int) (freq * voice.channel.pitch * voice.patchVoice.finetune);
 
         // convert the calculated frequency back to a block and F-number
         octave = 0;
