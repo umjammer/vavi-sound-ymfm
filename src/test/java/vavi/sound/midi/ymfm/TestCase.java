@@ -17,6 +17,7 @@ import vavi.util.properties.annotation.PropsEntity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
  * @author <a href="mailto:umjammer@gmail.com">Naohide Sano</a> (nsano)
  * @version 0.00 2025-11-08 nsano initial version <br>
  */
+@EnabledIf("localPropertiesExists")
 @PropsEntity(url = "file:local.properties")
 class TestCase {
 
