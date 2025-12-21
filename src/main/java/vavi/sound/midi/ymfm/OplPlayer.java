@@ -335,17 +335,26 @@ public class OplPlayer extends YmFm.Interface {
 
     /** */
     private void updateMIDI() {
-        while (m_samplesLeft == 0 && m_sequence != null && !atEnd()) {
-            // time to update midi playback
-            m_samplesLeft = (int) m_sequence.update(this);
-            for (OPLVoice voice : m_voices) {
-                if (voice.duration < Integer.MAX_VALUE)
-                    voice.duration++;
-                voice.justChanged = false;
-            }
+        // https://gemini.google.com/app/27978d225cbdb41b
+        if (m_sequence != null) {
+            while (m_samplesLeft <= 0 && !atEnd()) {
+                // time to update midi playback
+                m_samplesLeft = (int) m_sequence.update(this);
+                for (OPLVoice voice : m_voices) {
+                    if (voice.duration < 0xffff_ffffL)
+                        voice.duration++;
+                    voice.justChanged = false;
+                }
 
-            if (m_samplesLeft > 0)
-                m_timePassed = true;
+                if (m_samplesLeft > 0)
+                    m_timePassed = true;
+            }
+        } else {
+            for (OPLVoice voice : m_voices) {
+                if (voice.duration < 0xffff_ffffL)
+                    voice.duration++;
+                voice.justChanged = false; // Reset flag so voice can be reused later
+            }
         }
 
         if (m_samplePos >= 1.0) {
