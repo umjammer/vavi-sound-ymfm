@@ -93,6 +93,8 @@ $ ./vgmrender input.vgz -o out.wav
  * https://blog.hiroaki.jp/blog/2021/07/11/s98player-using-ymfm/
  * https://github.com/superctr/adpcm
  * https://github.com/devinacker/ymfmidi
+ * https://opl.wafflenet.com/
+ * https://github.com/Wohlstand/OPL3BankEditor
 
 ## TODO
 
