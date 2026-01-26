@@ -43,7 +43,7 @@ import static java.lang.System.getLogger;
 
 
 /**
- * AilSoundbankReader.
+ * Audio Interface Library (AIL) SoundbankReader.
  *
  * @author <a href="mailto:umjammer@gmail.com">Naohide Sano</a> (umjammer)
  * @version 0.00 2025/11/07 umjammer initial version <br>
@@ -72,8 +72,10 @@ class AilSoundbankReader extends SoundbankReader {
         Map<Integer, OplPatch> patches = loadAIL(is.readAllBytes());
         YmfmSoundbank soundbank = new YmfmSoundbank();
         for (Map.Entry<Integer, OplPatch> e : patches.entrySet()) {
-            soundbank.addInstrument(0, e.getKey(), e.getValue().name, e.getValue());
+            if (e.getValue().fourOp)
+                soundbank.addInstrument(0, e.getKey(), e.getValue().name, e.getValue());
         }
+logger.log(Level.TRACE, "available patches: " + soundbank.patches.size());
         return soundbank;
     }
 
@@ -113,7 +115,7 @@ logger.log(Level.TRACE, "patches: " + patches.size());
             if (data.length < patchPos + (data[bytesOffset + 0] & 0xff))
                 throw new InvalidMidiDataException("invalid data at 0: 0x%02x".formatted(data[bytesOffset] & 0xff));
             else if ((data[bytesOffset + 0] & 0xff) == 0x0e)
-                throw new InvalidMidiDataException("invalid data at %d".formatted(bytesOffset));
+                patch.fourOp = false;
             else if ((data[bytesOffset + 0] & 0xff) == 0x19)
                 patch.fourOp = true;
             else
