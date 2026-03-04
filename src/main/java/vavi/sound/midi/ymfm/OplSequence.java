@@ -33,7 +33,6 @@
 package vavi.sound.midi.ymfm;
 
 import javax.sound.midi.InvalidMidiDataException;
-import javax.sound.midi.Patch;
 import javax.sound.midi.Sequence;
 import javax.sound.midi.Track;
 
@@ -65,48 +64,6 @@ public abstract class OplSequence extends Sequence {
 
     // ----
 
-    @Override
-    public float getDivisionType() {
-        return super.getDivisionType();
-    }
-
-    @Override
-    public int getResolution() {
-        return super.getResolution();
-    }
-
-    @Override
-    public Track createTrack() {
-        return super.createTrack();
-    }
-
-    @Override
-    public boolean deleteTrack(Track track) {
-        return super.deleteTrack(track);
-    }
-
-    @Override
-    public Track[] getTracks() {
-        return super.getTracks();
-    }
-
-    @Override
-    public long getMicrosecondLength() {
-        return super.getMicrosecondLength();
-    }
-
-    @Override
-    public long getTickLength() {
-        return super.getTickLength();
-    }
-
-    @Override
-    public Patch[] getPatchList() {
-        return super.getPatchList();
-    }
-
-    // ----
-
     /**
      * reset track to beginning
      */
@@ -122,6 +79,9 @@ public abstract class OplSequence extends Sequence {
      * @return The number of output audio samples until the next event(s).
      */
     public abstract long update(OplPlayer player);
+
+    /** Convert read tracks to {@link Track} after {@link #read} */
+    public abstract void convert() throws InvalidMidiDataException;
 
     /**
      * Sets the song number.

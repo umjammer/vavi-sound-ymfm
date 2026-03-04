@@ -38,7 +38,7 @@ public class HmiMidiFileReader extends MidiFileReader {
     @Override
     public MidiFileFormat getMidiFileFormat(InputStream stream) throws InvalidMidiDataException, IOException {
         if (HmiSequence.isValid(stream.readAllBytes()))
-            return new MidiFileFormat(3, Sequence.PPQ, 0, UNKNOWN_LENGTH, UNKNOWN_LENGTH); // TODO
+            return new MidiFileFormat(3, Sequence.PPQ, 48, UNKNOWN_LENGTH, UNKNOWN_LENGTH); // TODO type, resolution
         else
             throw new InvalidMidiDataException();
     }
@@ -60,8 +60,9 @@ logger.log(Level.DEBUG, "file: " + file);
 
     @Override
     public Sequence getSequence(InputStream stream) throws InvalidMidiDataException, IOException {
-        HmiSequence sequence = new HmiSequence(0, 0);
+        HmiSequence sequence = new HmiSequence(Sequence.PPQ, 48); // resolution will be updated
         sequence.read(stream.readAllBytes());
+        sequence.convert();
         return sequence;
     }
 

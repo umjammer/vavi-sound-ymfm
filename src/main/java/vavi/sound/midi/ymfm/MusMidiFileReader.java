@@ -36,7 +36,7 @@ public class MusMidiFileReader extends MidiFileReader {
     @Override
     public MidiFileFormat getMidiFileFormat(InputStream stream) throws InvalidMidiDataException, IOException {
         if (MusSequence.isValid(stream.readAllBytes()))
-            return new MidiFileFormat(3, Sequence.PPQ, 0, UNKNOWN_LENGTH, UNKNOWN_LENGTH); // TODO
+            return new MidiFileFormat(3, Sequence.PPQ, 70, UNKNOWN_LENGTH, UNKNOWN_LENGTH); // TODO type
         else
             throw new InvalidMidiDataException();
     }
@@ -58,8 +58,9 @@ logger.log(Level.DEBUG, "file: " + file);
 
     @Override
     public Sequence getSequence(InputStream stream) throws InvalidMidiDataException, IOException {
-        MusSequence sequence = new MusSequence(0, 0);
+        MusSequence sequence = new MusSequence(Sequence.PPQ, 70); // mus uses fixed timer
         sequence.read(stream.readAllBytes());
+        sequence.convert();
         return sequence;
     }
 

@@ -32,11 +32,18 @@
 
 package vavi.sound.midi.ymfm;
 
+import java.lang.System.Logger;
+import java.lang.System.Logger.Level;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-
+import java.util.function.Consumer;
 import javax.sound.midi.InvalidMidiDataException;
+import javax.sound.midi.MetaMessage;
+import javax.sound.midi.MidiEvent;
+import javax.sound.midi.ShortMessage;
+import javax.sound.midi.SysexMessage;
+import javax.sound.midi.Track;
 
 import vavi.util.ByteUtil;
 
@@ -45,6 +52,8 @@ import vavi.util.ByteUtil;
  * @see "https://github.com/devinacker/ymfmidi"
  */
 public class MidSequence extends OplSequence {
+
+    private static final Logger logger = System.getLogger(MidSequence.class.getName());
 
     public static class MIDTrack {
 
@@ -63,6 +72,7 @@ public class MidSequence extends OplSequence {
         protected boolean m_atEnd;
         /** for MIDI running status */
         protected byte m_status;
+        protected int m_tempo;
 
         // these are used for format-specific track data details
         /** true if there is an initial delay value at the start of the track */
@@ -256,10 +266,89 @@ public class MidSequence extends OplSequence {
         public boolean atEnd() {
             return m_atEnd;
         }
+
+        /** m_pos, m_atEnd will be updated */
+        public void convert(Consumer<MidiEvent> consumer) throws InvalidMidiDataException {
+            m_pos = 0;
+            m_atEnd = false;
+            m_status = 0;
+            long tick = 0;
+
+            if (m_initDelay && m_pos == 0) {
+                tick += readDelay();
+            }
+
+            while (!m_atEnd) {
+                byte[] data = new byte[2];
+
+                // make sure we have enough data left for one full event
+                if (m_size - m_pos < 3) {
+                    m_atEnd = true;
+                    return;
+                }
+
+                if (!m_useRunningStatus || (m_data[m_pos] & 0x80) != 0) {
+                    m_status = m_data[m_pos++];
+                }
+                int status = m_status & 0xff;
+
+                switch (status >> 4) {
+                    case 9: // note on
+                    case 8:  // note off
+                    case 10: // polyphonic pressure
+                    case 11: // controller change
+                    case 14: // pitch bend
+                        data[0] = m_data[m_pos++];
+                        data[1] = m_data[m_pos++];
+                        consumer.accept(new MidiEvent(new ShortMessage(status, data[0] & 0x7f, data[1] & 0x7f), tick));
+                        break;
+
+                    case 12: // program change
+                    case 13: // channel pressure (ignored)
+                        data[0] = m_data[m_pos++];
+                        consumer.accept(new MidiEvent(new ShortMessage(status, data[0] & 0x7f, 0), tick));
+                        break;
+
+                    case 15: // sysex / meta event
+                        if (status != 0xff) {
+                            int len = readVLQ();
+                            if (m_pos + len <= m_size) {
+                                if (status == 0xf0 || status == 0xf7) {
+                                    byte[] sysexData = Arrays.copyOfRange(m_data, m_pos, m_pos + len);
+                                    consumer.accept(new MidiEvent(new SysexMessage(status, sysexData, len), tick));
+                                }
+                            }
+                            m_pos += len;
+                        } else {
+                            if (m_pos >= m_size) {
+                                break;
+                            }
+
+                            byte d = m_data[m_pos++];
+                            int len = readVLQ();
+
+                            if (m_pos + len <= m_size) {
+                                byte[] metaData = Arrays.copyOfRange(m_data, m_pos, m_pos + len);
+                                consumer.accept(new MidiEvent(new MetaMessage(d & 0xff, metaData, len), tick));
+
+                                // tempo change
+                                if ((d & 0xff) == 0x51) {
+                                    m_tempo = ByteUtil.readBe24(m_data, m_pos);
+                                    logger.log(Level.DEBUG, "tempo: " + m_tempo);
+                                }
+                            }
+                            m_pos += len;
+                        }
+                        break;
+                }
+
+                tick += readDelay();
+            }
+        }
     }
 
     /** */
-    protected List<MIDTrack> m_tracks = new ArrayList<>();
+    protected List<MidSequence.MIDTrack> m_tracks = new ArrayList<>();
 
     protected int m_type;
     protected int m_ticksPerBeat;
@@ -284,13 +373,32 @@ public class MidSequence extends OplSequence {
         m_ticksPerSec = 48;
     }
 
+    // hack for resolution cannot change after instantiation.
+    @Override
+    public int getResolution() {
+        int tempo = 500000;
+        for (MIDTrack track : m_tracks) {
+            if (track.m_tempo != 0) {
+                tempo = track.m_tempo;
+                break;
+            }
+        }
+        if (m_ticksPerSec > 0) {
+logger.log(Level.DEBUG, "resolution: " + (int) (tempo * m_ticksPerSec / 1000000.0));
+            return (int) (tempo * m_ticksPerSec / 1000000.0);
+        } else {
+logger.log(Level.DEBUG, "default resolution: " + this.resolution);
+            return super.getResolution();
+        }
+    }
+
     /** */
     public static boolean isValid(byte[] data) {
         int size = data.length;
         if (size < 12)
             return false;
 
-        if (Arrays.equals(Arrays.copyOfRange(data, 0, 4), new byte[]{'M', 'T', 'h', 'd'})) {
+        if (Arrays.equals(Arrays.copyOfRange(data, 0, 4), new byte[] {'M', 'T', 'h', 'd'})) {
             long len = ByteUtil.readBeInt(data, 4);
             if (len < 6) return false;
 
@@ -298,14 +406,15 @@ public class MidSequence extends OplSequence {
             if (type > 2) return false;
 
             return true;
-        } else if (Arrays.equals(Arrays.copyOfRange(data, 0, 4), new byte[]{'R', 'I', 'F', 'F'})
-                && Arrays.equals(Arrays.copyOfRange(data, 8, 12), new byte[]{'R', 'M', 'I', 'D'})) {
+        } else if (Arrays.equals(Arrays.copyOfRange(data, 0, 4), new byte[] {'R', 'I', 'F', 'F'}) &&
+                Arrays.equals(Arrays.copyOfRange(data, 8, 12), new byte[] {'R', 'M', 'I', 'D'})) {
             return true;
         }
 
         return false;
     }
 
+    /** accepts SMF and RMF */
     @Override
     public void read(byte[] data) {
         int size = data.length;
@@ -313,7 +422,7 @@ public class MidSequence extends OplSequence {
         if (size < 23)
             return;
 
-        if (Arrays.equals(Arrays.copyOfRange(data, 0, 4), new byte[]{'R', 'I', 'F', 'F'})) {
+        if (Arrays.equals(Arrays.copyOfRange(data, 0, 4), new byte[] {'R', 'I', 'F', 'F'})) {
             int offset = 12;
             while (offset + 8 < size) {
                 byte[] bytes = Arrays.copyOfRange(data, offset, offset + 8);
@@ -348,7 +457,7 @@ public class MidSequence extends OplSequence {
                     break;
 
                 byte[] bytes = Arrays.copyOfRange(data, offset, offset + 8);
-                if (!Arrays.equals(Arrays.copyOfRange(bytes, 0, 4), new byte[]{'M', 'T', 'r', 'k'}))
+                if (!Arrays.equals(Arrays.copyOfRange(bytes, 0, 4), new byte[] {'M', 'T', 'r', 'k'}))
                     break;
 
                 int trackLen = ByteUtil.readBeInt(bytes, 4);
@@ -425,5 +534,13 @@ public class MidSequence extends OplSequence {
         double samplesPerTick = player.sampleRate() / m_ticksPerSec;
 
         return Math.round(tickDelay * samplesPerTick);
+    }
+
+    @Override
+    public void convert() throws InvalidMidiDataException {
+        for (MIDTrack track : m_tracks) {
+            Track newTrack = createTrack();
+            track.convert(newTrack::add);
+        }
     }
 }
