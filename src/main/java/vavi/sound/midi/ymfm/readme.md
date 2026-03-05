@@ -4,13 +4,13 @@
 
 | name | ext       | type      | status | description                                  |
 |------|-----------|-----------|:------:|----------------------------------------------|
-| mid  | .mid      | reader    |        | Standard MIDI files                          |
-| hmi  | .hmi      | reader    |   ✅️   | HMI Sound Operating System                   |
-| hmp  | .hmp      | reader    |   ✅️   | HMI Sound Operating System                   |
-| mus  | .mus      | reader    |   ✅️   | DMX sound system / Doom engine               |
-| xmi  | .xmi      | reader    |   ✅️   | Miles Sound System / Audio Interface Library |
+| mid  | .mid      | reader    |   ⏳️   | Standard MIDI files, RMF                     |
+| hmi  | .hmi      | reader    |  ✅️️   | HMI Sound Operating System                   |
+| hmp  | .hmp      | reader    | ✅️   ️ | HMI Sound Operating System                   |
+| mus  | .mus      | reader    | ✅️  ️  | DMX sound system / Doom engine               |
+| xmi  | .xmi      | reader    | ✅️  ️  | Miles Sound System / Audio Interface Library |
 |      |           |           |        |                                              |
-| ail  | .ad, .opl | soundfont |        | Miles Sound System / Audio Interface Library |
+| ail  | .ad, .opl | soundfont |   ✅️   | Miles Sound System / Audio Interface Library |
 | op2  | .op2      | soundfont |   ✅️   | DMX sound system / Doom engine               |
 | tmb  | .tmb      | soundfont |   ✅️   | Apogee Sound System                          |
 | wopl | .wopl     | soundfont |   ✅️   | Wohlstand OPL3 editor                        |
@@ -32,8 +32,8 @@
 
 ## TODO
 
- * sequence x4
- * sequencer x4
- * soundfont x4
+ * ~~sequence x4~~
+ * ~~sequencer x4~~ ... convert to midi
+ * ~~soundfont x4~~
  * synthesizer <- soundfont
- * ail sample
+ * ~~ail sample~~
