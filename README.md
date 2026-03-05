@@ -111,7 +111,8 @@ $ ./vgmrender input.vgz -o out.wav
    * ~~F278B fm ok, others not sounds? ... same as libvgm~~
  * ~~separate the vgm parser from the input stream~~
  * ~~midi spi (wip)~~
-   * make other sequences and patch loaders work 
+   * ~~make other sequences and patch loaders work~~ 
+   * MidMidiFileReader for RMF
 
 ----
 

@@ -33,7 +33,9 @@
 package vavi.sound.midi.ymfm;
 
 import java.util.Arrays;
+import java.util.function.Consumer;
 import javax.sound.midi.InvalidMidiDataException;
+import javax.sound.midi.MidiEvent;
 
 import vavi.util.ByteUtil;
 
@@ -62,7 +64,6 @@ public class HmiSequence extends MidSequence {
                     if (m_pos + 7 >= m_size)
                         return false;
 
-                    if (m_pos + 2 >= m_size) return false;
                     m_pos += (m_data[m_pos + 2] & 0xFF) + 7;
                 } else if (data == 0x12)
                     m_pos += 2;
@@ -70,7 +71,7 @@ public class HmiSequence extends MidSequence {
                     m_pos += 10;
                 else if (data == 0x14) // loop start
                     m_pos += 2;
-                else if (data == 0x15) // loop end
+                else if (m_pos == 0x15) // loop end
                     m_pos += 6;
                 else
                     return false;
@@ -78,6 +79,36 @@ public class HmiSequence extends MidSequence {
                 return m_pos < m_size;
             } else {
                 return super.metaEvent(player);
+            }
+        }
+
+        @Override
+        protected boolean convertMetaEvent(Consumer<MidiEvent> consumer, long tick) throws InvalidMidiDataException {
+            if (m_status == (byte) 0xFE) {
+                if (m_pos >= m_size) {
+                    return false;
+                }
+                byte data = m_data[m_pos++];
+
+                if (data == 0x10) {
+                    if (m_pos + 7 >= m_size)
+                        return false;
+
+                    m_pos += (m_data[m_pos + 2] & 0xFF) + 7;
+                } else if (data == 0x12)
+                    m_pos += 2;
+                else if (data == 0x13)
+                    m_pos += 10;
+                else if (data == 0x14) // loop start
+                    m_pos += 2;
+                else if (m_pos == 0x15) // loop end
+                    m_pos += 6;
+                else
+                    return false;
+
+                return m_pos < m_size;
+            } else {
+                return super.convertMetaEvent(consumer, tick);
             }
         }
     }

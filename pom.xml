@@ -3,7 +3,7 @@
 
   <groupId>vavi</groupId>
   <artifactId>vavi-sound-ymfm</artifactId>
-  <version>0.0.12</version>
+  <version>0.0.13</version>
 
   <profiles>
     <profile>
@@ -87,7 +87,7 @@
       <dependency>
         <groupId>org.junit</groupId>
         <artifactId>junit-bom</artifactId>
-        <version>5.14.1</version>
+        <version>6.0.2</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -98,13 +98,13 @@
     <dependency>
       <groupId>com.github.umjammer</groupId> <!-- vavi / com.github.umjammer -->
       <artifactId>vavi-util-serdes</artifactId>
-      <version>1.0.11</version>
+      <version>1.0.12</version>
     </dependency>
 
     <dependency>
       <groupId>com.github.umjammer</groupId> <!-- vavi / com.github.umjammer -->
       <artifactId>vavi-util-archive</artifactId>
-      <version>1.1.9</version>
+      <version>1.1.10</version>
     </dependency>
 
     <dependency>

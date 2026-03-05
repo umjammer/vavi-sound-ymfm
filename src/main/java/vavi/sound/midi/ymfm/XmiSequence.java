@@ -34,6 +34,7 @@ package vavi.sound.midi.ymfm;
 
 import java.nio.charset.StandardCharsets;
 import javax.sound.midi.InvalidMidiDataException;
+import javax.sound.midi.Track;
 
 import vavi.util.ByteUtil;
 
@@ -92,7 +93,7 @@ public class XmiSequence extends MidSequence {
 
     /** */
     public void setTimePerBeat(long usec) {
-        double usecPerTick = (double) usec / ((usec * 3.0) / 25000.0);
+        double usecPerTick = (double) usec / ((usec * 3) / 25000);
         m_ticksPerSec = 1000000.0 / usecPerTick;
     }
 
@@ -186,5 +187,45 @@ public class XmiSequence extends MidSequence {
         }
 
         return 0;
+    }
+
+    @Override
+    public int numSongs() {
+        return 1;
+    }
+
+    @Override
+    public long update(OplPlayer player) {
+        long tickDelay = 0xffff_ffffL; // UINT_MAX;
+
+        boolean tracksAtEnd = true;
+
+        if (m_songNum < m_tracks.size()) {
+            tickDelay = m_tracks.get(m_songNum).update(player);
+            tracksAtEnd = m_tracks.get(m_songNum).atEnd();
+        }
+
+        if (tracksAtEnd) {
+            reset();
+            m_atEnd = true;
+            return 0;
+        }
+
+        m_atEnd = false;
+
+        for (MIDTrack track : m_tracks)
+            track.advance((int) tickDelay);
+
+        double samplesPerTick = player.sampleRate() / m_ticksPerSec;
+
+        return Math.round(tickDelay * samplesPerTick);
+    }
+
+    @Override
+    public void convert() throws InvalidMidiDataException {
+        if (m_songNum < m_tracks.size()) {
+            Track newTrack = createTrack();
+            m_tracks.get(m_songNum).convert(newTrack::add);
+        }
     }
 }
