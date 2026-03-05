@@ -294,6 +294,16 @@ public class MidSequence extends OplSequence {
 
                 switch (status >> 4) {
                     case 9: // note on
+                        data[0] = m_data[m_pos++];
+                        data[1] = m_data[m_pos++];
+                        consumer.accept(new MidiEvent(new ShortMessage(status, data[0] & 0x7f, data[1] & 0x7f), tick));
+                        
+                        if (m_useNoteDuration) {
+                            int duration = readVLQ();
+                            consumer.accept(new MidiEvent(new ShortMessage(0x80 | (status & 0x0f), data[0] & 0x7f, 0), tick + duration));
+                        }
+                        break;
+
                     case 8:  // note off
                     case 10: // polyphonic pressure
                     case 11: // controller change
@@ -310,40 +320,56 @@ public class MidSequence extends OplSequence {
                         break;
 
                     case 15: // sysex / meta event
-                        if (status != 0xff) {
-                            int len = readVLQ();
-                            if (m_pos + len <= m_size) {
-                                if (status == 0xf0 || status == 0xf7) {
-                                    byte[] sysexData = Arrays.copyOfRange(m_data, m_pos, m_pos + len);
-                                    consumer.accept(new MidiEvent(new SysexMessage(status, sysexData, len), tick));
-                                }
-                            }
-                            m_pos += len;
-                        } else {
-                            if (m_pos >= m_size) {
-                                break;
-                            }
-
-                            byte d = m_data[m_pos++];
-                            int len = readVLQ();
-
-                            if (m_pos + len <= m_size) {
-                                byte[] metaData = Arrays.copyOfRange(m_data, m_pos, m_pos + len);
-                                consumer.accept(new MidiEvent(new MetaMessage(d & 0xff, metaData, len), tick));
-
-                                // tempo change
-                                if ((d & 0xff) == 0x51) {
-                                    m_tempo = ByteUtil.readBe24(m_data, m_pos);
-                                    logger.log(Level.DEBUG, "tempo: " + m_tempo);
-                                }
-                            }
-                            m_pos += len;
+                        if (!convertMetaEvent(consumer, tick)) {
+                            m_atEnd = true;
+                            return;
                         }
                         break;
                 }
 
                 tick += readDelay();
             }
+        }
+
+        /** */
+        protected boolean convertMetaEvent(Consumer<MidiEvent> consumer, long tick) throws InvalidMidiDataException {
+            int len;
+            int status = m_status & 0xff;
+
+            if (status != 0xff) {
+                len = readVLQ();
+                if (m_pos + len <= m_size) {
+                    if (status == 0xf0 || status == 0xf7) {
+                        byte[] sysexData = Arrays.copyOfRange(m_data, m_pos, m_pos + len);
+                        consumer.accept(new MidiEvent(new SysexMessage(status, sysexData, len), tick));
+                    }
+                } else {
+                    return false;
+                }
+            } else {
+                if (m_pos >= m_size) {
+                    return false;
+                }
+
+                byte d = m_data[m_pos++];
+                len = readVLQ();
+
+                if (m_pos + len <= m_size) {
+                    byte[] metaData = Arrays.copyOfRange(m_data, m_pos, m_pos + len);
+                    consumer.accept(new MidiEvent(new MetaMessage(d & 0xff, metaData, len), tick));
+
+                    // tempo change
+                    if ((d & 0xff) == 0x51) {
+                        m_tempo = ByteUtil.readBe24(m_data, m_pos);
+                        logger.log(Level.DEBUG, "tempo: " + m_tempo);
+                    }
+                } else {
+                    return false;
+                }
+            }
+
+            m_pos += len;
+            return true;
         }
     }
 
@@ -496,10 +522,7 @@ logger.log(Level.DEBUG, "default resolution: " + this.resolution);
 
     @Override
     public int numSongs() {
-        if (m_type != 2)
-            return 1;
-        else
-            return m_tracks.size();
+        return m_tracks.size();
     }
 
     @Override
@@ -508,16 +531,11 @@ logger.log(Level.DEBUG, "default resolution: " + this.resolution);
 
         boolean tracksAtEnd = true;
 
-        if (m_type != 2) {
-            for (MIDTrack track : m_tracks) {
-                if (!track.atEnd()) {
-                    tickDelay = Math.min(tickDelay, track.update(player));
-                }
-                tracksAtEnd &= track.atEnd();
+        for (MIDTrack track : m_tracks) {
+            if (!track.atEnd()) {
+                tickDelay = Math.min(tickDelay, track.update(player));
             }
-        } else if (m_songNum < m_tracks.size()) {
-            tickDelay = m_tracks.get(m_songNum).update(player);
-            tracksAtEnd = m_tracks.get(m_songNum).atEnd();
+            tracksAtEnd &= track.atEnd();
         }
 
         if (tracksAtEnd) {

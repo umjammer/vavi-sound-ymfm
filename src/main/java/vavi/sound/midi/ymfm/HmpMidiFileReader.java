@@ -36,7 +36,7 @@ public class HmpMidiFileReader extends MidiFileReader {
     @Override
     public MidiFileFormat getMidiFileFormat(InputStream stream) throws InvalidMidiDataException, IOException {
         if (HmpSequence.isValid(stream.readAllBytes()))
-            return new MidiFileFormat(3, Sequence.PPQ, 48, UNKNOWN_LENGTH, UNKNOWN_LENGTH); // TODO type, resolution
+            return new MidiFileFormat(1, Sequence.PPQ, 48, UNKNOWN_LENGTH, UNKNOWN_LENGTH); // TODO type, resolution
         else
             throw new InvalidMidiDataException();
     }
