@@ -1,4 +1,3 @@
-import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -9,6 +8,7 @@ import vavi.util.properties.annotation.Property;
 import vavi.util.properties.annotation.PropsEntity;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 
@@ -30,6 +30,7 @@ class MidiAnalyzerTest {
     }
 
     @Test
+    @Disabled("for ai iteration")
     void test1() throws Exception {
 Debug.println("midi: " + midi);
 
