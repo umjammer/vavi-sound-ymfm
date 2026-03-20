@@ -16,7 +16,6 @@ import javax.sound.midi.MidiSystem;
 import javax.sound.midi.Sequence;
 import javax.sound.midi.Sequencer;
 import javax.sound.midi.Synthesizer;
-import javax.sound.midi.Track;
 
 import vavi.sound.midi.MidiConstants;
 import vavi.util.Debug;
