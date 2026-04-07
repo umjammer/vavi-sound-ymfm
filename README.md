@@ -1,7 +1,7 @@
 [![Release](https://jitpack.io/v/umjammer/vavi-sound-ymfm.svg)](https://jitpack.io/#umjammer/vavi-sound-ymfm)
 [![Java CI](https://github.com/umjammer/vavi-sound-ymfm/actions/workflows/maven.yml/badge.svg)](https://github.com/umjammer/vavi-sound-ymfm/actions/workflows/maven.yml)
 [![CodeQL](https://github.com/umjammer/vavi-sound-ymfm/actions/workflows/codeql.yml/badge.svg)](https://github.com/umjammer/vavi-sound-ymfm/actions/workflows/codeql.yml)
-![Java](https://img.shields.io/badge/Java-21-b07219)
+![Java](https://img.shields.io/badge/Java-25-b07219)
 
 # vavi-sound-ymfm
 
@@ -49,10 +49,7 @@ this is a fork of [ymfm](https://github.com/aaronsgiles/ymfm)
 ### system property
 
  * \[YM2608] `mdsound.pcm.path` ... `ym2608_adpcm_rom.bin` location
-
-### raw api
-
- * [sample](src/test/java/TestCase.java)
+ * `vavi.sound.sampled.spi.ymfm` ... this conversion provider enabled or not, default `true`
 
 ### sampled spi
 
@@ -77,6 +74,10 @@ sequencer.setSequence(sequence);
 sequencer.start();
 ```
 
+### raw api
+
+* [sample](src/test/java/TestCase.java)
+
 ### original
 
 ```shell
@@ -95,6 +96,8 @@ $ ./vgmrender input.vgz -o out.wav
  * https://github.com/devinacker/ymfmidi
  * https://opl.wafflenet.com/
  * https://github.com/Wohlstand/OPL3BankEditor
+ * https://soundprogramming.net/electronics/yamaha-sound-chips/
+ * https://w.atwiki.jp/matomerutokoro/pages/95.html
 
 ## TODO
 
@@ -113,6 +116,9 @@ $ ./vgmrender input.vgz -o out.wav
  * ~~midi spi (wip)~~
    * ~~make other sequences and patch loaders work~~ 
    * MidMidiFileReader for RMF
+   * `97071400.mid` stops sounding in the middle
+ * ~~off vgm spi by system property~~
+   * ~~it's better to return empty at `FormatConversionProvider#getTargetFormats`?~~
 
 ----
 
