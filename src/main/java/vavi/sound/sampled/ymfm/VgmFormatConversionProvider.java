@@ -7,6 +7,8 @@
 package vavi.sound.sampled.ymfm;
 
 import java.io.IOException;
+import java.lang.System.Logger;
+import java.lang.System.Logger.Level;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioFormat.Encoding;
 import javax.sound.sampled.AudioInputStream;
@@ -18,11 +20,16 @@ import static javax.sound.sampled.AudioSystem.NOT_SPECIFIED;
 
 /**
  * VgmFormatConversionProvider.
- *
+ * <p>
+ * system property
+ * <li>{@code vavi.sound.sampled.spi.ymfm} ... this conversion provider enabled or not, default {@code true}</li>
+ * </p>
  * @author <a href="mailto:umjammer@gmail.com">Naohide Sano</a> (nsano)
  * @version 0.00 250909 nsano initial version <br>
  */
 public class VgmFormatConversionProvider extends FormatConversionProvider {
+
+    private static final Logger logger = System.getLogger(VgmFormatConversionProvider.class.getName());
 
     @Override
     public Encoding[] getSourceEncodings() {
@@ -46,13 +53,18 @@ public class VgmFormatConversionProvider extends FormatConversionProvider {
     @Override
     public AudioFormat[] getTargetFormats(Encoding targetEncoding, AudioFormat sourceFormat) {
         if (sourceFormat.getEncoding() instanceof VgmEncoding && targetEncoding.equals(PCM_SIGNED)) {
-            return new AudioFormat[] {
-                new AudioFormat(sourceFormat.getSampleRate(),
+            if (Boolean.parseBoolean(System.getProperty("vavi.sound.sampled.spi.ymfm", "true"))) {
+                return new AudioFormat[] {
+                        new AudioFormat(sourceFormat.getSampleRate(),
                                 16,             // sample size in bits
                                 sourceFormat.getChannels(),
                                 true,                  // signed
                                 false)                        // little endian (for PCM wav)
-            };
+                };
+            } else {
+logger.log(Level.DEBUG, "conversion spi disabled by system property.");
+                return new AudioFormat[0];
+            }
         } else {
             return new AudioFormat[0];
         }

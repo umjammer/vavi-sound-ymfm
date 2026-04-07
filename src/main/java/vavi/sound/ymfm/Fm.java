@@ -910,8 +910,8 @@ abstract class Fm {
          */
         public final void output_2op(YmFm.Output output, int rShift, int clipMax) {
             // The first 2 operators should be populated
-            assert (m_op[0] != null);
-            assert (m_op[1] != null);
+            assert m_op[0] != null : "m_op[0] is null";
+            assert m_op[1] != null : "m_op[1] is null";
 
             // AM amount is the same across all operators; compute it once
             int am_offset = m_regs.lfo_am_offset(m_choffs);
@@ -958,10 +958,10 @@ abstract class Fm {
          */
         public final void output_4op(YmFm.Output output, int rShift, int clipMax) {
             // all 4 operators should be populated
-            assert (m_op[0] != null);
-            assert (m_op[1] != null);
-            assert (m_op[2] != null);
-            assert (m_op[3] != null);
+            assert m_op[0] != null : "m_op[0] is null";
+            assert m_op[1] != null : "m_op[1] is null";
+            assert m_op[2] != null : "m_op[2] is null";
+            assert m_op[3] != null : "m_op[3] is null";
 
             // AM amount is the same across all operators; compute it once
             int am_offset = m_regs.lfo_am_offset(m_choffs);
@@ -1104,7 +1104,7 @@ abstract class Fm {
         /** Are we a 4-operator channel or a 2-operator one? */
         public final boolean is4op() {
             if ((boolean) m_regs.getParams().get("DYNAMIC_OPS"))
-                return (m_op[2] != null);
+                return m_op[2] != null;
             return ((int) m_regs.getParams().get("OPERATORS") / (int) m_regs.getParams().get("CHANNELS")) == 4;
         }
 
