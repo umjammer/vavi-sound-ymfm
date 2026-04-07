@@ -69,6 +69,10 @@ public class VgmAudioFileReader extends AudioFileReader {
      * @exception IOException if an I/O exception occurs.
      */
     protected static AudioFileFormat getAudioFileFormat(InputStream bitStream, int mediaLength) throws UnsupportedAudioFileException, IOException {
+        if (!Boolean.parseBoolean(System.getProperty("vavi.sound.sampled.spi.ymfm", "true"))) {
+logger.log(Level.DEBUG, "reader spi disabled by system property.");
+            throw new UnsupportedAudioFileException("spi disabled by system property.");
+        }
         InputStream is;
         try {
             bitStream.mark(1024); // using 1024 because of Archives#getInputStream() brakes mark/reset (consumes 522 bytes)
