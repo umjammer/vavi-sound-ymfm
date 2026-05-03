@@ -3,7 +3,7 @@
 
   <groupId>vavi</groupId>
   <artifactId>vavi-sound-ymfm</artifactId>
-  <version>0.0.14</version>
+  <version>0.0.15</version>
 
   <profiles>
     <profile>
