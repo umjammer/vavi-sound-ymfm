@@ -104,13 +104,13 @@
     <dependency>
       <groupId>com.github.umjammer</groupId> <!-- vavi / com.github.umjammer -->
       <artifactId>vavi-util-archive</artifactId>
-      <version>1.1.10</version>
+      <version>1.1.12</version>
     </dependency>
 
     <dependency>
       <groupId>com.github.umjammer</groupId> <!-- com.github.umjammer / vavi -->
       <artifactId>vavi-sound</artifactId>
-      <version>1.0.23</version>
+      <version>1.0.24</version>
     </dependency>
 
     <dependency>

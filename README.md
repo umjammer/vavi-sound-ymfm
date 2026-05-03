@@ -51,6 +51,12 @@ this is a fork of [ymfm](https://github.com/aaronsgiles/ymfm)
  * \[YM2608] `mdsound.pcm.path` ... `ym2608_adpcm_rom.bin` location
  * `vavi.sound.sampled.spi.ymfm` ... this conversion provider enabled or not, default `true`
 
+### jvm option
+
+```
+--add-exports java.desktop/com.sun.media.sound=ALL-UNNAMED
+```
+
 ### sampled spi
 
 ```java
