@@ -19,8 +19,6 @@ import javax.sound.midi.MidiFileFormat;
 import javax.sound.midi.Sequence;
 import javax.sound.midi.spi.MidiFileReader;
 
-import vavi.sound.midi.BasicMidiFileReader;
-
 import static java.lang.System.getLogger;
 import static javax.sound.midi.MidiFileFormat.UNKNOWN_LENGTH;
 
@@ -33,7 +31,7 @@ import static javax.sound.midi.MidiFileFormat.UNKNOWN_LENGTH;
  */
 public class HmiMidiFileReader extends MidiFileReader {
 
-    private static final Logger logger = getLogger(BasicMidiFileReader.class.getName());
+    private static final Logger logger = getLogger(HmiMidiFileReader.class.getName());
 
     @Override
     public MidiFileFormat getMidiFileFormat(InputStream stream) throws InvalidMidiDataException, IOException {
