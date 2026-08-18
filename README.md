@@ -5,7 +5,7 @@
 
 # vavi-sound-ymfm
 
-<img alt="yamaha logo" src="https://github.com/user-attachments/assets/93abfce7-45f3-478b-b48f-6a68302fcc92" width="160"> &nbsp;&nbsp;&nbsp;<sub>© YAMAHA Corporation</sub>
+<img alt="logo" src="src/test/resources/duke_bike.png" width="160">
 
 Yamaha FM sound cores Java sound SPI (OPM, OPN, OPL, and others).
 
@@ -55,6 +55,8 @@ this is a fork of [ymfm](https://github.com/aaronsgiles/ymfm)
 
 ```
 --add-exports java.desktop/com.sun.media.sound=ALL-UNNAMED
+--add-opens java.base/java.io=ALL-UNNAMED
+--add-opens java.base/sun.nio.ch=ALL-UNNAMED
 ```
 
 ### sampled spi
@@ -252,3 +254,7 @@ And chips with extended addressing may also have `read_status_hi()` and `read_da
 
 For writes, almost all chips have an address register and a data register, and so you can reliably count on there being a `write_address()` and `write_data()` method as well.
 If the chip supports extended addressing, it may also have `write_address_hi()` and `write_data_hi()`.
+
+---
+
+<sub>image designed by @umjammer, drawn by nano banana</sub>

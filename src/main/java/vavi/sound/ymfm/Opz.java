@@ -289,6 +289,7 @@ public abstract class Opz {
                 m_lfo_waveform[2][index] = am | (pm << 8);
 
                 // waveform 3 is noise; it is filled in dynamically
+                m_lfo_waveform[3][index] = 0;
             }
         }
 
@@ -298,6 +299,7 @@ public abstract class Opz {
         @Override
         public void reset() {
             Arrays.fill(m_regdata, 0, REGISTERS, 0);
+            Arrays.fill(m_phase_substep, 0, OPERATORS, 0);
 
             // enable output on both channels by default
             m_regdata[0x30] = m_regdata[0x31] = m_regdata[0x32] = m_regdata[0x33] = 0x01;

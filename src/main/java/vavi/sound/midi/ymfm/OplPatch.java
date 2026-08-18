@@ -38,7 +38,7 @@ package vavi.sound.midi.ymfm;
  */
 public class OplPatch {
 
-    // one carrier/modulator pair in a patch, out of a possible two
+    /** one carrier/modulator pair in a patch, out of a possible two */
     public static class PatchVoice {
 
         // regs 0x20+

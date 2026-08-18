@@ -88,7 +88,7 @@ public abstract class Opl {
     //
     //      System-wide registers:
     //           01 xxxxxxxx Test register
-    //              --x----- Enable OPL compatibility mode [OPL2 only] (1 = enable)
+    //              --x----- Enable OPL compatibility mode [OPL2 only] (0 = enable)
     //           02 xxxxxxxx Timer A value (4 * OPN)
     //           03 xxxxxxxx Timer B value
     //           04 x------- RST
@@ -796,7 +796,7 @@ public abstract class Opl {
         }
 
         public final int op_waveform(int opOffs) {
-            return IsOpl2Plus ? byte_(0xe0, 0, newFlag() != 0 ? 3 : 2, opOffs) : 0;
+            return waveform_enable() == 1 ? byte_(0xe0, 0, newFlag() != 0 ? 3 : 2, opOffs) : 0;
         }
 
         /** Returns a bitfield extracted from a byte */
