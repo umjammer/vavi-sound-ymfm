@@ -10,6 +10,7 @@ import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import javax.sound.midi.Instrument;
@@ -82,12 +83,28 @@ logger.log(Level.DEBUG, "no instrument for: " + patch);
         return null;
     }
 
+    /** original data backup */
     Map<Integer, OplPatch> patches = new HashMap<>();
 
     /** */
     public void addInstrument(int bank, int program, String name, OplPatch data) {
         patches.put(program, data);
         instruments.add(new YmfmInstrument(bank, program, data.voice[0])); // TODO
+    }
+
+    @SuppressWarnings("WhileLoopReplaceableByForEach")
+    public void setInstrument(Patch patch, Instrument newInstrument) {
+        Iterator<Instrument> i = instruments.iterator();
+        while (i.hasNext()) {
+            Instrument instrument = i.next();
+            if (instrument.getPatch().getProgram() == patch.getProgram() &&
+                    instrument.getPatch().getBank() == patch.getBank()) {
+logger.log(Level.DEBUG, "remove already exists: " + patch);
+                instruments.remove(instrument);
+            }
+        }
+logger.log(Level.DEBUG, "add: " + patch);
+        instruments.add(newInstrument);
     }
 
     /** */
