@@ -62,20 +62,29 @@ this is a fork of [ymfm](https://github.com/aaronsgiles/ymfm)
 ### sampled spi
 
 ```java
-AudioInputStream ais = AudioSystem.getAudioInputStream(Paths.get(vgm).toFile());
-Clip clip = AudioSystem.getClip();
-clip.open(AudioSystem.getAudioInputStream(new AudioFormat(44100, 16, 2, true, false), ais));
-clip.loop(Clip.LOOP_CONTINUOUSLY);
+var ymfmAis = AudioSystem.getAudioInputStream(new BufferedInputStream(Files.newInputStream(vgm)));
+var inFormat = sourceAis.getFormat();
+var outFormat = new AudioFormat(44100, 16, 2, true, false);
+var pcmAis = AudioSystem.getAudioInputStream(outFormat, ymfmAis);
+var line = (SourceDataLine) AudioSystem.getLine(new DataLine.Info(SourceDataLine.class, pcmAis.getFormat()));
+line.open(pcmAis.getFormat());
+line.start();
+var buffer = new byte[line.getBufferSize()];
+int bytesRead;
+while ((bytesRead = pcmAis.read(buffer)) != -1) {
+  line.write(buffer, 0, bytesRead);
+}
+line.drain();
 ```
 
 ### midi spi
 
 ```java
 System.setProperty("javax.sound.midi.Synthesizer", "#YmFm OPL3 MIDI Synthesizer");
-Sequence sequence = MidiSystem.getSequence(new BufferedInputStream(Files.newInputStream(Paths.get(midi))));
-Sequencer sequencer = MidiSystem.getSequencer(false);
+var sequence = MidiSystem.getSequence(new BufferedInputStream(Files.newInputStream(Paths.get(midi))));
+var sequencer = MidiSystem.getSequencer(false);
 sequencer.open();
-Synthesizer synthesizer = MidiSystem.getSynthesizer();
+var synthesizer = MidiSystem.getSynthesizer();
 synthesizer.open();
 sequencer.getTransmitter().setReceiver(synthesizer.getReceiver());
 sequencer.setSequence(sequence);
@@ -106,6 +115,8 @@ $ ./vgmrender input.vgz -o out.wav
  * https://github.com/Wohlstand/OPL3BankEditor
  * https://soundprogramming.net/electronics/yamaha-sound-chips/
  * https://w.atwiki.jp/matomerutokoro/pages/95.html
+ * https://github.com/denjhang/YM7129_wuqi
+ * https://github.com/denjhang/ymf825emu
 
 ## TODO
 
